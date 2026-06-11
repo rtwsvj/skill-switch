@@ -3,7 +3,16 @@
 //   S2.4 持久化 + 全局文件篡改(自写)。
 // 每条规则的 source 字段必须注明 ags SECURITY.md 章节或自写依据。
 import type { AuditRule } from '../src/core/audit/types.ts';
+import { clickfixRules } from './clickfix.ts';
+import { destructiveRules } from './destructive.ts';
 import { exfiltrationRules } from './exfiltration.ts';
 import { reverseShellRules } from './reverse-shell.ts';
+import { stagedRules } from './staged.ts';
 
-export const allRules: AuditRule[] = [...exfiltrationRules, ...reverseShellRules];
+export const allRules: AuditRule[] = [
+  ...exfiltrationRules,
+  ...reverseShellRules,
+  ...destructiveRules,
+  ...clickfixRules,
+  ...stagedRules,
+];
