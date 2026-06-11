@@ -1,13 +1,13 @@
 import { Command } from 'commander';
+import { registerScanCommand } from './commands/scan.ts';
 
 interface SubcommandSpec {
   name: string;
   description: string;
 }
 
-// 子命令占位与 docs/ROADMAP.md 的切片一一对应,实现随各切片落地。
+// 未实现的子命令占位,与 docs/ROADMAP.md 切片一一对应,实现随切片落地后移出此表。
 const SUBCOMMANDS: SubcommandSpec[] = [
-  { name: 'scan', description: '盘点各 agent 已安装的 skill(S1)' },
   { name: 'audit', description: '装前/存量 skill 安全体检(S2)' },
   { name: 'install', description: '安装 skill 并写入 skills.lock(S3)' },
   { name: 'lock', description: '查看/重建项目级 skills.lock(S3)' },
@@ -23,6 +23,8 @@ export function buildProgram(): Command {
   program
     .description('跨 Agent skill 治理工具(治理层,与各家 CRUD 工具共存分工)')
     .option('--home <dir>', '覆盖 home 根目录(默认取系统 home;测试与演练请指向假目录)');
+
+  registerScanCommand(program);
 
   for (const spec of SUBCOMMANDS) {
     program
