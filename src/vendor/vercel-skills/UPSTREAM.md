@@ -11,10 +11,20 @@
 | `src/agents.ts` | `agents.ts`(749 行) | 71 个 agent 的目录映射表 + `detectInstalledAgents()` 等 |
 | `src/types.ts` | `types.ts`(128 行) | `AgentType`/`AgentConfig`/`Skill` 等类型 |
 | `src/constants.ts` | `constants.ts`(3 行) | `.agents/skills` 通用目录常量 |
+| `src/git.ts` | `git.ts`(261 行) | shallow clone + ref + gh 回退,GitHub url 解析(S3.2,方案 A) |
+| `src/source-parser.ts` | `source-parser.ts`(438 行) | github/owner-repo/subpath 多源解析(S3.2) |
+| `src/local-lock.ts` | `local-lock.ts`(182 行) | 项目级锁:skillPath + sha256 内容哈希,设计为提交进版本库(S3.2) |
+
+S3.2 采用**方案 A(最小 vendor)**:只取 git/source-parser/local-lock 三件,不整体 vendor
+`installer.ts`(其 import 闭包另含 @clack/prompts 交互式 UI、plugin-manifest、add/sync 命令层
+与 picocolors——与 CI 定位冲突)。install 编排由 skill-switch 自写(S3.3)。
 
 ## 本地改动
 
-无(逐字节快照)。
+- `git.ts` 两处(仅为适配 simple-git v3.36.0 + NodeNext/tsc,语义不变,均在文件内就地注释):
+  1. 默认导入 `import simpleGit from 'simple-git'` → 具名导入 `import { simpleGit } from 'simple-git'`(tsc 不认 CJS 默认导出可调用)。
+  2. `simpleGit({ …, env })` 的 `env` 选项 → 链式 `.env({…})`(v3.36.0 的 SimpleGitOptions 不含 env,经实例方法设置)。
+- 其余文件:逐字节快照。
 
 ## 有意未快照
 

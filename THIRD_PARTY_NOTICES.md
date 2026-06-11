@@ -6,7 +6,7 @@
 
 | 来源 | License | 快照 commit | 说明 |
 |---|---|---|---|
-| [vercel-labs/skills](https://github.com/vercel-labs/skills) | MIT(声明于上游 package.json,上游无独立 LICENSE 文件) | `be0dd25b` | agent 映射表与类型(`src/vendor/vercel-skills/`) |
+| [vercel-labs/skills](https://github.com/vercel-labs/skills) | MIT(声明于上游 package.json,上游无独立 LICENSE 文件) | `be0dd25b` | agent 映射表与类型 + git/source-parser/local-lock(`src/vendor/vercel-skills/`;git.ts 有两处 simple-git 适配改动,见 UPSTREAM.md) |
 | [Karanjot786/agent-skills-cli](https://github.com/Karanjot786/agent-skills-cli) | MIT | `956140bf` | 冲突检测、上下文预算、lock 设计(`src/vendor/agent-skills-cli/`) |
 
 ## 规则/思路移植(非代码复制)
