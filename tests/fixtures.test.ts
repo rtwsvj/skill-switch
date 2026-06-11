@@ -30,7 +30,8 @@ describe('fixtures: home-basic', () => {
       join(HOME_BASIC, '.claude/skills/broken-frontmatter/SKILL.md'),
       'utf8',
     );
-    expect(() => matter(raw)).toThrow();
+    // 空 options 绕过 gray-matter 全局缓存,保证重复断言稳定抛错(见 scan.ts 注释)
+    expect(() => matter(raw, {})).toThrow();
   });
 
   it('mismatched-name sample declares a name different from its directory', () => {
