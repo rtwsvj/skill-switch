@@ -1,0 +1,26 @@
+{
+  "name": "skill-switch",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "跨 Agent skill 治理 CLI:盘点、安全体检、锁定、开关、lint、漂移与使用统计",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "cli": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "gray-matter": "^4.0.3",
+    "xdg-basedir": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
