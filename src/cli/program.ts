@@ -20,7 +20,9 @@ const SUBCOMMANDS: SubcommandSpec[] = [
 
 export function buildProgram(): Command {
   const program = new Command('skill-switch');
-  program.description('跨 Agent skill 治理工具(治理层,与各家 CRUD 工具共存分工)');
+  program
+    .description('跨 Agent skill 治理工具(治理层,与各家 CRUD 工具共存分工)')
+    .option('--home <dir>', '覆盖 home 根目录(默认取系统 home;测试与演练请指向假目录)');
 
   for (const spec of SUBCOMMANDS) {
     program

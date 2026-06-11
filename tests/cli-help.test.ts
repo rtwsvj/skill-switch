@@ -22,6 +22,11 @@ describe('cli program', () => {
     }
   });
 
+  it('exposes a global --home override (S1.2)', () => {
+    const program = buildProgram();
+    expect(program.helpInformation()).toContain('--home <dir>');
+  });
+
   it('exposes a name and description for --help output', () => {
     const program = buildProgram();
     expect(program.name()).toBe('skill-switch');
