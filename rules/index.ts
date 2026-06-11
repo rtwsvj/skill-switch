@@ -6,6 +6,8 @@ import type { AuditRule } from '../src/core/audit/types.ts';
 import { clickfixRules } from './clickfix.ts';
 import { destructiveRules } from './destructive.ts';
 import { exfiltrationRules } from './exfiltration.ts';
+import { globalTamperRules } from './global-tamper.ts';
+import { persistenceRules } from './persistence.ts';
 import { reverseShellRules } from './reverse-shell.ts';
 import { stagedRules } from './staged.ts';
 
@@ -15,4 +17,6 @@ export const allRules: AuditRule[] = [
   ...destructiveRules,
   ...clickfixRules,
   ...stagedRules,
+  ...persistenceRules,
+  ...globalTamperRules,
 ];
