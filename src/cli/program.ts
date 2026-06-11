@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { registerAuditCommand } from './commands/audit.ts';
+import { registerInstallCommand } from './commands/install.ts';
 import { registerScanCommand } from './commands/scan.ts';
 
 interface SubcommandSpec {
@@ -9,7 +10,6 @@ interface SubcommandSpec {
 
 // 未实现的子命令占位,与 docs/ROADMAP.md 切片一一对应,实现随切片落地后移出此表。
 const SUBCOMMANDS: SubcommandSpec[] = [
-  { name: 'install', description: '安装 skill 并写入 skills.lock(S3)' },
   { name: 'lock', description: '查看/重建项目级 skills.lock(S3)' },
   { name: 'toggle', description: '按声明开关 skill 与 preset 同步(S4)' },
   { name: 'lint', description: '规范校验与跨 agent 移植告警(S5)' },
@@ -26,6 +26,7 @@ export function buildProgram(): Command {
 
   registerScanCommand(program);
   registerAuditCommand(program);
+  registerInstallCommand(program);
 
   for (const spec of SUBCOMMANDS) {
     program

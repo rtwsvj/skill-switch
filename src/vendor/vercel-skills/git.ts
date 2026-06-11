@@ -101,10 +101,15 @@ function isAuthFailure(message: string): boolean {
 }
 
 function createGitClient(extraEnv?: NodeJS.ProcessEnv) {
-  // [skill-switch 本地改动] 上游把 `env` 放进 simpleGit() 构造选项;v3.36.0 的
-  // SimpleGitOptions 不含 env(经 .env() 实例方法设置),故下移为链式 .env(...)。语义等价。见 UPSTREAM.md。
-  return simpleGit({
+  // [skill-switch 本地改动 ×2] 上游锁 simple-git ^3.27;本仓库用 3.36:
+  // 1) `env` 不再是构造选项 → 下移为链式 .env(...)(语义等价);
+  // 2) 3.3x 给 filter.* config 加了安全守卫,会在调用 git 前抛
+  //    "Configuring filter.smudge is not permitted without enabling allowUnsafeFilter"。
+  //    下面的 filter.lfs.* 是上游有意传入的 LFS 规避配置,故显式放行;
+  //    typings 未暴露 unsafe 选项,经 Parameters<> 断言传入。见 UPSTREAM.md。
+  const options = {
     timeout: { block: CLONE_TIMEOUT_MS },
+    unsafe: { allowUnsafeFilter: true },
     // When git-lfs is NOT installed, GIT_LFS_SKIP_SMUDGE has no effect —
     // git sees `filter=lfs` in .gitattributes, tries to run
     // `git-lfs filter-process`, and aborts the checkout with:
@@ -124,14 +129,21 @@ function createGitClient(extraEnv?: NodeJS.ProcessEnv) {
       'filter.lfs.clean=',
       'filter.lfs.process=',
     ],
-  }).env({
+  };
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     GIT_TERMINAL_PROMPT: '0',
     // When git-lfs IS installed, tell it not to download LFS content
     // during checkout. See #952 for context and empirical impact.
     GIT_LFS_SKIP_SMUDGE: '1',
     ...extraEnv,
-  });
+  };
+  // [skill-switch 本地改动] simple-git 3.3x 安全守卫不允许向子进程传 GIT_EDITOR
+  // 等编辑器变量(宿主环境如 Claude Code 会注入)。克隆是非交互操作用不到编辑器,剥离即可。
+  delete env.GIT_EDITOR;
+  delete env.GIT_SEQUENCE_EDITOR;
+  delete env.VISUAL;
+  return simpleGit(options as Parameters<typeof simpleGit>[0]).env(env);
 }
 
 async function resetTempDir(dir: string): Promise<void> {
