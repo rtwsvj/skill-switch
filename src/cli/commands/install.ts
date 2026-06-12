@@ -11,6 +11,7 @@ interface InstallCliOptions {
   home?: string;
   mode: string;
   skill?: string;
+  ref?: string;
   force?: boolean;
   json?: boolean;
 }
@@ -24,6 +25,7 @@ export function registerInstallCommand(program: Command): void {
     .option('--home <dir>', '覆盖 home 根目录(默认取系统 home)')
     .option('--mode <mode>', '铺设方式:copy | symlink(symlink 仅限本地源)', 'copy')
     .option('--skill <name>', '只装来源中指定目录名的 skill')
+    .option('--ref <ref>', 'git 来源的分支/tag(写入 skills.lock)')
     .option('--force', '越过 audit 拦截(自担风险)')
     .option('--json', '机器可读 JSON 输出')
     .action(async (source: string, options: InstallCliOptions, command: Command) => {
@@ -36,6 +38,7 @@ export function registerInstallCommand(program: Command): void {
         agent: options.agent as AgentType,
         mode: options.mode as InstallMode,
         skill: options.skill,
+        ref: options.ref,
         force: options.force,
       });
 
@@ -49,6 +52,7 @@ export function registerInstallCommand(program: Command): void {
       } else {
         for (const s of result.installed) console.log(`  ✓ ${s.name} → ${s.targetPath}`);
         if (result.snapshotPath) console.log(`  快照: ${result.snapshotPath}`);
+        if (result.lockPath) console.log(`  锁: ${result.lockPath}`);
       }
       if (result.blocked.length > 0) process.exitCode = 1;
     });
