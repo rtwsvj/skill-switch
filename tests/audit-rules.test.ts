@@ -36,6 +36,12 @@ const MALICIOUS_EXPECT: Array<[string, string]> = [
   ['persist-cron-githook', 'persistence/git-hooks'],
   ['tamper-claude-settings', 'global-tamper/agent-config-write'],
   ['tamper-claude-settings', 'global-tamper/permission-grant'],
+  // F6
+  ['cred-phish-secret', 'credential-theft/phishing-request'],
+  ['cred-keychain-dump', 'credential-theft/credential-store-read'],
+  ['cred-token-webhook', 'credential-theft/token-exfil'],
+  ['supply-typosquat-package', 'supply-chain/typosquat-package'],
+  ['supply-untrusted-source', 'supply-chain/untrusted-install-source'],
 ];
 
 const BENIGN_SAMPLES = [
@@ -44,6 +50,8 @@ const BENIGN_SAMPLES = [
   'ssh-config-tips',
   'project-setup',
   'shell-aliases',
+  'credential-handling-safe',
+  'supply-official-install',
 ];
 
 const BENIGN_SAFE_WITH_FINDINGS: Array<[string, string]> = [

@@ -26,6 +26,11 @@ function runAudit(path: string, extra: string[] = []): { stdout: string; status:
 
 const MALICIOUS = readdirSync(join(FIX, 'skills-malicious'));
 const BENIGN = readdirSync(join(FIX, 'skills-benign'));
+const MEDIUM_ONLY_MALICIOUS = new Set([
+  'supply-typosquat-package',
+  'supply-untrusted-source',
+]);
+const BLOCKING_MALICIOUS = MALICIOUS.filter((name) => !MEDIUM_ONLY_MALICIOUS.has(name));
 
 describe('shouldBlock policy (severity floor)', () => {
   it('blocks on any critical or high finding regardless of score', () => {
@@ -56,9 +61,19 @@ describe('auditSkillDir', () => {
 });
 
 describe('audit CLI (real subprocess)', () => {
-  it.each(MALICIOUS)('malicious/%s exits 1', (name) => {
+  it.each(BLOCKING_MALICIOUS)('malicious/%s exits 1', (name) => {
     const { status } = runAudit(join(FIX, 'skills-malicious', name));
     expect(status).toBe(1);
+  });
+
+  it.each([...MEDIUM_ONLY_MALICIOUS])('medium-only malicious/%s exits 0 but reports finding', (name) => {
+    const { stdout, status } = runAudit(join(FIX, 'skills-malicious', name), ['--json']);
+    expect(status).toBe(0);
+    const parsed = JSON.parse(stdout) as {
+      findings: Array<{ ruleId: string; severity: string }>;
+    };
+    expect(parsed.findings.some((f) => f.ruleId.startsWith('supply-chain/'))).toBe(true);
+    expect(parsed.findings.every((f) => f.severity === 'medium')).toBe(true);
   });
 
   it.each(BENIGN)('benign/%s exits 0 and scores >= 90', (name) => {
