@@ -16,7 +16,7 @@ function auditSample(kind: 'skills-malicious' | 'skills-benign', name: string) {
 
 const MALICIOUS_EXPECT: Array<[string, string]> = [
   ['exfil-curl-secret', 'exfiltration/curl-body-with-secret'],
-  ['exfil-ssh-key', 'exfiltration/sensitive-file-read'],
+  ['exfil-ssh-key', 'exfiltration/sensitive-file-exfil'],
   ['exfil-ssh-key', 'exfiltration/exfil-endpoint'],
   ['revshell-dev-tcp', 'reverse-shell/dev-tcp'],
   ['revshell-python', 'reverse-shell/scripting-socket'],
@@ -46,6 +46,10 @@ const BENIGN_SAMPLES = [
   'shell-aliases',
 ];
 
+const BENIGN_SAFE_WITH_FINDINGS: Array<[string, string]> = [
+  ['secret-uploader', 'exfiltration/sensitive-path-reference'],
+];
+
 describe('S2.2 audit rules — malicious samples', () => {
   it.each(MALICIOUS_EXPECT)('%s triggers %s', (sample, ruleId) => {
     const report = auditSample('skills-malicious', sample);
@@ -70,6 +74,14 @@ describe('S2.2 audit rules — benign counterexamples', () => {
     const report = auditSample('skills-benign', sample);
     expect(report.findings).toEqual([]);
     expect(report.score).toBe(100);
+    expect(verdictForScore(report.score)).toBe('SAFE');
+  });
+
+  it.each(BENIGN_SAFE_WITH_FINDINGS)('%s only produces non-blocking %s', (sample, ruleId) => {
+    const report = auditSample('skills-benign', sample);
+    expect(report.findings.map((f) => f.ruleId)).toEqual([ruleId]);
+    expect(report.findings[0]!.severity).toBe('low');
+    expect(report.score).toBeGreaterThanOrEqual(90);
     expect(verdictForScore(report.score)).toBe('SAFE');
   });
 });

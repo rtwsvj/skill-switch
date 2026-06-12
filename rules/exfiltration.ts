@@ -10,6 +10,10 @@
 import type { AuditRule } from '../src/core/audit/types.ts';
 
 const SECTION = 'ags SECURITY.md › Data Exfiltration';
+const SENSITIVE_PATH =
+  String.raw`(?:\bid_(?:rsa|ed25519|ecdsa|dsa)\b|\.pem\b|~\/\.aws\/|~\/\.gnupg\/|Library\/Keychains\/|Application Support\/(?:Exodus|Atomic|Electrum|Binance|Phantom)\/|Application Support\/Google\/Chrome\/|Application Support\/BraveSoftware\/)`;
+const EXFIL_VERB =
+  String.raw`(?:\b(?:curl|wget|nc|netcat|scp|rsync|fetch|requests\.post|axios\.post|http\.post)\b|\/dev\/tcp|\bbase64\b[^\n]*\|)`;
 
 export const exfiltrationRules: AuditRule[] = [
   {
@@ -21,11 +25,20 @@ export const exfiltrationRules: AuditRule[] = [
     source: SECTION,
   },
   {
-    id: 'exfiltration/sensitive-file-read',
+    id: 'exfiltration/sensitive-file-exfil',
     severity: 'critical',
-    pattern:
-      /(?:\bid_(?:rsa|ed25519|ecdsa|dsa)\b|\.pem\b|~\/\.aws\/|~\/\.gnupg\/|Library\/Keychains\/|Application Support\/(?:Exodus|Atomic|Electrum|Binance|Phantom)\/|Application Support\/Google\/Chrome\/|Application Support\/BraveSoftware\/)/i,
-    message: '访问私钥/凭据库/钱包/浏览器登录数据等敏感路径',
+    pattern: new RegExp(
+      `(?:${SENSITIVE_PATH}[^\\n]*${EXFIL_VERB}|${EXFIL_VERB}[^\\n]*${SENSITIVE_PATH})`,
+      'i',
+    ),
+    message: '同一行读取私钥/凭据库/钱包/浏览器登录数据等敏感路径并外传',
+    source: SECTION,
+  },
+  {
+    id: 'exfiltration/sensitive-path-reference',
+    severity: 'low',
+    pattern: new RegExp(SENSITIVE_PATH, 'i'),
+    message: '提到私钥/凭据库/钱包/浏览器登录数据等敏感路径;确认没有外传',
     source: SECTION,
   },
   {
