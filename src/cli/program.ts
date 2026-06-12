@@ -5,6 +5,7 @@ import { registerDriftCommand } from './commands/drift.ts';
 import { registerInstallCommand } from './commands/install.ts';
 import { registerLintCommand } from './commands/lint.ts';
 import { registerScanCommand } from './commands/scan.ts';
+import { registerStatsCommand } from './commands/stats.ts';
 import { registerToggleCommand } from './commands/toggle.ts';
 
 interface SubcommandSpec {
@@ -14,8 +15,7 @@ interface SubcommandSpec {
 
 // 未实现的子命令占位,与 docs/ROADMAP.md 切片一一对应,实现随切片落地后移出此表。
 const SUBCOMMANDS: SubcommandSpec[] = [
-  { name: 'lock', description: '查看/重建项目级 skills.lock(S3)' },
-  { name: 'stats', description: 'transcript 使用统计与僵尸 skill 报告(S8)' },
+  { name: 'lock', description: '查看/重建 skills.lock(候选任务 F2,未排期)' },
 ];
 
 export function buildProgram(): Command {
@@ -31,6 +31,7 @@ export function buildProgram(): Command {
   registerLintCommand(program);
   registerDoctorCommand(program);
   registerDriftCommand(program);
+  registerStatsCommand(program);
 
   for (const spec of SUBCOMMANDS) {
     program
