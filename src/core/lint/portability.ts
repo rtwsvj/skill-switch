@@ -13,7 +13,7 @@ export interface LintIssue {
 }
 
 // Claude Code 专有 frontmatter 字段 → 跨家降级建议(无建议则统一"将被忽略")
-const CLAUDE_ONLY_FIELDS: Record<string, string | undefined> = {
+export const CLAUDE_ONLY_FIELDS: Record<string, string | undefined> = {
   'disable-model-invocation':
     'Codex 等价物:在 agents/openai.yaml 写 policy.allow_implicit_invocation: false',
   'user-invocable': undefined,
