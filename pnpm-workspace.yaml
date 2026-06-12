@@ -1,2 +1,5 @@
+packages:
+  - gui
+
 allowBuilds:
   esbuild: true
