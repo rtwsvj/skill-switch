@@ -139,10 +139,13 @@ function createGitClient(extraEnv?: NodeJS.ProcessEnv) {
     ...extraEnv,
   };
   // [skill-switch 本地改动] simple-git 3.3x 安全守卫不允许向子进程传 GIT_EDITOR
-  // 等编辑器变量(宿主环境如 Claude Code 会注入)。克隆是非交互操作用不到编辑器,剥离即可。
+  // 等编辑器变量或 PAGER/GIT_PAGER 分页器变量(宿主环境如 Claude Code 会注入)。
+  // 克隆是非交互操作用不到这些交互变量,剥离即可。
   delete env.GIT_EDITOR;
   delete env.GIT_SEQUENCE_EDITOR;
   delete env.VISUAL;
+  delete env.PAGER;
+  delete env.GIT_PAGER;
   return simpleGit(options as Parameters<typeof simpleGit>[0]).env(env);
 }
 

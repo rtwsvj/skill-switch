@@ -5,7 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { lstat, mkdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { installFromSource } from '../src/core/install.ts';
 import { listSnapshots } from '../src/core/backup.ts';
 import { runDoctor } from '../src/core/doctor.ts';
@@ -15,6 +15,8 @@ let work: string;
 let goodRepo: string; // 含 1 个良性 skill 的 git 仓
 let evilRepo: string; // 含 1 个反向 shell skill 的 git 仓
 let localSource: string; // 非 git 的本地目录源
+const originalPager = process.env.PAGER;
+const originalGitPager = process.env.GIT_PAGER;
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync('git', ['-C', cwd, '-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
@@ -53,6 +55,14 @@ afterAll(async () => {
   await rm(work, { recursive: true, force: true });
 });
 
+afterEach(() => {
+  if (originalPager === undefined) delete process.env.PAGER;
+  else process.env.PAGER = originalPager;
+
+  if (originalGitPager === undefined) delete process.env.GIT_PAGER;
+  else process.env.GIT_PAGER = originalGitPager;
+});
+
 function freshHome(): string {
   return mkdtempSync(join(tmpdir(), 'skill-switch-ihome-'));
 }
@@ -72,6 +82,21 @@ describe('core/install', () => {
       'utf8',
     );
     expect(installed).toContain('tidy-notes');
+  });
+
+  it('F4: install ignores host pager env vars when cloning', async () => {
+    process.env.PAGER = 'less';
+    process.env.GIT_PAGER = 'less';
+
+    const home = freshHome();
+    const result = await installFromSource(`file://${goodRepo}`, {
+      home,
+      agent: 'claude-code',
+      mode: 'copy',
+    });
+
+    expect(result.blocked).toEqual([]);
+    expect(result.installed.map((s) => s.name)).toEqual(['tidy-notes']);
   });
 
   it('F1: copy install writes a declaration so doctor is clean immediately', async () => {
