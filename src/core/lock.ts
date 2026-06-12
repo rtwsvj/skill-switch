@@ -67,3 +67,17 @@ export async function upsertLockEntries(
   await writeSkillsLock(lockPath, next);
   return next;
 }
+
+export async function removeLockEntries(
+  lockPath: string,
+  keys: Array<{ name: string; agent: AgentType }>,
+): Promise<SkillsLockFile> {
+  const lock = await readSkillsLock(lockPath);
+  const removeKeys = new Set(keys.map((key) => `${key.agent}|${key.name}`));
+  const next: SkillsLockFile = {
+    version: 1,
+    skills: lock.skills.filter((entry) => !removeKeys.has(`${entry.agent}|${entry.name}`)),
+  };
+  await writeSkillsLock(lockPath, next);
+  return next;
+}

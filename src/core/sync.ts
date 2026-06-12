@@ -106,6 +106,44 @@ export async function upsertSkillDeclarations(
   return next;
 }
 
+export async function removeFromDeclaration(
+  skillsJsonPath: string,
+  name: string,
+  agent: AgentType,
+): Promise<SkillsDeclarationFile> {
+  const current = await readDeclaration(skillsJsonPath);
+  const skills: SkillDeclaration[] = [];
+
+  for (const skill of current.skills) {
+    if (skill.name !== name) {
+      skills.push(skill);
+      continue;
+    }
+
+    const agents = skill.agents.filter((a) => a !== agent);
+    if (agents.length === 0) continue;
+
+    const next: SkillDeclaration = {
+      ...skill,
+      agents,
+      ...(skill.agentSources ? { agentSources: cloneAgentSources(skill.agentSources) } : {}),
+    };
+    if (next.agentSources) {
+      delete next.agentSources[agent];
+      if (Object.keys(next.agentSources).length === 0) delete next.agentSources;
+    }
+    skills.push(next);
+  }
+
+  const next: SkillsDeclarationFile = {
+    version: 1,
+    skills: skills.sort((a, b) => a.name.localeCompare(b.name)),
+  };
+  await mkdir(dirname(skillsJsonPath), { recursive: true });
+  await writeFile(skillsJsonPath, `${JSON.stringify(next, null, 2)}\n`);
+  return next;
+}
+
 function cloneAgentSources(
   agentSources: Partial<Record<AgentType, SkillAgentSource>>,
 ): Partial<Record<AgentType, SkillAgentSource>> {
