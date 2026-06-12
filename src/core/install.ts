@@ -19,6 +19,7 @@ import type { AuditReport } from './audit/engine.ts';
 import { snapshot } from './backup.ts';
 import { getSkillsLockPath, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
+import { getSkillsJsonPath, upsertSkillDeclarations } from './sync.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -50,6 +51,8 @@ export interface InstallResult {
   snapshotPath?: string;
   /** 本次写入的 skills.lock 路径(有安装动作才有) */
   lockPath?: string;
+  /** 本次写入的 skills.json 声明路径(有安装动作才有) */
+  declarationPath?: string;
 }
 
 const DISCOVER_MAX_DEPTH = 3;
@@ -147,6 +150,7 @@ export async function installFromSource(
     await mkdir(skillsDir, { recursive: true });
     const installed: InstallResult['installed'] = [];
     const lockEntries: SkillsLockEntry[] = [];
+    const declarationAdditions: Parameters<typeof upsertSkillDeclarations>[1] = [];
     for (const dir of skillDirs) {
       const name = dir.split('/').pop()!;
       const target = join(skillsDir, name);
@@ -157,6 +161,12 @@ export async function installFromSource(
         await cp(dir, target, { recursive: true });
       }
       installed.push({ name, targetPath: target });
+      declarationAdditions.push({
+        name,
+        agent: options.agent,
+        source: options.mode === 'symlink' ? dir : target,
+        mode: options.mode,
+      });
       lockEntries.push({
         name,
         agent: options.agent,
@@ -171,7 +181,9 @@ export async function installFromSource(
 
     const lockPath = getSkillsLockPath(options.home);
     await upsertLockEntries(lockPath, lockEntries);
-    return { installed, blocked: [], snapshotPath, lockPath };
+    const declarationPath = getSkillsJsonPath(options.home);
+    await upsertSkillDeclarations(declarationPath, declarationAdditions);
+    return { installed, blocked: [], snapshotPath, lockPath, declarationPath };
   } finally {
     if (!local) await cleanupTempDir(sourceRoot).catch(() => {});
   }

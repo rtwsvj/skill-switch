@@ -53,6 +53,7 @@ export function registerInstallCommand(program: Command): void {
         for (const s of result.installed) console.log(`  ✓ ${s.name} → ${s.targetPath}`);
         if (result.snapshotPath) console.log(`  快照: ${result.snapshotPath}`);
         if (result.lockPath) console.log(`  锁: ${result.lockPath}`);
+        if (result.declarationPath) console.log(`  声明: ${result.declarationPath}`);
       }
       if (result.blocked.length > 0) process.exitCode = 1;
     });

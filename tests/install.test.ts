@@ -2,12 +2,14 @@
 // --force 越过、symlink 仅限本地源、装前快照。全程写入临时目录。
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
-import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { installFromSource } from '../src/core/install.ts';
 import { listSnapshots } from '../src/core/backup.ts';
+import { runDoctor } from '../src/core/doctor.ts';
+import { getSkillsJsonPath, readDeclaration } from '../src/core/sync.ts';
 
 let work: string;
 let goodRepo: string; // 含 1 个良性 skill 的 git 仓
@@ -70,6 +72,82 @@ describe('core/install', () => {
       'utf8',
     );
     expect(installed).toContain('tidy-notes');
+  });
+
+  it('F1: copy install writes a declaration so doctor is clean immediately', async () => {
+    const home = freshHome();
+    const result = await installFromSource(`file://${goodRepo}`, {
+      home,
+      agent: 'claude-code',
+      mode: 'copy',
+    });
+    const target = join(home, '.claude', 'skills', 'tidy-notes');
+
+    expect(result.declarationPath).toBe(getSkillsJsonPath(home));
+    const declaration = await readDeclaration(getSkillsJsonPath(home));
+    expect(declaration.skills).toEqual([
+      {
+        name: 'tidy-notes',
+        source: target,
+        agents: ['claude-code'],
+        enabled: true,
+        mode: 'copy',
+      },
+    ]);
+
+    const report = await runDoctor(home);
+    expect(report.clean).toBe(true);
+    expect(report.findings.filter((f) => f.kind === 'extra-locked')).toEqual([]);
+  });
+
+  it('F1: symlink install declares the durable local source and doctor is clean', async () => {
+    const home = freshHome();
+    const result = await installFromSource(localSource, {
+      home,
+      agent: 'claude-code',
+      mode: 'symlink',
+    });
+    const target = join(home, '.claude', 'skills', 'local-skill');
+
+    expect(result.declarationPath).toBe(getSkillsJsonPath(home));
+    expect(await readlink(target)).toBe(join(localSource, 'local-skill'));
+    const declaration = await readDeclaration(getSkillsJsonPath(home));
+    expect(declaration.skills).toEqual([
+      {
+        name: 'local-skill',
+        source: join(localSource, 'local-skill'),
+        agents: ['claude-code'],
+        enabled: true,
+        mode: 'symlink',
+      },
+    ]);
+
+    const report = await runDoctor(home);
+    expect(report.clean).toBe(true);
+    expect(report.findings.filter((f) => f.kind === 'extra-locked')).toEqual([]);
+  });
+
+  it('F1: repeated install keeps a single declaration entry and agent', async () => {
+    const home = freshHome();
+    await installFromSource(`file://${goodRepo}`, {
+      home,
+      agent: 'claude-code',
+      mode: 'copy',
+    });
+    await installFromSource(`file://${goodRepo}`, {
+      home,
+      agent: 'claude-code',
+      mode: 'copy',
+    });
+
+    const declaration = await readDeclaration(getSkillsJsonPath(home));
+    expect(declaration.skills).toHaveLength(1);
+    expect(declaration.skills[0]).toMatchObject({
+      name: 'tidy-notes',
+      agents: ['claude-code'],
+      enabled: true,
+      mode: 'copy',
+    });
   });
 
   it('blocks a malicious repo before any write (audit gate)', async () => {
