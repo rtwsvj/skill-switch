@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "跨 Agent skill 治理 CLI:盘点、安全体检、锁定、开关、lint、漂移与使用统计",
+  "bin": {
+    "skill-switch": "bin/skill-switch.mjs"
+  },
   "engines": {
     "node": ">=20"
   },
