@@ -4,19 +4,10 @@ import { registerDoctorCommand } from './commands/doctor.ts';
 import { registerDriftCommand } from './commands/drift.ts';
 import { registerInstallCommand } from './commands/install.ts';
 import { registerLintCommand } from './commands/lint.ts';
+import { registerLockCommand } from './commands/lock.ts';
 import { registerScanCommand } from './commands/scan.ts';
 import { registerStatsCommand } from './commands/stats.ts';
 import { registerToggleCommand } from './commands/toggle.ts';
-
-interface SubcommandSpec {
-  name: string;
-  description: string;
-}
-
-// 未实现的子命令占位,与 docs/ROADMAP.md 切片一一对应,实现随切片落地后移出此表。
-const SUBCOMMANDS: SubcommandSpec[] = [
-  { name: 'lock', description: '查看/重建 skills.lock(候选任务 F2,未排期)' },
-];
 
 export function buildProgram(): Command {
   const program = new Command('skill-switch');
@@ -32,16 +23,7 @@ export function buildProgram(): Command {
   registerDoctorCommand(program);
   registerDriftCommand(program);
   registerStatsCommand(program);
-
-  for (const spec of SUBCOMMANDS) {
-    program
-      .command(spec.name)
-      .description(spec.description)
-      .action(() => {
-        console.log(`skill-switch ${spec.name}: 尚未实现,进度见 docs/ROADMAP.md`);
-        process.exitCode = 1;
-      });
-  }
+  registerLockCommand(program);
 
   return program;
 }
