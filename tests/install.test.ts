@@ -175,6 +175,41 @@ describe('core/install', () => {
     });
   });
 
+  it('F3: copy installing the same skill to two agents records per-agent sources', async () => {
+    const home = freshHome();
+    await installFromSource(`file://${goodRepo}`, {
+      home,
+      agent: 'claude-code',
+      mode: 'copy',
+    });
+    await installFromSource(`file://${goodRepo}`, {
+      home,
+      agent: 'gemini-cli',
+      mode: 'copy',
+    });
+
+    const claudeTarget = join(home, '.claude', 'skills', 'tidy-notes');
+    const geminiTarget = join(home, '.gemini', 'skills', 'tidy-notes');
+    const declaration = await readDeclaration(getSkillsJsonPath(home));
+    expect(declaration.skills).toEqual([
+      {
+        name: 'tidy-notes',
+        source: claudeTarget,
+        agents: ['claude-code', 'gemini-cli'],
+        enabled: true,
+        mode: 'copy',
+        agentSources: {
+          'claude-code': { source: claudeTarget, mode: 'copy' },
+          'gemini-cli': { source: geminiTarget, mode: 'copy' },
+        },
+      },
+    ]);
+
+    const report = await runDoctor(home);
+    expect(report.clean).toBe(true);
+    expect(report.checked).toEqual({ declared: 2, locked: 2 });
+  });
+
   it('blocks a malicious repo before any write (audit gate)', async () => {
     const home = freshHome();
     const result = await installFromSource(`file://${evilRepo}`, {

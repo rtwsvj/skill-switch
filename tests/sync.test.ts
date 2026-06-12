@@ -13,12 +13,12 @@ import {
 let home: string;
 let store: string;
 
-async function makeSkill(name: string): Promise<string> {
+async function makeSkill(name: string, body = `Body of ${name}.`): Promise<string> {
   const dir = join(store, name);
   await mkdir(dir, { recursive: true });
   await writeFile(
     join(dir, 'SKILL.md'),
-    `---\nname: ${name}\ndescription: sync fixture ${name}.\n---\n\nBody of ${name}.\n`,
+    `---\nname: ${name}\ndescription: sync fixture ${name}.\n---\n\n${body}\n`,
   );
   return dir;
 }
@@ -90,6 +90,32 @@ describe('core/sync', () => {
     const { actions } = await applySync(home, d);
     expect(actions.map((a) => a.kind)).toEqual(['replace']);
     expect(await readFile(target, 'utf8')).toContain('Body of beta');
+  });
+
+  it('F3: uses per-agent source/mode overrides when present', async () => {
+    const claudeSource = await makeSkill('shared-claude-source', 'Claude source body.');
+    const geminiSource = await makeSkill('shared-gemini-source', 'Gemini source body.');
+    const d = decl([
+      {
+        name: 'shared',
+        source: claudeSource,
+        agents: ['claude-code', 'gemini-cli'],
+        enabled: true,
+        mode: 'copy',
+        agentSources: {
+          'gemini-cli': { source: geminiSource, mode: 'copy' },
+        },
+      },
+    ]);
+
+    await applySync(home, d);
+    expect(await readFile(join(home, '.claude', 'skills', 'shared', 'SKILL.md'), 'utf8')).toContain('Claude source body.');
+    expect(await readFile(join(home, '.gemini', 'skills', 'shared', 'SKILL.md'), 'utf8')).toContain('Gemini source body.');
+
+    await writeFile(join(home, '.gemini', 'skills', 'shared', 'SKILL.md'), 'TAMPERED\n');
+    const { actions } = await applySync(home, d);
+    expect(actions.find((a) => a.agent === 'gemini-cli')?.kind).toBe('replace');
+    expect(await readFile(join(home, '.gemini', 'skills', 'shared', 'SKILL.md'), 'utf8')).toContain('Gemini source body.');
   });
 
   it('repairs a symlink pointing at the wrong place', async () => {

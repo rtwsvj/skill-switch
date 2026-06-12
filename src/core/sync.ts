@@ -22,6 +22,13 @@ export interface SkillDeclaration {
   agents: AgentType[];
   enabled: boolean;
   mode: 'symlink' | 'copy';
+  /** F3:按 agent 覆盖 source/mode;未声明时回退到顶层 source/mode。 */
+  agentSources?: Partial<Record<AgentType, SkillAgentSource>>;
+}
+
+export interface SkillAgentSource {
+  source: string;
+  mode: 'symlink' | 'copy';
 }
 
 export interface SkillsDeclarationFile {
@@ -56,7 +63,14 @@ export async function upsertSkillDeclarations(
 ): Promise<SkillsDeclarationFile> {
   const current = await readDeclaration(skillsJsonPath);
   const byName = new Map<string, SkillDeclaration>(
-    current.skills.map((skill) => [skill.name, { ...skill, agents: [...skill.agents] }]),
+    current.skills.map((skill) => [
+      skill.name,
+      {
+        ...skill,
+        agents: [...skill.agents],
+        ...(skill.agentSources ? { agentSources: cloneAgentSources(skill.agentSources) } : {}),
+      },
+    ]),
   );
 
   for (const addition of additions) {
@@ -64,6 +78,13 @@ export async function upsertSkillDeclarations(
     if (existing) {
       if (!existing.agents.includes(addition.agent)) existing.agents.push(addition.agent);
       existing.enabled = true;
+      const defaultMatches = existing.source === addition.source && existing.mode === addition.mode;
+      if (existing.agentSources || !defaultMatches) {
+        ensureAgentSources(existing)[addition.agent] = {
+          source: addition.source,
+          mode: addition.mode,
+        };
+      }
       continue;
     }
 
@@ -83,6 +104,36 @@ export async function upsertSkillDeclarations(
   await mkdir(dirname(skillsJsonPath), { recursive: true });
   await writeFile(skillsJsonPath, `${JSON.stringify(next, null, 2)}\n`);
   return next;
+}
+
+function cloneAgentSources(
+  agentSources: Partial<Record<AgentType, SkillAgentSource>>,
+): Partial<Record<AgentType, SkillAgentSource>> {
+  return Object.fromEntries(
+    Object.entries(agentSources).map(([agent, source]) => [
+      agent,
+      { ...(source as SkillAgentSource) },
+    ]),
+  ) as Partial<Record<AgentType, SkillAgentSource>>;
+}
+
+function ensureAgentSources(
+  skill: SkillDeclaration,
+): Partial<Record<AgentType, SkillAgentSource>> {
+  const agentSources = skill.agentSources ? cloneAgentSources(skill.agentSources) : {};
+  for (const agent of skill.agents) {
+    agentSources[agent] ??= { source: skill.source, mode: skill.mode };
+  }
+  skill.agentSources = agentSources;
+  return agentSources;
+}
+
+function sourceForAgent(skill: SkillDeclaration, agent: AgentType): SkillAgentSource {
+  return skill.agentSources?.[agent] ?? { source: skill.source, mode: skill.mode };
+}
+
+function sourceAbsFor(home: string, source: string): string {
+  return isAbsolute(source) ? source : join(home, source);
 }
 
 function skillsDirFor(home: string, agent: AgentType): string {
@@ -110,6 +161,7 @@ async function inspectTarget(target: string): Promise<TargetState> {
 async function planOne(
   declared: SkillDeclaration,
   sourceAbs: string,
+  mode: 'symlink' | 'copy',
   agent: AgentType,
   target: string,
 ): Promise<SyncAction> {
@@ -124,7 +176,7 @@ async function planOne(
 
   if (actual.state === 'missing') return { ...base, kind: 'create' };
 
-  if (declared.mode === 'symlink') {
+  if (mode === 'symlink') {
     if (actual.state === 'symlink' && resolve(actual.linkTarget) === resolve(sourceAbs)) {
       return { ...base, kind: 'noop' };
     }
@@ -149,11 +201,12 @@ export async function planSync(
 ): Promise<SyncAction[]> {
   const actions: SyncAction[] = [];
   for (const skill of declaration.skills) {
-    const sourceAbs = isAbsolute(skill.source) ? skill.source : join(home, skill.source);
-    if (skill.enabled && !existsSync(sourceAbs)) {
-      throw new Error(`声明的 skill 源不存在: ${skill.name} → ${sourceAbs}`);
-    }
     for (const agent of skill.agents) {
+      const expected = sourceForAgent(skill, agent);
+      const sourceAbs = sourceAbsFor(home, expected.source);
+      if (skill.enabled && !existsSync(sourceAbs)) {
+        throw new Error(`声明的 skill 源不存在: ${skill.name} → ${sourceAbs}`);
+      }
       const target = join(skillsDirFor(home, agent), skill.name);
 
       // Codex 特例:开关走 config.toml 原生机制(官方支持),文件保持在位。
@@ -167,14 +220,14 @@ export async function planSync(
           );
           continue;
         }
-        actions.push(await planOne(skill, sourceAbs, agent, target));
+        actions.push(await planOne(skill, sourceAbs, expected.mode, agent, target));
         if (configured === false) {
           actions.push({ kind: 'config-enable', agent, name: skill.name, target });
         }
         continue;
       }
 
-      actions.push(await planOne(skill, sourceAbs, agent, target));
+      actions.push(await planOne(skill, sourceAbs, expected.mode, agent, target));
     }
   }
   return actions;
@@ -201,9 +254,10 @@ export async function applySync(
     if (action.kind === 'remove') continue;
 
     const declared = declaration.skills.find((s) => s.name === action.name)!;
-    const sourceAbs = isAbsolute(declared.source) ? declared.source : join(home, declared.source);
+    const expected = sourceForAgent(declared, action.agent);
+    const sourceAbs = sourceAbsFor(home, expected.source);
     await mkdir(join(action.target, '..'), { recursive: true });
-    if (declared.mode === 'symlink') {
+    if (expected.mode === 'symlink') {
       await symlink(sourceAbs, action.target, 'dir');
     } else {
       await cp(sourceAbs, action.target, { recursive: true });
