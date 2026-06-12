@@ -1,0 +1,1 @@
+{"type":"assistant","uuid":"b-1","timestamp":"2026-06-11T09:00:00.000Z","sessionId":"s-b","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_b1","name":"Skill","input":{"skill":"loop","args":""}}]}}
