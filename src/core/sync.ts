@@ -8,6 +8,11 @@ import { cp, lstat, mkdir, readFile, readlink, rm, symlink } from 'node:fs/promi
 import { isAbsolute, join, resolve } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
+import {
+  getCodexConfigPath,
+  readCodexSkillEnabled,
+  setCodexSkillEnabled,
+} from './codex-toggle.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 
 export interface SkillDeclaration {
@@ -25,7 +30,8 @@ export interface SkillsDeclarationFile {
 }
 
 export interface SyncAction {
-  kind: 'create' | 'replace' | 'remove' | 'noop';
+  // config-disable/config-enable 为 Codex 专用:开关走 config.toml 原生机制,文件不动
+  kind: 'create' | 'replace' | 'remove' | 'noop' | 'config-disable' | 'config-enable';
   agent: AgentType;
   name: string;
   target: string;
@@ -114,6 +120,25 @@ export async function planSync(
     }
     for (const agent of skill.agents) {
       const target = join(skillsDirFor(home, agent), skill.name);
+
+      // Codex 特例:开关走 config.toml 原生机制(官方支持),文件保持在位。
+      if (agent === 'codex') {
+        const configured = await readCodexSkillEnabled(getCodexConfigPath(home), target);
+        if (!skill.enabled) {
+          actions.push(
+            configured === false
+              ? { kind: 'noop', agent, name: skill.name, target, reason: 'config 已 disabled' }
+              : { kind: 'config-disable', agent, name: skill.name, target },
+          );
+          continue;
+        }
+        actions.push(await planOne(skill, sourceAbs, agent, target));
+        if (configured === false) {
+          actions.push({ kind: 'config-enable', agent, name: skill.name, target });
+        }
+        continue;
+      }
+
       actions.push(await planOne(skill, sourceAbs, agent, target));
     }
   }
@@ -127,6 +152,15 @@ export async function applySync(
   const actions = await planSync(home, declaration);
   for (const action of actions) {
     if (action.kind === 'noop') continue;
+
+    if (action.kind === 'config-disable' || action.kind === 'config-enable') {
+      await setCodexSkillEnabled(
+        getCodexConfigPath(home),
+        action.target,
+        action.kind === 'config-enable',
+      );
+      continue;
+    }
 
     await rm(action.target, { recursive: true, force: true });
     if (action.kind === 'remove') continue;
