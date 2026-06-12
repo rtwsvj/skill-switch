@@ -1,0 +1,46 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "skill-switch-scan",
+          "cmd": "node",
+          "args": ["--import", "tsx", "src/cli/index.ts", "scan", "--json"],
+          "sidecar": false
+        },
+        {
+          "name": "skill-switch-audit",
+          "cmd": "node",
+          "args": ["--import", "tsx", "src/cli/index.ts", "audit", { "validator": "^[^\\n]+$" }, "--json"],
+          "sidecar": false
+        },
+        {
+          "name": "skill-switch-doctor",
+          "cmd": "node",
+          "args": ["--import", "tsx", "src/cli/index.ts", "doctor", "--json"],
+          "sidecar": false
+        },
+        {
+          "name": "skill-switch-stats",
+          "cmd": "node",
+          "args": ["--import", "tsx", "src/cli/index.ts", "stats", "--days", { "validator": "^[0-9]{1,4}$" }, "--json"],
+          "sidecar": false
+        },
+        {
+          "name": "skill-switch-lock",
+          "cmd": "node",
+          "args": ["--import", "tsx", "src/cli/index.ts", "lock", "--verify", "--json"],
+          "sidecar": false
+        }
+      ]
+    }
+  ]
+}
