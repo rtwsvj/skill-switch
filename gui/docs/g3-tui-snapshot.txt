@@ -1,0 +1,121 @@
+skill-switch TUI / read-only live view
+====================================================================================================
+loaded: 2026-06-12T17:12:01.324Z
+agents: 10 | skills: 28 | zombies: 28 | doctor: clean | audit blocks: 5
+
+keys: 1 overview  2 scan  3 audit  4 doctor  5 stats  r refresh  q quit
+
+####################################################################################################
+
+SCAN
+====================================================================================================
+directory                    name                         agents                             status
+----------------------------------------------------------------------------------------------------
+longbridge                   longbridge                   cline,dexto,kimi-code-cli,loaf,warp,zed ok
+mmx-cli                      mmx-cli                      cline,dexto,kimi-code-cli,loaf,warp,zed ok
+publish-project              publish-project              cline,dexto,kimi-code-cli,loaf,warp,zed ok
+agents-sdk                   agents-sdk                   claude-code                        ok
+cloudflare                   cloudflare                   claude-code                        ok
+cloudflare-email-service     cloudflare-email-service     claude-code                        ok
+durable-objects              durable-objects              claude-code                        ok
+longbridge                   longbridge                   claude-code                        ok
+publish-project              publish-project              claude-code                        ok
+sandbox-sdk                  sandbox-sdk                  claude-code                        ok
+web-perf                     web-perf                     claude-code                        ok
+workers-best-practices       workers-best-practices       claude-code                        ok
+wrangler                     wrangler                     claude-code                        ok
+agents-sdk                   agents-sdk                   codex                              ok
+cloudflare                   cloudflare                   codex                              ok
+cloudflare-email-service     cloudflare-email-service     codex                              ok
+complexity-optimizer         complexity-optimizer         codex                              ok
+durable-objects              durable-objects              codex                              ok
+hatch-pet                    hatch-pet                    codex                              ok
+sandbox-sdk                  sandbox-sdk                  codex                              ok
+web-perf                     web-perf                     codex                              ok
+workers-best-practices       workers-best-practices       codex                              ok
+wrangler                     wrangler                     codex                              ok
+dogfood                      dogfood                      hermes-agent                       ok
+weread                       weread-skills                hermes-agent                       name-mismatch
+yuanbao                      yuanbao                      hermes-agent                       ok
+longbridge                   longbridge                   openclaw                           ok
+mmx-cli                      mmx-cli                      openclaw                           ok
+
+####################################################################################################
+
+AUDIT
+====================================================================================================
+skill                          scr verdict status finding
+----------------------------------------------------------------------------------------------------
+cloudflare                       5 DANGER  BLOCK  low:exfiltration/sensitive-path-reference
+cloudflare                       5 DANGER  BLOCK  low:exfiltration/sensitive-path-reference
+longbridge                      20 DANGER  BLOCK  critical:clickfix/curl-pipe-shell
+longbridge                      20 DANGER  BLOCK  critical:clickfix/curl-pipe-shell
+longbridge                      20 DANGER  BLOCK  critical:clickfix/curl-pipe-shell
+wrangler                        99 SAFE    pass   low:exfiltration/sensitive-path-reference
+wrangler                        99 SAFE    pass   low:exfiltration/sensitive-path-reference
+mmx-cli                        100 SAFE    pass   clean
+publish-project                100 SAFE    pass   clean
+agents-sdk                     100 SAFE    pass   clean
+cloudflare-email-service       100 SAFE    pass   clean
+durable-objects                100 SAFE    pass   clean
+publish-project                100 SAFE    pass   clean
+sandbox-sdk                    100 SAFE    pass   clean
+web-perf                       100 SAFE    pass   clean
+workers-best-practices         100 SAFE    pass   clean
+agents-sdk                     100 SAFE    pass   clean
+cloudflare-email-service       100 SAFE    pass   clean
+complexity-optimizer           100 SAFE    pass   clean
+durable-objects                100 SAFE    pass   clean
+hatch-pet                      100 SAFE    pass   clean
+sandbox-sdk                    100 SAFE    pass   clean
+web-perf                       100 SAFE    pass   clean
+workers-best-practices         100 SAFE    pass   clean
+dogfood                        100 SAFE    pass   clean
+weread-skills                  100 SAFE    pass   clean
+yuanbao                        100 SAFE    pass   clean
+mmx-cli                        100 SAFE    pass   clean
+
+####################################################################################################
+
+DOCTOR
+====================================================================================================
+clean: declared=0 locked=0
+
+####################################################################################################
+
+STATS
+====================================================================================================
+transcripts=17 invocations=5 since=2026-05-13T17:12:01.302Z
+
+   2 update-config                    2026-06-11T16:04:58.217Z
+   2 nimble:search                    2026-06-11T14:21:40.356Z
+   1 loop                             2026-06-11T13:43:03.835Z
+
+zombie longbridge                     cline,dexto,kimi-code-cli,loaf,warp,zed (.agents/skills)
+zombie mmx-cli                        cline,dexto,kimi-code-cli,loaf,warp,zed (.agents/skills)
+zombie publish-project                cline,dexto,kimi-code-cli,loaf,warp,zed (.agents/skills)
+zombie agents-sdk                     claude-code (.claude/skills)
+zombie cloudflare                     claude-code (.claude/skills)
+zombie cloudflare-email-service       claude-code (.claude/skills)
+zombie durable-objects                claude-code (.claude/skills)
+zombie longbridge                     claude-code (.claude/skills)
+zombie publish-project                claude-code (.claude/skills)
+zombie sandbox-sdk                    claude-code (.claude/skills)
+zombie web-perf                       claude-code (.claude/skills)
+zombie workers-best-practices         claude-code (.claude/skills)
+zombie wrangler                       claude-code (.claude/skills)
+zombie agents-sdk                     codex (.codex/skills)
+zombie cloudflare                     codex (.codex/skills)
+zombie cloudflare-email-service       codex (.codex/skills)
+zombie complexity-optimizer           codex (.codex/skills)
+zombie durable-objects                codex (.codex/skills)
+zombie hatch-pet                      codex (.codex/skills)
+zombie sandbox-sdk                    codex (.codex/skills)
+zombie web-perf                       codex (.codex/skills)
+zombie workers-best-practices         codex (.codex/skills)
+zombie wrangler                       codex (.codex/skills)
+zombie dogfood                        hermes-agent (.hermes/skills)
+zombie weread-skills                  hermes-agent (.hermes/skills)
+zombie yuanbao                        hermes-agent (.hermes/skills)
+zombie longbridge                     openclaw (.openclaw/skills)
+zombie mmx-cli                        openclaw (.openclaw/skills)
