@@ -7,6 +7,7 @@ import { registerLintCommand } from './commands/lint.ts';
 import { registerLockCommand } from './commands/lock.ts';
 import { registerScanCommand } from './commands/scan.ts';
 import { registerStatsCommand } from './commands/stats.ts';
+import { registerSyncCommand } from './commands/sync.ts';
 import { registerToggleCommand } from './commands/toggle.ts';
 
 export function buildProgram(): Command {
@@ -19,6 +20,7 @@ export function buildProgram(): Command {
   registerAuditCommand(program);
   registerInstallCommand(program);
   registerToggleCommand(program);
+  registerSyncCommand(program);
   registerLintCommand(program);
   registerDoctorCommand(program);
   registerDriftCommand(program);
