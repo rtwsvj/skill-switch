@@ -9,7 +9,8 @@
     "build": "VITE_SKILL_SWITCH_ROOT=$(cd .. && pwd) vite build",
     "preview": "vite preview --host 127.0.0.1",
     "tauri": "PATH=$HOME/.cargo/bin:$PATH tauri",
-    "tui": "node scripts/tui.mjs"
+    "tui": "node scripts/tui.mjs",
+    "sign": "bash scripts/sign-notarize.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

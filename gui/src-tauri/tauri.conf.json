@@ -36,6 +36,9 @@
     "externalBin": [
       "bin/skill-switch-cli"
     ],
+    "macOS": {
+      "entitlements": "entitlements.plist"
+    },
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }
