@@ -151,6 +151,28 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(app).toContain('handleAdopt');
   });
 
+  it('GUI write safety UX keeps confirmations, audit blocking, snapshots, and refresh visible', () => {
+    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const confirmCount = app.match(/window\.confirm/g)?.length ?? 0;
+    expect(confirmCount).toBeGreaterThanOrEqual(6);
+    for (const key of [
+      'operations.confirm.install',
+      'operations.confirm.forceInstall',
+      'operations.confirm.toggleOn',
+      'operations.confirm.toggleOff',
+      'operations.confirm.remove',
+      'operations.confirm.adopt',
+      'operations.confirm.sync',
+      'operations.confirm.restore',
+    ]) {
+      expect(app).toContain(key);
+    }
+    expect(app).toContain('result.data.blocked.length > 0');
+    expect(app).toContain('return;');
+    expect(app).toContain('snapshotPaths(result.data)');
+    expect(app.match(/await onRefresh\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
+  });
+
   it('runs both the tsx CLI and the SEA sidecar as real child processes', () => {
     const cliStdout = execFileSync(
       process.execPath,

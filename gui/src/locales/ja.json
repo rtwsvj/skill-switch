@@ -82,7 +82,7 @@
     "title": "書き込み操作",
     "writeEnabled": "有効",
     "busy": "実行中",
-    "snapshot": "スナップショット",
+    "snapshot": "作成済みスナップショット",
     "install": {
       "title": "インストール",
       "source": "ソース",

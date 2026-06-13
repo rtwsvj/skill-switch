@@ -82,7 +82,7 @@
     "title": "Operaciones de escritura",
     "writeEnabled": "activadas",
     "busy": "Ejecutando",
-    "snapshot": "Snapshot",
+    "snapshot": "Snapshot creado",
     "install": {
       "title": "Instalar",
       "source": "Origen",

@@ -82,7 +82,7 @@
     "title": "Write Operations",
     "writeEnabled": "enabled",
     "busy": "Working",
-    "snapshot": "Snapshot",
+    "snapshot": "Snapshot taken",
     "install": {
       "title": "Install",
       "source": "Source",

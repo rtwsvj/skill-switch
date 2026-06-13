@@ -82,7 +82,7 @@
     "title": "写操作",
     "writeEnabled": "可操作",
     "busy": "执行中",
-    "snapshot": "快照",
+    "snapshot": "已拍快照",
     "install": {
       "title": "安装",
       "source": "来源",
