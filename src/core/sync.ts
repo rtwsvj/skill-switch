@@ -14,6 +14,7 @@ import {
   setCodexSkillEnabled,
 } from './codex-toggle.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
+import { assertSafeSkillName } from './skill-name.ts';
 
 export interface SkillDeclaration {
   name: string;
@@ -239,6 +240,7 @@ export async function planSync(
 ): Promise<SyncAction[]> {
   const actions: SyncAction[] = [];
   for (const skill of declaration.skills) {
+    assertSafeSkillName(skill.name, 'declaration skill name');
     for (const agent of skill.agents) {
       const expected = sourceForAgent(skill, agent);
       const sourceAbs = sourceAbsFor(home, expected.source);

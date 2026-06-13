@@ -6,6 +6,7 @@ import { snapshotAgents } from './agent-snapshots.ts';
 import type { SnapshotInfo } from './backup.ts';
 import { getSkillsLockPath, removeLockEntries } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
+import { assertSafeSkillName } from './skill-name.ts';
 import { getSkillsJsonPath, removeFromDeclaration } from './sync.ts';
 
 export interface RemoveResult {
@@ -18,6 +19,7 @@ export interface RemoveResult {
 }
 
 function targetFor(home: string, agent: AgentType, name: string): string {
+  assertSafeSkillName(name, 'remove skill name');
   const location = getAgentSkillsLocations().find((l) => l.agent === agent);
   if (!location) throw new Error(`未知或无全局 skills 目录的 agent: ${agent}`);
   return join(resolveGlobalSkillsDir(home, location), name);

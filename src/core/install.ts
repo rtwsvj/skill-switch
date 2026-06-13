@@ -9,7 +9,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, readdir, rm, stat, symlink } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { cleanupTempDir, cloneRepo } from '../vendor/vercel-skills/git.ts';
@@ -19,6 +19,7 @@ import type { AuditReport } from './audit/engine.ts';
 import { snapshot } from './backup.ts';
 import { getSkillsLockPath, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
+import { assertSafeSkillName, isSafeSkillName } from './skill-name.ts';
 import { getSkillsJsonPath, upsertSkillDeclarations } from './sync.ts';
 
 const execFileAsync = promisify(execFile);
@@ -63,7 +64,7 @@ export async function discoverSkillDirs(root: string): Promise<string[]> {
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (existsSync(join(dir, 'SKILL.md'))) {
-      found.push(dir);
+      if (isSafeSkillName(basename(dir))) found.push(dir);
       return; // skill 目录不再下钻
     }
     if (depth >= DISCOVER_MAX_DEPTH) return;
@@ -102,6 +103,9 @@ export async function installFromSource(
   const skillsDir = targetSkillsDir(options.home, options.agent);
 
   const local = await isLocalDir(source);
+  if (options.skill !== undefined) {
+    assertSafeSkillName(options.skill, 'install skill filter');
+  }
   if (options.mode === 'symlink' && !local) {
     throw new Error('symlink 模式仅支持本地目录源:克隆的临时目录会被清理,symlink 会悬空');
   }
@@ -122,7 +126,7 @@ export async function installFromSource(
       for (const dir of skillDirs) {
         const report = await auditSkillDir(dir);
         if (shouldBlock(report)) {
-          blocked.push({ name: dir.split('/').pop()!, score: report.score, report });
+          blocked.push({ name: basename(dir), score: report.score, report });
         }
       }
       if (blocked.length > 0) {
@@ -152,7 +156,8 @@ export async function installFromSource(
     const lockEntries: SkillsLockEntry[] = [];
     const declarationAdditions: Parameters<typeof upsertSkillDeclarations>[1] = [];
     for (const dir of skillDirs) {
-      const name = dir.split('/').pop()!;
+      const name = basename(dir);
+      assertSafeSkillName(name, 'discovered skill name');
       const target = join(skillsDir, name);
       await rm(target, { recursive: true, force: true });
       if (options.mode === 'symlink') {
