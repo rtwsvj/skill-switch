@@ -24,5 +24,3 @@ log = "0.4"
 tauri = { version = "2.11.2", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-shell = "2.3.5"
-# Keep Tauri 2.11 compiling while time 0.3.48 conflicts with tauri-utils/cookie.
-time = "=0.3.44"
