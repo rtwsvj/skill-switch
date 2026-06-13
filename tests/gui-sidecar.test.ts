@@ -62,7 +62,7 @@ describe('GUI Tauri sidecar wiring', () => {
   it('allows exactly one sidecar program in the shell capability', () => {
     // 注:Tauri v2 对同名 sidecar 的多条 allow 不按 args 区分、永远跑第一条,
     // 会导致每个命令都被当成第一条(scan)执行。因此只保留单条 args:true 条目,
-    // 只读性改由数据层只调只读命令来保证(见下一条用例)。
+    // 读写边界改由数据层固定参数和 UI 确认流保证。
     const capability = readJson<{
       permissions: Array<string | { identifier: string; allow: Array<{ name: string; sidecar: boolean; args: unknown }> }>;
     }>('gui/src-tauri/capabilities/default.json');

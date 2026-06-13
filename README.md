@@ -47,7 +47,7 @@ That command runs tests, typecheck, `npm pack --dry-run --json`, and the Tauri r
 - `gui/src-tauri/target/release/bundle/macos/skill-switch.app/Contents/MacOS/skill-switch-cli`
 - `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.1.0_aarch64.dmg`
 
-The packaged GUI uses a Node SEA sidecar for CLI calls, so the packaged read-only dashboard sidecar does not need a `node` command on `PATH`. The `.app`/`.dmg` are still unsigned local artifacts; Gatekeeper-friendly distribution requires the manual signing and notarization steps in [docs/launch-checklist.md](docs/launch-checklist.md).
+The packaged GUI uses a Node SEA sidecar for CLI calls, so the packaged app does not need a `node` command on `PATH`. The GUI can run read/write governance operations, with confirmations, snapshots, and audit blocking in the UI. The `.app`/`.dmg` are still unsigned local artifacts; Gatekeeper-friendly distribution requires the manual signing and notarization steps in [docs/launch-checklist.md](docs/launch-checklist.md).
 
 ## Commands
 
@@ -91,13 +91,20 @@ The packaged GUI uses a Node SEA sidecar for CLI calls, so the packaged read-onl
 
 ## GUI
 
-GUI 是本仓内的本地 dashboard,用于查看 inventory、audit、doctor、stats、lock verify 等只读治理数据。Tauri Node SEA sidecar 使用只读白名单,当前允许:
+GUI 是本仓内的本地治理控制台,用于查看 inventory、audit、doctor、stats、lock verify,也可执行 `install/toggle/sync/remove/restore`。写操作走确认 + 快照 + audit 护栏:install 先审计,被阻断的 skill 必须显式勾选 force 才能继续;remove/toggle-off/sync apply/restore 都会确认;成功后界面展示快照路径并刷新数据。
+
+Tauri Node SEA sidecar 通过单条 `args:true` capability 调用打包 CLI;安全边界在 GUI 数据层和 UI 确认流中实现。当前界面会调用:
 
 - `scan --json`
-- `audit --home --json`
+- `audit --json`
 - `doctor --json`
 - `stats --days <N> --json`
 - `lock --verify --json`
+- `install <source> --agent <agent> --mode <mode> --json`
+- `toggle <skill> --on|--off --json`
+- `sync --dry-run --json` / `sync --json`
+- `remove <skill> --agent <agent> --json`
+- `restore --json` / `restore --id <id> --json`
 
 运行方式:
 

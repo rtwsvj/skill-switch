@@ -47,7 +47,8 @@ describe('README', () => {
       'Exit Codes',
       'Safety Model',
       '装前快照',
-      '只读白名单',
+      '确认 + 快照 + audit',
+      'install/toggle/sync/remove/restore',
       'v0.1.0 early release',
       'clone + run',
       'pnpm release',
@@ -56,5 +57,14 @@ describe('README', () => {
     ]) {
       expect(readme).toContain(required);
     }
+    expect(readme).not.toContain('只读白名单');
+    expect(readme).not.toContain('read-only dashboard sidecar');
+  });
+
+  it('documents the GUI as read/write in the launch checklist', () => {
+    const checklist = readFileSync(join(ROOT, 'docs/launch-checklist.md'), 'utf8');
+    expect(checklist).toContain('GUI read/write smoke');
+    expect(checklist).toContain('confirmations, snapshots, and audit blocking');
+    expect(checklist).not.toContain('read-only dashboard sidecar');
   });
 });
