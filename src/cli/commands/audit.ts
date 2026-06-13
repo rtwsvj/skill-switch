@@ -17,7 +17,9 @@ const BLOCKING_SEVERITIES = new Set(['critical', 'high']);
 
 // 只读文本扩展;跳过二进制资源
 const TEXT_EXT = new Set(['.md', '.txt', '.sh', '.bash', '.zsh', '.py', '.js', '.ts', '.json', '.toml', '.yaml', '.yml', '.cfg', '.conf', '']);
-const MAX_FILE_BYTES = 512 * 1024;
+export const MAX_FILE_BYTES = 512 * 1024;
+export const MAX_AUDIT_FILES = 1000;
+export const MAX_AUDIT_WALK_DEPTH = 24;
 
 export function shouldBlock(report: Pick<AuditReport, 'score' | 'findings'>): boolean {
   if (report.score < DANGER_THRESHOLD) return true;
@@ -27,12 +29,18 @@ export function shouldBlock(report: Pick<AuditReport, 'score' | 'findings'>): bo
 async function collectTextFiles(root: string): Promise<AuditTarget[]> {
   const targets: AuditTarget[] = [];
 
-  async function walk(dir: string): Promise<void> {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (targets.length >= MAX_AUDIT_FILES) return;
+    const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+    for (const entry of entries) {
+      if (targets.length >= MAX_AUDIT_FILES) return;
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         if (entry.name === '.git' || entry.name === 'node_modules') continue;
-        await walk(full);
+        if (depth >= MAX_AUDIT_WALK_DEPTH) continue;
+        await walk(full, depth + 1);
       } else if (entry.isFile() && TEXT_EXT.has(extname(entry.name).toLowerCase())) {
         const info = await lstat(full);
         if (info.size > MAX_FILE_BYTES) continue;
@@ -45,7 +53,7 @@ async function collectTextFiles(root: string): Promise<AuditTarget[]> {
   if (info.isFile()) {
     targets.push({ file: relative(join(root, '..'), root), content: await readFile(root, 'utf8') });
   } else if (info.isDirectory()) {
-    await walk(root);
+    await walk(root, 0);
   }
   return targets;
 }
