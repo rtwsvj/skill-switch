@@ -97,7 +97,9 @@ describe('core removal helpers', () => {
     expect(updated.skills).toEqual([
       expect.objectContaining({
         name: 'tidy-notes',
+        source: '/second',
         agents: ['gemini-cli'],
+        mode: 'copy',
         agentSources: { 'gemini-cli': { source: '/second', mode: 'copy' } },
       }),
     ]);
@@ -136,10 +138,11 @@ describe('remove CLI(真实子进程)', () => {
     expect((await readDeclaration(getSkillsJsonPath(home))).skills).toEqual([
       expect.objectContaining({
         name: 'tidy-notes',
+        source: join(home, '.skill-switch', 'store', 'gemini-cli', 'tidy-notes'),
         agents: ['gemini-cli'],
         agentSources: {
           'gemini-cli': {
-            source: join(home, '.gemini', 'skills', 'tidy-notes'),
+            source: join(home, '.skill-switch', 'store', 'gemini-cli', 'tidy-notes'),
             mode: 'copy',
           },
         },

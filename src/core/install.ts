@@ -88,6 +88,10 @@ function targetSkillsDir(home: string, agent: AgentType): string {
   return resolveGlobalSkillsDir(home, location);
 }
 
+function durableCopySource(home: string, agent: AgentType, name: string): string {
+  return join(home, '.skill-switch', 'store', agent, name);
+}
+
 async function isLocalDir(source: string): Promise<boolean> {
   try {
     return (await stat(source)).isDirectory();
@@ -160,17 +164,25 @@ export async function installFromSource(
       const name = basename(dir);
       assertSafeSkillName(name, 'discovered skill name');
       const target = join(skillsDir, name);
+      const declarationSource =
+        options.mode === 'copy' ? durableCopySource(options.home, options.agent, name) : dir;
+
+      if (options.mode === 'copy' && resolve(dir) !== resolve(declarationSource)) {
+        await rm(declarationSource, { recursive: true, force: true });
+        await copyDirWithoutSymlinks(dir, declarationSource);
+      }
+
       await rm(target, { recursive: true, force: true });
       if (options.mode === 'symlink') {
         await symlink(dir, target, 'dir');
       } else {
-        await copyDirWithoutSymlinks(dir, target);
+        await copyDirWithoutSymlinks(declarationSource, target);
       }
       installed.push({ name, targetPath: target });
       declarationAdditions.push({
         name,
         agent: options.agent,
-        source: options.mode === 'symlink' ? dir : target,
+        source: declarationSource,
         mode: options.mode,
       });
       lockEntries.push({

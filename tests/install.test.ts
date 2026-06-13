@@ -9,7 +9,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { installFromSource } from '../src/core/install.ts';
 import { listSnapshots } from '../src/core/backup.ts';
 import { runDoctor } from '../src/core/doctor.ts';
-import { getSkillsJsonPath, readDeclaration } from '../src/core/sync.ts';
+import { toggleSkill } from '../src/core/toggle.ts';
+import { applySync, getSkillsJsonPath, readDeclaration } from '../src/core/sync.ts';
 
 let work: string;
 let goodRepo: string; // 含 1 个良性 skill 的 git 仓
@@ -107,22 +108,51 @@ describe('core/install', () => {
       mode: 'copy',
     });
     const target = join(home, '.claude', 'skills', 'tidy-notes');
+    const durableSource = join(home, '.skill-switch', 'store', 'claude-code', 'tidy-notes');
 
     expect(result.declarationPath).toBe(getSkillsJsonPath(home));
     const declaration = await readDeclaration(getSkillsJsonPath(home));
     expect(declaration.skills).toEqual([
       {
         name: 'tidy-notes',
-        source: target,
+        source: durableSource,
         agents: ['claude-code'],
         enabled: true,
         mode: 'copy',
       },
     ]);
+    expect(await readFile(join(durableSource, 'SKILL.md'), 'utf8')).toBe(
+      await readFile(join(target, 'SKILL.md'), 'utf8'),
+    );
 
     const report = await runDoctor(home);
     expect(report.clean).toBe(true);
     expect(report.findings.filter((f) => f.kind === 'extra-locked')).toEqual([]);
+  });
+
+  it('W0: copy install can toggle off then on from the durable store', async () => {
+    const home = freshHome();
+    await installFromSource(`file://${goodRepo}`, {
+      home,
+      agent: 'claude-code',
+      mode: 'copy',
+    });
+    const target = join(home, '.claude', 'skills', 'tidy-notes');
+    const durableSource = join(home, '.skill-switch', 'store', 'claude-code', 'tidy-notes');
+
+    await toggleSkill(home, 'tidy-notes', false);
+    await expect(lstat(target)).rejects.toThrow();
+    expect(await readFile(join(durableSource, 'SKILL.md'), 'utf8')).toContain('tidy-notes');
+
+    await toggleSkill(home, 'tidy-notes', true);
+    expect(await readFile(join(target, 'SKILL.md'), 'utf8')).toContain('tidy-notes');
+
+    const doctor = await runDoctor(home);
+    expect(doctor.clean).toBe(true);
+
+    const declaration = await readDeclaration(getSkillsJsonPath(home));
+    const secondSync = await applySync(home, declaration);
+    expect(secondSync.actions.every((action) => action.kind === 'noop')).toBe(true);
   });
 
   it('F1: symlink install declares the durable local source and doctor is clean', async () => {
@@ -188,19 +218,19 @@ describe('core/install', () => {
       mode: 'copy',
     });
 
-    const claudeTarget = join(home, '.claude', 'skills', 'tidy-notes');
-    const geminiTarget = join(home, '.gemini', 'skills', 'tidy-notes');
+    const claudeSource = join(home, '.skill-switch', 'store', 'claude-code', 'tidy-notes');
+    const geminiSource = join(home, '.skill-switch', 'store', 'gemini-cli', 'tidy-notes');
     const declaration = await readDeclaration(getSkillsJsonPath(home));
     expect(declaration.skills).toEqual([
       {
         name: 'tidy-notes',
-        source: claudeTarget,
+        source: claudeSource,
         agents: ['claude-code', 'gemini-cli'],
         enabled: true,
         mode: 'copy',
         agentSources: {
-          'claude-code': { source: claudeTarget, mode: 'copy' },
-          'gemini-cli': { source: geminiTarget, mode: 'copy' },
+          'claude-code': { source: claudeSource, mode: 'copy' },
+          'gemini-cli': { source: geminiSource, mode: 'copy' },
         },
       },
     ]);

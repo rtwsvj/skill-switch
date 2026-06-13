@@ -133,6 +133,13 @@ export async function removeFromDeclaration(
     if (next.agentSources) {
       delete next.agentSources[agent];
       if (Object.keys(next.agentSources).length === 0) delete next.agentSources;
+      else {
+        const promoted = next.agentSources[agents[0]!];
+        if (promoted) {
+          next.source = promoted.source;
+          next.mode = promoted.mode;
+        }
+      }
     }
     skills.push(next);
   }
