@@ -30,4 +30,26 @@ describe('README', () => {
   it('lists every registered CLI command and no stale commands', () => {
     expect(readmeCommands()).toEqual(cliCommands());
   });
+
+  it('documents release-facing usage, safety, GUI, and screenshots', () => {
+    const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+    for (const required of [
+      '跨 agent 的 skill 治理层',
+      '## GUI',
+      'pnpm --dir gui tauri dev',
+      'gui/docs/g1-overview.png',
+      'gui/docs/g1-audit.png',
+      'gui/docs/p1-i18n-zh-CN.png',
+      'zh-CN',
+      'en',
+      'ja',
+      'es',
+      'Exit Codes',
+      'Safety Model',
+      '装前快照',
+      '只读白名单',
+    ]) {
+      expect(readme).toContain(required);
+    }
+  });
 });
