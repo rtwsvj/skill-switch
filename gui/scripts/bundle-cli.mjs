@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { homedir, tmpdir, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -9,26 +9,45 @@ import { build } from 'esbuild';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..', '..');
 const outBase = resolve(scriptDir, '..', 'src-tauri', 'bin', 'skill-switch-cli');
-const rustToolchain = process.env.RUSTUP_TOOLCHAIN || '1.88.0';
 const seaFuse = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function homeCandidates() {
+  return unique([homedir(), userInfo().homedir]);
+}
+
 function rustcCandidates() {
-  return ['rustc', resolve(homedir(), '.cargo', 'bin', 'rustc')];
+  return unique([
+    'rustc',
+    process.env.CARGO_HOME ? resolve(process.env.CARGO_HOME, 'bin', 'rustc') : undefined,
+    ...homeCandidates().map((home) => resolve(home, '.cargo', 'bin', 'rustc')),
+  ]);
 }
 
 function hostTriple() {
+  const rustEnv = { ...process.env };
+  if (!process.env.RUSTUP_TOOLCHAIN) delete rustEnv.RUSTUP_TOOLCHAIN;
   for (const rustc of rustcCandidates()) {
     try {
       return execFileSync(rustc, ['--print', 'host-tuple'], {
         cwd: repoRoot,
         encoding: 'utf8',
-        env: { ...process.env, RUSTUP_TOOLCHAIN: rustToolchain },
+        env: rustEnv,
+        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim();
     } catch {
       // Try the next candidate.
     }
   }
-  throw new Error('Unable to determine Rust host tuple for Tauri sidecar naming.');
+  if (process.platform === 'darwin' && process.arch === 'arm64') return 'aarch64-apple-darwin';
+  if (process.platform === 'darwin' && process.arch === 'x64') return 'x86_64-apple-darwin';
+  if (process.platform === 'linux' && process.arch === 'x64') return 'x86_64-unknown-linux-gnu';
+  if (process.platform === 'linux' && process.arch === 'arm64') return 'aarch64-unknown-linux-gnu';
+  if (process.platform === 'win32' && process.arch === 'x64') return 'x86_64-pc-windows-msvc';
+  throw new Error(`Unable to determine Rust host tuple for ${process.platform}/${process.arch}.`);
 }
 
 function run(command, args, options = {}) {
@@ -60,11 +79,13 @@ function postjectArgs(outfile, blobPath) {
 }
 
 function seaNodeCandidates() {
-  return [
+  return unique([
     process.env.SKILL_SWITCH_SEA_NODE,
     process.execPath,
-    resolve(homedir(), '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'bin', 'node'),
-  ].filter((candidate, index, candidates) => Boolean(candidate) && candidates.indexOf(candidate) === index);
+    ...homeCandidates().map((home) =>
+      resolve(home, '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'bin', 'node'),
+    ),
+  ]);
 }
 
 function containsSeaFuse(candidate) {
@@ -92,7 +113,7 @@ const nodeForSea = seaNodeExecutable();
 
 await mkdir(dirname(outfile), { recursive: true });
 const result = await build({
-  entryPoints: [resolve(scriptDir, 'cli-sidecar-entry.ts')],
+  entryPoints: [resolve(scriptDir, '..', '..', 'src', 'cli', 'index.ts')],
   bundle: true,
   platform: 'node',
   target: 'node20',
