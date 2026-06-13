@@ -10,16 +10,28 @@ function readJson<T>(path: string): T {
 
 describe('GUI Tauri sidecar wiring', () => {
   it('builds the CLI sidecar before Tauri dev/build and embeds it as externalBin', () => {
-    const pkg = readJson<{ scripts: Record<string, string> }>('gui/package.json');
+    const pkg = readJson<{ devDependencies?: Record<string, string>; scripts: Record<string, string> }>('gui/package.json');
     const tauri = readJson<{
       build: { beforeDevCommand: string; beforeBuildCommand: string };
       bundle: { externalBin?: string[] };
     }>('gui/src-tauri/tauri.conf.json');
 
     expect(pkg.scripts['bundle:cli']).toBe('node scripts/bundle-cli.mjs');
+    expect(pkg.devDependencies?.postject).toBeDefined();
     expect(tauri.build.beforeDevCommand).toBe('pnpm bundle:cli && pnpm dev');
     expect(tauri.build.beforeBuildCommand).toBe('pnpm bundle:cli && pnpm build');
     expect(tauri.bundle.externalBin).toEqual(['bin/skill-switch-cli']);
+  });
+
+  it('uses Node SEA for the packaged sidecar instead of a shell wrapper that execs node', () => {
+    const bundler = readFileSync(join(ROOT, 'gui/scripts/bundle-cli.mjs'), 'utf8');
+    const gitignore = readFileSync(join(ROOT, '.gitignore'), 'utf8');
+
+    expect(bundler).toContain('postject');
+    expect(bundler).toContain('NODE_SEA_BLOB');
+    expect(bundler).toContain('--macho-segment-name');
+    expect(bundler).not.toContain('exec node - "$@"');
+    expect(gitignore).toContain('gui/src-tauri/bin/');
   });
 
   it('keeps the shell permission scoped to read-only sidecar calls', () => {
