@@ -32,7 +32,7 @@ skill-switch doctor --home /path/to/fake-home --ci
 | Command | Purpose | Example |
 |---|---|---|
 | `scan` | 盘点各 agent 已安装 skills,坏 frontmatter 以 error 字段呈现。 | `pnpm cli scan --home tests/fixtures/home-basic --json` |
-| `audit` | 对 skill 目录做安全体检;任意 critical/high 或 score<70 会阻断。 | `pnpm cli audit tests/fixtures/skills-benign/api-client` |
+| `audit` | 对单个 skill 目录或 home 内全部已装 skills 做安全体检;任意 critical/high 或 score<70 会阻断。 | `pnpm cli audit --home /tmp/ss-home --json` |
 | `install` | 安装本地或 git source,装前 audit、快照,写 lock 与声明。 | `pnpm cli install ./tests/fixtures/some-source --agent claude-code --home /tmp/ss-home` |
 | `toggle` | 按 `skills.json` 开关单个 skill;codex 使用 config.toml 原生开关。 | `pnpm cli toggle tidy-notes --off --home /tmp/ss-home` |
 | `sync` | 应用整份 `skills.json` 到磁盘;支持 dry-run。 | `pnpm cli sync --home /tmp/ss-home --dry-run` |

@@ -8,13 +8,15 @@ import { auditSkillDir, shouldBlock } from '../src/cli/commands/audit.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const FIX = join(import.meta.dirname, 'fixtures');
+const HOME_AUDIT_MIXED = join(FIX, 'home-audit-mixed');
+const HOME_AUDIT_BENIGN = join(FIX, 'home-audit-benign');
 const CLI = join(ROOT, 'src', 'cli', 'index.ts');
 
-function runAudit(path: string, extra: string[] = []): { stdout: string; status: number } {
+function runCli(args: string[]): { stdout: string; status: number } {
   try {
     const stdout = execFileSync(
       process.execPath,
-      ['--import', 'tsx', CLI, 'audit', path, ...extra],
+      ['--import', 'tsx', CLI, ...args],
       { cwd: ROOT, encoding: 'utf8' },
     );
     return { stdout, status: 0 };
@@ -22,6 +24,10 @@ function runAudit(path: string, extra: string[] = []): { stdout: string; status:
     const e = err as { stdout?: string; status?: number };
     return { stdout: e.stdout ?? '', status: e.status ?? -1 };
   }
+}
+
+function runAudit(path: string, extra: string[] = []): { stdout: string; status: number } {
+  return runCli(['audit', path, ...extra]);
 }
 
 const MALICIOUS = readdirSync(join(FIX, 'skills-malicious'));
@@ -95,5 +101,31 @@ describe('audit CLI (real subprocess)', () => {
     expect(f).toHaveProperty('severity');
     expect(f).toHaveProperty('file');
     expect(typeof f.line).toBe('number');
+  });
+
+  it('audit --home --json aggregates installed skills and exits 1 when any skill blocks', () => {
+    const { stdout, status } = runCli(['audit', '--home', HOME_AUDIT_MIXED, '--json']);
+    expect(status).toBe(1);
+    const parsed = JSON.parse(stdout) as {
+      total: number;
+      skills: Array<{ name: string; dir: string; score: number; verdict: string; blocked: boolean }>;
+    };
+    expect(parsed.total).toBe(2);
+    const bad = parsed.skills.find((skill) => skill.name === 'exfil-staged-read');
+    expect(bad).toBeDefined();
+    expect(bad!.blocked).toBe(true);
+    expect(bad!.verdict).toBe('REVIEW');
+  });
+
+  it('audit --home --json exits 0 when all installed skills are non-blocking', () => {
+    const { stdout, status } = runCli(['audit', '--home', HOME_AUDIT_BENIGN, '--json']);
+    expect(status).toBe(0);
+    const parsed = JSON.parse(stdout) as {
+      total: number;
+      skills: Array<{ name: string; blocked: boolean; score: number }>;
+    };
+    expect(parsed.total).toBe(2);
+    expect(parsed.skills.every((skill) => !skill.blocked)).toBe(true);
+    expect(parsed.skills.every((skill) => skill.score >= 90)).toBe(true);
   });
 });

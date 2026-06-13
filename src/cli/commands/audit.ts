@@ -5,11 +5,13 @@
 //   "任意 finding 严重度 ∈ {critical, high}  OR  score < 70" → exit 1。
 //   分数带(SAFE/REVIEW/DANGER)仅用于展示。
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { extname, join, relative } from 'node:path';
+import { dirname, extname, join, relative } from 'node:path';
 import type { Command } from 'commander';
 import { allFileRules, allRules } from '../../../rules/index.ts';
 import { auditContents, type AuditReport, type AuditTarget } from '../../core/audit/engine.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
+import { resolveHomeRoot } from '../../core/paths.ts';
+import { scanHome, type SkillRecord } from '../../core/scan.ts';
 
 const BLOCKING_SEVERITIES = new Set(['critical', 'high']);
 
@@ -73,19 +75,90 @@ export function formatAuditReport(path: string, report: AuditReport): string {
   return lines.join('\n');
 }
 
+export interface AuditHomeSkillReport extends AuditReport {
+  name: string;
+  dirName: string;
+  dir: string;
+  path: string;
+  agents: SkillRecord['agents'];
+  relSkillsDir: string;
+  blocked: boolean;
+}
+
+export interface AuditHomeReport {
+  home: string;
+  total: number;
+  skills: AuditHomeSkillReport[];
+}
+
+export async function auditHome(home: string): Promise<AuditHomeReport> {
+  const records = await scanHome(home);
+  const uniqueRecords = new Map<string, SkillRecord>();
+  for (const record of records) {
+    uniqueRecords.set(dirname(record.path), record);
+  }
+
+  const skills: AuditHomeSkillReport[] = [];
+  for (const [dir, record] of uniqueRecords) {
+    const report = await auditSkillDir(dir);
+    skills.push({
+      ...report,
+      name: record.name ?? record.dirName,
+      dirName: record.dirName,
+      dir,
+      path: dir,
+      agents: record.agents,
+      relSkillsDir: record.relSkillsDir,
+      blocked: shouldBlock(report),
+    });
+  }
+
+  skills.sort((a, b) => `${a.relSkillsDir}|${a.dirName}`.localeCompare(`${b.relSkillsDir}|${b.dirName}`));
+  return { home, total: skills.length, skills };
+}
+
+function formatAuditHomeTable(report: AuditHomeReport): string {
+  if (report.skills.length === 0) return `audit home: ${report.home}\n未发现任何 skill。`;
+
+  const header = ['NAME', 'DIR', 'SCORE', 'VERDICT', 'BLOCK'];
+  const rows = report.skills.map((skill) => [
+    skill.name,
+    skill.dir,
+    String(skill.score),
+    skill.verdict,
+    skill.blocked ? 'yes' : 'no',
+  ]);
+  const widths = header.map((h, col) => Math.max(h.length, ...rows.map((row) => row[col]!.length)));
+  const renderRow = (row: string[]) => row.map((cell, col) => cell.padEnd(widths[col]!)).join('  ').trimEnd();
+  return [`audit home: ${report.home}`, renderRow(header), ...rows.map(renderRow)].join('\n');
+}
+
 export function registerAuditCommand(program: Command): void {
   program
     .command('audit')
-    .description('对 skill 目录做安全体检(纯读;任意 critical/high 或评分<70 → exit 1)')
-    .argument('<path>', 'skill 目录或 SKILL.md 路径')
+    .description('对 skill 目录或 home 内全部已装 skill 做安全体检(纯读;任意 critical/high 或评分<70 → exit 1)')
+    .argument('[path]', 'skill 目录或 SKILL.md 路径;省略时扫描 --home 下全部已装 skill')
+    .option('--home <dir>', '覆盖 home 根目录(默认取系统 home)')
     .option('--json', '机器可读 JSON 输出')
-    .action(async (path: string, options: { json?: boolean }) => {
-      const report = await auditSkillDir(path);
-      if (options.json) {
-        console.log(JSON.stringify({ path, ...report }, null, 2));
-      } else {
-        console.log(formatAuditReport(path, report));
+    .action(async (path: string | undefined, options: { home?: string; json?: boolean }, command: Command) => {
+      if (path) {
+        const report = await auditSkillDir(path);
+        if (options.json) {
+          console.log(JSON.stringify({ path, ...report }, null, 2));
+        } else {
+          console.log(formatAuditReport(path, report));
+        }
+        if (shouldBlock(report)) process.exitCode = 1;
+        return;
       }
-      if (shouldBlock(report)) process.exitCode = 1;
+
+      const home = resolveHomeRoot(options.home ?? command.parent?.opts<{ home?: string }>().home);
+      const report = await auditHome(home);
+      if (options.json) {
+        console.log(JSON.stringify(report, null, 2));
+      } else {
+        console.log(formatAuditHomeTable(report));
+      }
+      if (report.skills.some((skill) => skill.blocked)) process.exitCode = 1;
     });
 }
