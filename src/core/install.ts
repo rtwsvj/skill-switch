@@ -8,7 +8,7 @@
 // - symlink 仅允许"本地目录源"(克隆出来的临时目录会被清理,symlink 过去就是悬空)。
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, readdir, rm, stat, symlink } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, symlink } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
@@ -19,6 +19,7 @@ import type { AuditReport } from './audit/engine.ts';
 import { snapshot } from './backup.ts';
 import { getSkillsLockPath, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
+import { copyDirWithoutSymlinks } from './safe-copy.ts';
 import { assertSafeSkillName, isSafeSkillName } from './skill-name.ts';
 import { getSkillsJsonPath, upsertSkillDeclarations } from './sync.ts';
 
@@ -163,7 +164,7 @@ export async function installFromSource(
       if (options.mode === 'symlink') {
         await symlink(dir, target, 'dir');
       } else {
-        await cp(dir, target, { recursive: true });
+        await copyDirWithoutSymlinks(dir, target);
       }
       installed.push({ name, targetPath: target });
       declarationAdditions.push({

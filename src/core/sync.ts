@@ -4,7 +4,7 @@
 //   enabled=false 移除,未声明的目录一律不碰(用户手装的东西不是 sync 的管辖)。
 // 幂等:对账式 plan→apply,二跑全 noop。Codex config.toml 原生开关在 S4.2 特例接入。
 import { existsSync } from 'node:fs';
-import { cp, lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
@@ -14,6 +14,7 @@ import {
   setCodexSkillEnabled,
 } from './codex-toggle.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
+import { copyDirWithoutSymlinks } from './safe-copy.ts';
 import { assertSafeSkillName } from './skill-name.ts';
 
 export interface SkillDeclaration {
@@ -300,7 +301,7 @@ export async function applySync(
     if (expected.mode === 'symlink') {
       await symlink(sourceAbs, action.target, 'dir');
     } else {
-      await cp(sourceAbs, action.target, { recursive: true });
+      await copyDirWithoutSymlinks(sourceAbs, action.target);
     }
   }
   return { actions };

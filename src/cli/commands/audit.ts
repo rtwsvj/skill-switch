@@ -4,7 +4,7 @@
 //   纯按 ags 分数带会把"单条 HIGH 的登录后门"判成 SAFE(90 分)。所以阻断判据是
 //   "任意 finding 严重度 ∈ {critical, high}  OR  score < 70" → exit 1。
 //   分数带(SAFE/REVIEW/DANGER)仅用于展示。
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { lstat, readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative } from 'node:path';
 import type { Command } from 'commander';
 import { allFileRules, allRules } from '../../../rules/index.ts';
@@ -34,17 +34,17 @@ async function collectTextFiles(root: string): Promise<AuditTarget[]> {
         if (entry.name === '.git' || entry.name === 'node_modules') continue;
         await walk(full);
       } else if (entry.isFile() && TEXT_EXT.has(extname(entry.name).toLowerCase())) {
-        const info = await stat(full);
+        const info = await lstat(full);
         if (info.size > MAX_FILE_BYTES) continue;
         targets.push({ file: relative(root, full), content: await readFile(full, 'utf8') });
       }
     }
   }
 
-  const info = await stat(root);
+  const info = await lstat(root);
   if (info.isFile()) {
     targets.push({ file: relative(join(root, '..'), root), content: await readFile(root, 'utf8') });
-  } else {
+  } else if (info.isDirectory()) {
     await walk(root);
   }
   return targets;
