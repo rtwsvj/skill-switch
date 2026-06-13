@@ -48,6 +48,11 @@ describe('README', () => {
       'Safety Model',
       '装前快照',
       '只读白名单',
+      'v0.1.0 early release',
+      'clone + run',
+      'pnpm release',
+      'Node SEA sidecar',
+      'skill-switch_0.1.0_aarch64.dmg',
     ]) {
       expect(readme).toContain(required);
     }

@@ -4,6 +4,8 @@
 
 `skill-switch` 适合在公开安装前、团队同步前、或 CI 闸门里回答三个问题:现在装了什么,安全吗,和声明/锁/上游还一致吗。
 
+Status: v0.1.0 early release. The CLI is useful for local governance workflows, but public distribution is still intentionally conservative: clone + run is the canonical path, npm publishing is disabled with `private: true`, and macOS GUI artifacts are unsigned until the release owner completes Developer ID signing/notarization.
+
 ## Screenshots
 
 ![GUI overview](gui/docs/g1-overview.png)
@@ -18,7 +20,7 @@
 
 ## Install And Run
 
-开发仓库内运行:
+Clone + run from the repo is always supported:
 
 ```bash
 pnpm install
@@ -26,12 +28,26 @@ pnpm cli --help
 pnpm cli scan --home tests/fixtures/home-basic --json
 ```
 
-bin shim 可直接运行同一套 CLI:
+The repo-local bin shim can run the same CLI after dependencies are installed:
 
 ```bash
 skill-switch --help
 skill-switch doctor --home /path/to/fake-home --ci
 ```
+
+Build all local release artifacts without publishing:
+
+```bash
+pnpm release
+```
+
+That command runs tests, typecheck, `npm pack --dry-run --json`, and the Tauri release build. It produces:
+
+- `gui/src-tauri/target/release/bundle/macos/skill-switch.app`
+- `gui/src-tauri/target/release/bundle/macos/skill-switch.app/Contents/MacOS/skill-switch-cli`
+- `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.1.0_aarch64.dmg`
+
+The packaged GUI uses a Node SEA sidecar for CLI calls, so the packaged read-only dashboard sidecar does not need a `node` command on `PATH`. The `.app`/`.dmg` are still unsigned local artifacts; Gatekeeper-friendly distribution requires the manual signing and notarization steps in [docs/launch-checklist.md](docs/launch-checklist.md).
 
 ## Commands
 
@@ -75,7 +91,7 @@ skill-switch doctor --home /path/to/fake-home --ci
 
 ## GUI
 
-GUI 是本仓内的本地 dashboard,用于查看 inventory、audit、doctor、stats、lock verify 等只读治理数据。Tauri shell sidecar 使用只读白名单,当前允许:
+GUI 是本仓内的本地 dashboard,用于查看 inventory、audit、doctor、stats、lock verify 等只读治理数据。Tauri Node SEA sidecar 使用只读白名单,当前允许:
 
 - `scan --json`
 - `audit --home --json`
