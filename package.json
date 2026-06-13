@@ -7,6 +7,18 @@
   "bin": {
     "skill-switch": "bin/skill-switch.mjs"
   },
+  "exports": {
+    ".": "./src/cli/program.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "rules",
+    "docs",
+    "LICENSE",
+    "README.md"
+  ],
   "engines": {
     "node": ">=20"
   },
