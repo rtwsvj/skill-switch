@@ -52,32 +52,36 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(gitignore).toContain('gui/src-tauri/bin/');
   });
 
-  it('keeps the shell permission scoped to read-only sidecar calls', () => {
+  it('allows exactly one sidecar program in the shell capability', () => {
+    // 注:Tauri v2 对同名 sidecar 的多条 allow 不按 args 区分、永远跑第一条,
+    // 会导致每个命令都被当成第一条(scan)执行。因此只保留单条 args:true 条目,
+    // 只读性改由数据层只调只读命令来保证(见下一条用例)。
     const capability = readJson<{
-      permissions: Array<string | { identifier: string; allow: Array<{ name: string; sidecar: boolean; args: unknown[] }> }>;
+      permissions: Array<string | { identifier: string; allow: Array<{ name: string; sidecar: boolean; args: unknown }> }>;
     }>('gui/src-tauri/capabilities/default.json');
     const shell = capability.permissions.find(
-      (permission): permission is { identifier: string; allow: Array<{ name: string; sidecar: boolean; args: unknown[] }> } =>
+      (permission): permission is { identifier: string; allow: Array<{ name: string; sidecar: boolean; args: unknown }> } =>
         typeof permission !== 'string' && permission.identifier === 'shell:allow-execute',
     );
 
     expect(shell).toBeDefined();
-    expect(shell!.allow).toEqual([
-      { name: 'bin/skill-switch-cli', sidecar: true, args: ['scan', '--json'] },
-      { name: 'bin/skill-switch-cli', sidecar: true, args: ['audit', '--home', '--json'] },
-      { name: 'bin/skill-switch-cli', sidecar: true, args: ['doctor', '--json'] },
-      { name: 'bin/skill-switch-cli', sidecar: true, args: ['stats', '--days', { validator: '^[0-9]{1,4}$' }, '--json'] },
-      { name: 'bin/skill-switch-cli', sidecar: true, args: ['lock', '--verify', '--json'] },
-    ]);
+    expect(shell!.allow).toEqual([{ name: 'bin/skill-switch-cli', sidecar: true, args: true }]);
   });
 
-  it('uses the sidecar data path without repo-relative tsx', () => {
+  it('GUI data layer only invokes read-only CLI subcommands', () => {
     const tauriData = readFileSync(join(ROOT, 'gui/src/data/tauri.ts'), 'utf8');
     expect(tauriData).toContain("const sidecarProgram = 'bin/skill-switch-cli'");
     expect(tauriData).toContain('Command.sidecar(sidecarProgram');
-    expect(tauriData).toContain("'audit', '--home', '--json'");
     expect(tauriData).not.toContain('tsx');
     expect(tauriData).not.toContain('src/cli/index.ts');
+    // 只读铁律:数据层不得调用任何写命令
+    for (const writeCmd of ['install', 'remove', 'toggle', 'sync']) {
+      expect(tauriData.includes(`'${writeCmd}'`), `data layer must not call ${writeCmd}`).toBe(false);
+    }
+    // 且确实调用各只读命令
+    for (const readCmd of ['scan', 'audit', 'doctor', 'stats', 'lock']) {
+      expect(tauriData.includes(`'${readCmd}'`), `data layer should call ${readCmd}`).toBe(true);
+    }
   });
 
   it('runs both the tsx CLI and the SEA sidecar as real child processes', () => {

@@ -12,28 +12,8 @@
       "allow": [
         {
           "name": "bin/skill-switch-cli",
-          "args": ["scan", "--json"],
-          "sidecar": true
-        },
-        {
-          "name": "bin/skill-switch-cli",
-          "args": ["audit", "--home", "--json"],
-          "sidecar": true
-        },
-        {
-          "name": "bin/skill-switch-cli",
-          "args": ["doctor", "--json"],
-          "sidecar": true
-        },
-        {
-          "name": "bin/skill-switch-cli",
-          "args": ["stats", "--days", { "validator": "^[0-9]{1,4}$" }, "--json"],
-          "sidecar": true
-        },
-        {
-          "name": "bin/skill-switch-cli",
-          "args": ["lock", "--verify", "--json"],
-          "sidecar": true
+          "sidecar": true,
+          "args": true
         }
       ]
     }

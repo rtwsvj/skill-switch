@@ -44,7 +44,9 @@ export async function loadScan(): Promise<ScanReport> {
 }
 
 export async function loadAudit(): Promise<AuditReport[]> {
-  return (await runCli<AuditHomeReport>(['audit', '--home', '--json'], 'audit --home', true)).skills;
+  // 注意:用 `audit --json`(不带 --home)。audit 的 home 全量模式由「无 path 参数」触发;
+  // `--home` 是可选值选项,放在 --json 前会把 --json 当成它的值,导致输出人类表格而非 JSON。
+  return (await runCli<AuditHomeReport>(['audit', '--json'], 'audit', true)).skills;
 }
 
 export async function loadDoctor(): Promise<DoctorReport> {

@@ -21,7 +21,8 @@ function isNameMismatch(skill: SkillRecord) {
 }
 
 function isBlockingAudit(report: AuditReport) {
-  return report.blocked ?? (report.score < 70 || report.findings.some((finding) => finding.severity === 'critical' || finding.severity === 'high'));
+  const findings = report.findings ?? [];
+  return report.blocked ?? (report.score < 70 || findings.some((finding) => finding.severity === 'critical' || finding.severity === 'high'));
 }
 
 function displaySkillName(skill: SkillRecord) {
@@ -251,6 +252,7 @@ function Audit({ data }: { data: DashboardData }) {
       <div className="audit-grid">
         {sorted.map((report) => {
           const blocking = isBlockingAudit(report);
+          const findings = report.findings ?? [];
           return (
             <article className={cx('audit-card', blocking && 'audit-card-danger')} key={report.path}>
               <div className="audit-head">
@@ -263,11 +265,11 @@ function Audit({ data }: { data: DashboardData }) {
               <div className="audit-meta">
                 <StatusPill tone={report.verdict === 'DANGER' ? 'danger' : report.verdict === 'REVIEW' ? 'warn' : 'good'}>{verdictLabel(report.verdict, t)}</StatusPill>
                 {blocking ? <StatusPill tone="danger">{t('status.blockable')}</StatusPill> : <StatusPill tone="good">{t('status.pass')}</StatusPill>}
-                <span>{t('audit.findingCount', { count: report.findings.length })}</span>
+                <span>{t('audit.findingCount', { count: findings.length })}</span>
               </div>
-              {report.findings.length > 0 ? (
+              {findings.length > 0 ? (
                 <ul className="finding-list">
-                  {report.findings.slice(0, 3).map((finding) => (
+                  {findings.slice(0, 3).map((finding) => (
                     <li key={`${finding.ruleId}-${finding.line}`}>
                       <span className={cx('severity-dot', `severity-${finding.severity}`)} />
                       <span>{finding.ruleId}</span>
