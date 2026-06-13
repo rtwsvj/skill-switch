@@ -91,6 +91,103 @@ export interface LockVerifyReport {
   entries: LockVerifyEntry[];
 }
 
+export type InstallMode = 'copy' | 'symlink';
+
+export interface CliJsonResult<T> {
+  data: T;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+export interface SnapshotView {
+  id?: string;
+  path: string;
+  label: string;
+  createdAt: string;
+  sourceDir?: string;
+}
+
+export interface SyncAction {
+  kind: 'create' | 'replace' | 'remove' | 'noop' | 'config-disable' | 'config-enable';
+  agent: string;
+  name: string;
+  target: string;
+  reason?: string;
+}
+
+export interface InstallRequest {
+  source: string;
+  agent: string;
+  mode: InstallMode;
+  skill?: string;
+  ref?: string;
+  force?: boolean;
+}
+
+export interface InstallRunResult {
+  installed: Array<{ name: string; targetPath: string }>;
+  blocked: Array<{ name: string; score: number; report: AuditReport }>;
+  snapshotPath?: string;
+  lockPath?: string;
+  declarationPath?: string;
+}
+
+export interface ToggleRequest {
+  name: string;
+  enabled: boolean;
+}
+
+export interface ToggleRunResult {
+  name: string;
+  enabled: boolean;
+  declarationPath: string;
+  snapshots: SnapshotView[];
+  actions: SyncAction[];
+}
+
+export interface SyncRequest {
+  dryRun: boolean;
+}
+
+export interface SyncRunResult {
+  declarationPath: string;
+  dryRun: boolean;
+  snapshots: SnapshotView[];
+  actions: SyncAction[];
+}
+
+export interface RemoveRequest {
+  name: string;
+  agent: string;
+}
+
+export interface RemoveRunResult {
+  name: string;
+  agent: string;
+  targetPath: string;
+  lockPath: string;
+  declarationPath: string;
+  snapshots: SnapshotView[];
+}
+
+export interface RestoreRequest {
+  id?: string;
+  latest?: boolean;
+}
+
+export interface RestoreListResult {
+  store: string;
+  snapshots: SnapshotView[];
+}
+
+export interface RestoreRunResult {
+  restored: true;
+  target: string;
+  snapshot: SnapshotView;
+  safetySnapshot: SnapshotView;
+}
+
 export interface DashboardData {
   scan: ScanReport;
   audit: AuditReport[];

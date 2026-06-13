@@ -1,12 +1,25 @@
 import { Command } from '@tauri-apps/plugin-shell';
 import type {
   AuditReport,
+  CliJsonResult,
   DashboardData,
   DoctorReport,
+  InstallRequest,
+  InstallRunResult,
   LockVerifyReport,
+  RemoveRequest,
+  RemoveRunResult,
+  RestoreListResult,
+  RestoreRequest,
+  RestoreRunResult,
   ScanReport,
   StatsReport,
+  SyncRequest,
+  SyncRunResult,
+  ToggleRequest,
+  ToggleRunResult,
 } from './types';
+import { installArgs, removeArgs, restoreArgs, syncArgs, toggleArgs } from './cli-args';
 
 const sidecarProgram = 'bin/skill-switch-cli';
 
@@ -22,7 +35,11 @@ function parseJson<T>(stdout: string, label: string): T {
   }
 }
 
-async function runCli<T>(args: string[], label: string, allowNonZero = false): Promise<T> {
+async function runCliJson<T>(
+  args: string[],
+  label: string,
+  allowNonZero = false,
+): Promise<CliJsonResult<T>> {
   const command = Command.sidecar(sidecarProgram, args, {
     env: {
       PAGER: '',
@@ -36,7 +53,16 @@ async function runCli<T>(args: string[], label: string, allowNonZero = false): P
   if (!output.stdout.trim()) {
     throw new Error(`${label} produced no JSON output.`);
   }
-  return parseJson<T>(output.stdout, label);
+  return {
+    data: parseJson<T>(output.stdout, label),
+    stdout: output.stdout,
+    stderr: output.stderr,
+    exitCode: output.code ?? -1,
+  };
+}
+
+async function runCli<T>(args: string[], label: string, allowNonZero = false): Promise<T> {
+  return (await runCliJson<T>(args, label, allowNonZero)).data;
 }
 
 export async function loadScan(): Promise<ScanReport> {
@@ -79,4 +105,32 @@ export async function loadDashboardData(): Promise<DashboardData> {
     source: 'tauri',
     loadedAt: new Date().toISOString(),
   };
+}
+
+export async function runInstall(
+  request: InstallRequest,
+): Promise<CliJsonResult<InstallRunResult>> {
+  return runCliJson<InstallRunResult>(installArgs(request), 'install', true);
+}
+
+export async function runToggle(
+  request: ToggleRequest,
+): Promise<CliJsonResult<ToggleRunResult>> {
+  return runCliJson<ToggleRunResult>(toggleArgs(request), 'toggle');
+}
+
+export async function runSync(request: SyncRequest): Promise<CliJsonResult<SyncRunResult>> {
+  return runCliJson<SyncRunResult>(syncArgs(request), 'sync');
+}
+
+export async function runRemove(
+  request: RemoveRequest,
+): Promise<CliJsonResult<RemoveRunResult>> {
+  return runCliJson<RemoveRunResult>(removeArgs(request), 'remove');
+}
+
+export async function runRestore(
+  request: RestoreRequest = {},
+): Promise<CliJsonResult<RestoreListResult | RestoreRunResult>> {
+  return runCliJson<RestoreListResult | RestoreRunResult>(restoreArgs(request), 'restore');
 }

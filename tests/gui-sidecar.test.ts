@@ -2,6 +2,13 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  installArgs,
+  removeArgs,
+  restoreArgs,
+  syncArgs,
+  toggleArgs,
+} from '../gui/src/data/cli-args.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const FIXTURE_HOME = join(ROOT, 'tests/fixtures/home-basic');
@@ -68,20 +75,68 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(shell!.allow).toEqual([{ name: 'bin/skill-switch-cli', sidecar: true, args: true }]);
   });
 
-  it('GUI data layer only invokes read-only CLI subcommands', () => {
+  it('GUI data layer exposes read and write CLI subcommands through the sidecar', () => {
     const tauriData = readFileSync(join(ROOT, 'gui/src/data/tauri.ts'), 'utf8');
     expect(tauriData).toContain("const sidecarProgram = 'bin/skill-switch-cli'");
     expect(tauriData).toContain('Command.sidecar(sidecarProgram');
     expect(tauriData).not.toContain('tsx');
     expect(tauriData).not.toContain('src/cli/index.ts');
-    // 只读铁律:数据层不得调用任何写命令
-    for (const writeCmd of ['install', 'remove', 'toggle', 'sync']) {
-      expect(tauriData.includes(`'${writeCmd}'`), `data layer must not call ${writeCmd}`).toBe(false);
-    }
-    // 且确实调用各只读命令
     for (const readCmd of ['scan', 'audit', 'doctor', 'stats', 'lock']) {
       expect(tauriData.includes(`'${readCmd}'`), `data layer should call ${readCmd}`).toBe(true);
     }
+    for (const writeMethod of ['runInstall', 'runRemove', 'runToggle', 'runSync', 'runRestore']) {
+      expect(tauriData.includes(`function ${writeMethod}`), `data layer should expose ${writeMethod}`).toBe(true);
+    }
+  });
+
+  it('constructs write sidecar args with --json and explicit command parameters', () => {
+    expect(
+      installArgs({
+        source: '/tmp/source',
+        agent: 'claude-code',
+        mode: 'copy',
+        skill: 'tidy-notes',
+        ref: 'main',
+        force: true,
+      }),
+    ).toEqual([
+      'install',
+      '/tmp/source',
+      '--agent',
+      'claude-code',
+      '--mode',
+      'copy',
+      '--skill',
+      'tidy-notes',
+      '--ref',
+      'main',
+      '--force',
+      '--json',
+    ]);
+    expect(toggleArgs({ name: 'tidy-notes', enabled: true })).toEqual([
+      'toggle',
+      'tidy-notes',
+      '--on',
+      '--json',
+    ]);
+    expect(toggleArgs({ name: 'tidy-notes', enabled: false })).toEqual([
+      'toggle',
+      'tidy-notes',
+      '--off',
+      '--json',
+    ]);
+    expect(syncArgs({ dryRun: true })).toEqual(['sync', '--dry-run', '--json']);
+    expect(syncArgs({ dryRun: false })).toEqual(['sync', '--json']);
+    expect(removeArgs({ name: 'tidy-notes', agent: 'gemini-cli' })).toEqual([
+      'remove',
+      'tidy-notes',
+      '--agent',
+      'gemini-cli',
+      '--json',
+    ]);
+    expect(restoreArgs({})).toEqual(['restore', '--json']);
+    expect(restoreArgs({ latest: true })).toEqual(['restore', '--latest', '--json']);
+    expect(restoreArgs({ id: '123' })).toEqual(['restore', '--id', '123', '--json']);
   });
 
   it('runs both the tsx CLI and the SEA sidecar as real child processes', () => {

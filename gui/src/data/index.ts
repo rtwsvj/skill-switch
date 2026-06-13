@@ -36,15 +36,51 @@ export async function loadDashboardData(): Promise<DashboardData> {
   return (await activeAdapter()).loadDashboardData();
 }
 
+export async function runInstall(...args: Parameters<typeof fixtures.runInstall>) {
+  return (await activeAdapter()).runInstall(...args);
+}
+
+export async function runToggle(...args: Parameters<typeof fixtures.runToggle>) {
+  return (await activeAdapter()).runToggle(...args);
+}
+
+export async function runSync(...args: Parameters<typeof fixtures.runSync>) {
+  return (await activeAdapter()).runSync(...args);
+}
+
+export async function runRemove(...args: Parameters<typeof fixtures.runRemove>) {
+  return (await activeAdapter()).runRemove(...args);
+}
+
+export async function runRestore(...args: Parameters<typeof fixtures.runRestore>) {
+  return (await activeAdapter()).runRestore(...args);
+}
+
 export type {
   AuditFinding,
   AuditReport,
+  AuditSeverity,
+  AuditVerdict,
+  CliJsonResult,
   DashboardData,
   DoctorFinding,
   DoctorReport,
+  InstallMode,
+  InstallRequest,
+  InstallRunResult,
   LockVerifyEntry,
   LockVerifyReport,
+  RemoveRequest,
+  RemoveRunResult,
+  RestoreListResult,
+  RestoreRequest,
+  RestoreRunResult,
   ScanReport,
   SkillRecord,
   StatsReport,
+  SyncAction,
+  SyncRequest,
+  SyncRunResult,
+  ToggleRequest,
+  ToggleRunResult,
 } from './types';
