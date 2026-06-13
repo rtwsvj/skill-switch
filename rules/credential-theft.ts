@@ -6,6 +6,7 @@ const SECTION = 'ags SECURITY.md › Credential Theft';
 const EXTERNAL_ENDPOINT =
   String.raw`(?:webhook\.site|requestbin\.com|pipedream\.net|ngrok\.io|burpcollaborator\.net|interact\.sh)`;
 const AUTH_TOKEN = String.raw`(?:GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN|API_TOKEN|AUTH_TOKEN|auth[_-]?token)`;
+const SAME_LINE_GAP = String.raw`[^\n]{0,2048}`;
 
 export const credentialTheftRules: AuditRule[] = [
   {
@@ -28,7 +29,7 @@ export const credentialTheftRules: AuditRule[] = [
     id: 'credential-theft/token-exfil',
     severity: 'high',
     pattern: new RegExp(
-      `(?:${AUTH_TOKEN}[^\\n]*${EXTERNAL_ENDPOINT}|${EXTERNAL_ENDPOINT}[^\\n]*${AUTH_TOKEN})`,
+      `(?:${AUTH_TOKEN}${SAME_LINE_GAP}${EXTERNAL_ENDPOINT}|${EXTERNAL_ENDPOINT}${SAME_LINE_GAP}${AUTH_TOKEN})`,
       'i',
     ),
     message: '把认证 token 或 API token 发送到外部收集端点',

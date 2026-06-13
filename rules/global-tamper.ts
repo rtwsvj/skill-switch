@@ -9,16 +9,17 @@ import type { AuditRule } from '../src/core/audit/types.ts';
 const SOURCE = '自写(报告 #15;分类依据 ags Persistence)';
 
 // 写动作:重定向 / tee / cp / mv / sed -i / Node writeFile / Python open(...,'w')
-const WRITE_VERB = String.raw`(?:>>?|tee\s+-?a?\b|\bcp\b|\bmv\b|\bsed\s+-i\b|writeFileSync|open\([^\n]*['"][wa])`;
+const WRITE_VERB = String.raw`(?:(?:>>|>)|\btee\s+-?a?\b|\bcp\b|\bmv\b|\bsed\s+-i\b|writeFileSync|open\([^\n]{0,512}['"][wa])`;
 // 受保护的 agent 配置文件(项目级与全局级同形)
 const AGENT_CONFIG =
   String.raw`(?:\.claude\/settings(?:\.local)?\.json|\.claude\/CLAUDE\.md|\.codex\/config\.toml|\.codex\/AGENTS\.md|(?:^|[\/\s])AGENTS\.md|(?:^|[\/\s])CLAUDE\.md)`;
+const SAME_LINE_GAP = String.raw`[^\n]{0,2048}`;
 
 export const globalTamperRules: AuditRule[] = [
   {
     id: 'global-tamper/agent-config-write',
     severity: 'critical',
-    pattern: new RegExp(`${WRITE_VERB}[^\\n]*${AGENT_CONFIG}|${AGENT_CONFIG}[^\\n]*${WRITE_VERB}`),
+    pattern: new RegExp(`${WRITE_VERB}${SAME_LINE_GAP}${AGENT_CONFIG}|${AGENT_CONFIG}${SAME_LINE_GAP}${WRITE_VERB}`),
     message: '写入/覆盖 agent 配置文件(settings.json / CLAUDE.md / config.toml / AGENTS.md):篡改 agent 自身行为',
     source: SOURCE,
   },

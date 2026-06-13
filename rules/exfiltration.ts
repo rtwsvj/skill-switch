@@ -14,6 +14,7 @@ const SENSITIVE_PATH =
   String.raw`(?:\bid_(?:rsa|ed25519|ecdsa|dsa)\b|\.pem\b|~\/\.aws\/|~\/\.gnupg\/|Library\/Keychains\/|Application Support\/(?:Exodus|Atomic|Electrum|Binance|Phantom)\/|Application Support\/Google\/Chrome\/|Application Support\/BraveSoftware\/)`;
 const EXFIL_VERB =
   String.raw`(?:\b(?:curl|wget|nc|netcat|scp|rsync|fetch|requests\.post|axios\.post|http\.post)\b|\/dev\/tcp|\bbase64\b[^\n]*\|)`;
+const SAME_LINE_GAP = String.raw`[^\n]{0,2048}`;
 
 export const exfiltrationRules: AuditRule[] = [
   {
@@ -28,7 +29,7 @@ export const exfiltrationRules: AuditRule[] = [
     id: 'exfiltration/sensitive-file-exfil',
     severity: 'critical',
     pattern: new RegExp(
-      `(?:${SENSITIVE_PATH}[^\\n]*${EXFIL_VERB}|${EXFIL_VERB}[^\\n]*${SENSITIVE_PATH})`,
+      `(?:${SENSITIVE_PATH}${SAME_LINE_GAP}${EXFIL_VERB}|${EXFIL_VERB}${SAME_LINE_GAP}${SENSITIVE_PATH})`,
       'i',
     ),
     message: '同一行读取私钥/凭据库/钱包/浏览器登录数据等敏感路径并外传',

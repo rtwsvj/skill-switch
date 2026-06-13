@@ -12,11 +12,23 @@ export interface AuditReport {
 }
 
 const EXCERPT_LIMIT = 200;
+export const MAX_AUDIT_MATCH_LINE_LENGTH = 4 * 1024;
 
 /** 剥离 g/y 标志:有状态的 lastIndex 会让同一规则跨行漏报。 */
 function statelessPattern(pattern: RegExp): RegExp {
   const flags = pattern.flags.replace(/[gy]/g, '');
   return flags === pattern.flags ? pattern : new RegExp(pattern.source, flags);
+}
+
+function matchableLine(line: string): string {
+  return line.length > MAX_AUDIT_MATCH_LINE_LENGTH
+    ? line.slice(0, MAX_AUDIT_MATCH_LINE_LENGTH)
+    : line;
+}
+
+function matchableContent(content: string): string {
+  if (content.length <= MAX_AUDIT_MATCH_LINE_LENGTH) return content;
+  return content.split('\n').map(matchableLine).join('\n');
 }
 
 export function runRules(rules: AuditRule[], targets: AuditTarget[]): AuditFinding[] {
@@ -27,14 +39,15 @@ export function runRules(rules: AuditRule[], targets: AuditTarget[]): AuditFindi
     const lines = target.content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
+      const lineForMatch = matchableLine(line);
       for (const { rule, pattern } of compiled) {
-        if (!pattern.test(line)) continue;
+        if (!pattern.test(lineForMatch)) continue;
         findings.push({
           ruleId: rule.id,
           severity: rule.severity,
           file: target.file,
           line: i + 1,
-          excerpt: line.length > EXCERPT_LIMIT ? `${line.slice(0, EXCERPT_LIMIT)}…` : line,
+          excerpt: excerpt(lineForMatch),
           message: rule.message,
         });
       }
@@ -50,8 +63,12 @@ function excerpt(text: string): string {
 export function runFileRules(fileRules: AuditFileRule[], targets: AuditTarget[]): AuditFinding[] {
   const findings: AuditFinding[] = [];
   for (const target of targets) {
+    const targetForMatch: AuditFileTarget = {
+      ...target,
+      content: matchableContent(target.content),
+    };
     for (const rule of fileRules) {
-      const match = rule.evaluate(target);
+      const match = rule.evaluate(targetForMatch);
       if (!match) continue;
       findings.push({
         ruleId: rule.id,

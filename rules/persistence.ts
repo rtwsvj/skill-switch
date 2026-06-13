@@ -19,7 +19,7 @@ export const persistenceRules: AuditRule[] = [
     severity: 'high',
     // 重定向或 tee 写入 shell 启动文件
     pattern:
-      /(?:>>?|tee\s+-?a?\b)[^\n]*(?:\.bashrc|\.zshrc|\.profile|\.bash_profile|\.zprofile)\b/,
+      /(?:>>|>|\btee\s+-?a?\b)[^\n]{0,2048}(?:\.bashrc|\.zshrc|\.profile|\.bash_profile|\.zprofile)\b/,
     message: '写入 shell 启动文件(.bashrc/.zshrc 等):登录持久化',
     source: SECTION,
   },
