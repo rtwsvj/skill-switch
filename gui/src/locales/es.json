@@ -36,8 +36,8 @@
       "doctor": "estado doctor"
     },
     "controlSurface": {
-      "title": "Superficie de control solo lectura",
-      "safeMode": "modo seguro"
+      "title": "Superficie de control lectura/escritura",
+      "safeMode": "confirmación + snapshot"
     },
     "attention": {
       "title": "Cola de atención",
@@ -68,7 +68,72 @@
       "name": "Nombre",
       "agents": "Agents",
       "location": "Ubicación",
-      "status": "Estado"
+      "status": "Estado",
+      "actions": "Acciones"
+    },
+    "actions": {
+      "on": "Activar",
+      "off": "Desactivar",
+      "remove": "Quitar {{agent}}",
+      "adopt": "Gestionar {{agent}}"
+    }
+  },
+  "operations": {
+    "title": "Operaciones de escritura",
+    "writeEnabled": "activadas",
+    "busy": "Ejecutando",
+    "snapshot": "Snapshot",
+    "install": {
+      "title": "Instalar",
+      "source": "Origen",
+      "sourcePlaceholder": "git URL o ruta local",
+      "agent": "Agent destino",
+      "mode": "Modo",
+      "copy": "copy",
+      "symlink": "symlink",
+      "skill": "Filtro skill",
+      "ref": "ref",
+      "force": "force",
+      "submit": "Instalar",
+      "blocked": "Auditoría bloqueó",
+      "blockedDetail": "{{count}} skills fueron bloqueados por auditoría"
+    },
+    "sync": {
+      "title": "Sincronizar",
+      "dryRun": "Vista previa",
+      "apply": "Aplicar",
+      "planCount": "{{changed}}/{{total}} cambios"
+    },
+    "restore": {
+      "title": "Restaurar",
+      "load": "Cargar snapshots",
+      "submit": "Restaurar",
+      "empty": "No hay snapshots cargados.",
+      "count": "{{count}} snapshots"
+    },
+    "confirm": {
+      "install": "Ejecutar instalación? Primero audita y luego escribe si está permitido.",
+      "forceInstall": "force omite bloqueos de auditoría. Continuar?",
+      "toggleOn": "Activar {{name}}?",
+      "toggleOff": "Desactivar {{name}}?",
+      "remove": "Quitar {{agent}}/{{name}}?",
+      "adopt": "Gestionar {{agent}}/{{name}}?",
+      "sync": "Aplicar {{count}} cambios de sync?",
+      "restore": "Restaurar este snapshot?"
+    },
+    "notice": {
+      "failed": "Operación falló",
+      "missingSource": "Ingresa un origen.",
+      "installed": "Instalación completa",
+      "adopted": "Gestionado",
+      "removed": "Quitado",
+      "restored": "Restaurado",
+      "syncPlanned": "Plan de sync listo",
+      "synced": "Sync completo",
+      "snapshotsLoaded": "Snapshots cargados",
+      "toggledOn": "Activado",
+      "toggledOff": "Desactivado",
+      "exitCode": "Código de salida {{code}}"
     }
   },
   "audit": {

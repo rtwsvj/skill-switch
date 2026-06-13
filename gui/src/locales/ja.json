@@ -36,8 +36,8 @@
       "doctor": "doctor 状態"
     },
     "controlSurface": {
-      "title": "読み取り専用コントロール面",
-      "safeMode": "セーフモード"
+      "title": "読み書きコントロール面",
+      "safeMode": "確認 + スナップショット"
     },
     "attention": {
       "title": "注意キュー",
@@ -68,7 +68,72 @@
       "name": "名前",
       "agents": "Agents",
       "location": "場所",
-      "status": "状態"
+      "status": "状態",
+      "actions": "操作"
+    },
+    "actions": {
+      "on": "オン",
+      "off": "オフ",
+      "remove": "{{agent}} を削除",
+      "adopt": "{{agent}} を管理"
+    }
+  },
+  "operations": {
+    "title": "書き込み操作",
+    "writeEnabled": "有効",
+    "busy": "実行中",
+    "snapshot": "スナップショット",
+    "install": {
+      "title": "インストール",
+      "source": "ソース",
+      "sourcePlaceholder": "git URL またはローカルパス",
+      "agent": "対象 agent",
+      "mode": "モード",
+      "copy": "copy",
+      "symlink": "symlink",
+      "skill": "skill 指定",
+      "ref": "ref",
+      "force": "force",
+      "submit": "インストール",
+      "blocked": "監査でブロック",
+      "blockedDetail": "{{count}} 件の skill が監査でブロックされました"
+    },
+    "sync": {
+      "title": "同期",
+      "dryRun": "プレビュー",
+      "apply": "適用",
+      "planCount": "{{changed}}/{{total}} 件の変更"
+    },
+    "restore": {
+      "title": "復元",
+      "load": "スナップショット読込",
+      "submit": "復元",
+      "empty": "スナップショットは未読込です。",
+      "count": "{{count}} 件のスナップショット"
+    },
+    "confirm": {
+      "install": "インストールを実行しますか? 先に監査し、許可された場合に書き込みます。",
+      "forceInstall": "force は監査ブロックを迂回します。続行しますか?",
+      "toggleOn": "{{name}} を有効化しますか?",
+      "toggleOff": "{{name}} を無効化しますか?",
+      "remove": "{{agent}}/{{name}} を削除しますか?",
+      "adopt": "{{agent}}/{{name}} を管理対象にしますか?",
+      "sync": "{{count}} 件の同期変更を適用しますか?",
+      "restore": "このスナップショットを復元しますか?"
+    },
+    "notice": {
+      "failed": "操作に失敗しました",
+      "missingSource": "ソースを入力してください。",
+      "installed": "インストール完了",
+      "adopted": "管理対象にしました",
+      "removed": "削除しました",
+      "restored": "復元しました",
+      "syncPlanned": "同期計画を作成しました",
+      "synced": "同期完了",
+      "snapshotsLoaded": "スナップショットを読み込みました",
+      "toggledOn": "有効化しました",
+      "toggledOff": "無効化しました",
+      "exitCode": "終了コード {{code}}"
     }
   },
   "audit": {

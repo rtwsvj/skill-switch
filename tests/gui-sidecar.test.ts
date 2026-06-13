@@ -139,6 +139,18 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(restoreArgs({ id: '123' })).toEqual(['restore', '--id', '123', '--json']);
   });
 
+  it('GUI write UI wires install, toggle, sync, remove, restore behind confirmation and refresh', () => {
+    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    for (const method of ['runInstall', 'runToggle', 'runSync', 'runRemove', 'runRestore']) {
+      expect(app.includes(method), `App should call ${method}`).toBe(true);
+    }
+    expect(app).toContain('window.confirm');
+    expect(app).toContain('runSync({ dryRun: true })');
+    expect(app).toContain('runRestore({})');
+    expect(app).toContain('onRefresh');
+    expect(app).toContain('handleAdopt');
+  });
+
   it('runs both the tsx CLI and the SEA sidecar as real child processes', () => {
     const cliStdout = execFileSync(
       process.execPath,

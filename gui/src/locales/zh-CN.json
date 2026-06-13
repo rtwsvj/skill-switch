@@ -36,8 +36,8 @@
       "doctor": "doctor 状态"
     },
     "controlSurface": {
-      "title": "只读控制面",
-      "safeMode": "安全模式"
+      "title": "读写控制面",
+      "safeMode": "确认 + 快照"
     },
     "attention": {
       "title": "关注队列",
@@ -68,7 +68,72 @@
       "name": "名称",
       "agents": "Agents",
       "location": "位置",
-      "status": "状态"
+      "status": "状态",
+      "actions": "操作"
+    },
+    "actions": {
+      "on": "开",
+      "off": "关",
+      "remove": "移除 {{agent}}",
+      "adopt": "纳入治理 {{agent}}"
+    }
+  },
+  "operations": {
+    "title": "写操作",
+    "writeEnabled": "可操作",
+    "busy": "执行中",
+    "snapshot": "快照",
+    "install": {
+      "title": "安装",
+      "source": "来源",
+      "sourcePlaceholder": "git URL 或本地路径",
+      "agent": "目标 agent",
+      "mode": "模式",
+      "copy": "copy",
+      "symlink": "symlink",
+      "skill": "指定 skill",
+      "ref": "ref",
+      "force": "force",
+      "submit": "安装",
+      "blocked": "审计拦截",
+      "blockedDetail": "{{count}} 个 skill 被审计拦截"
+    },
+    "sync": {
+      "title": "同步",
+      "dryRun": "预览",
+      "apply": "应用",
+      "planCount": "{{changed}}/{{total}} 项变更"
+    },
+    "restore": {
+      "title": "回滚",
+      "load": "加载快照",
+      "submit": "还原",
+      "empty": "尚未加载快照。",
+      "count": "{{count}} 个快照"
+    },
+    "confirm": {
+      "install": "执行安装? 将先经过 audit,通过后写入目标目录。",
+      "forceInstall": "force 会越过 audit 拦截。确定继续?",
+      "toggleOn": "启用 {{name}}?",
+      "toggleOff": "停用 {{name}}?",
+      "remove": "移除 {{agent}}/{{name}}?",
+      "adopt": "把 {{agent}}/{{name}} 纳入治理?",
+      "sync": "应用 {{count}} 项 sync 变更?",
+      "restore": "还原该快照?"
+    },
+    "notice": {
+      "failed": "操作失败",
+      "missingSource": "请填写来源。",
+      "installed": "安装完成",
+      "adopted": "已纳入治理",
+      "removed": "已移除",
+      "restored": "已还原",
+      "syncPlanned": "同步计划已生成",
+      "synced": "同步完成",
+      "snapshotsLoaded": "快照已加载",
+      "toggledOn": "已启用",
+      "toggledOff": "已停用",
+      "exitCode": "退出码 {{code}}"
     }
   },
   "audit": {

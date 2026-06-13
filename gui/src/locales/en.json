@@ -36,8 +36,8 @@
       "doctor": "doctor state"
     },
     "controlSurface": {
-      "title": "Read-Only Control Surface",
-      "safeMode": "safe mode"
+      "title": "Read/Write Control Surface",
+      "safeMode": "confirm + snapshot"
     },
     "attention": {
       "title": "Attention Queue",
@@ -68,7 +68,72 @@
       "name": "Name",
       "agents": "Agents",
       "location": "Location",
-      "status": "Status"
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "actions": {
+      "on": "On",
+      "off": "Off",
+      "remove": "Remove {{agent}}",
+      "adopt": "Adopt {{agent}}"
+    }
+  },
+  "operations": {
+    "title": "Write Operations",
+    "writeEnabled": "enabled",
+    "busy": "Working",
+    "snapshot": "Snapshot",
+    "install": {
+      "title": "Install",
+      "source": "Source",
+      "sourcePlaceholder": "git URL or local path",
+      "agent": "Target agent",
+      "mode": "Mode",
+      "copy": "copy",
+      "symlink": "symlink",
+      "skill": "Skill filter",
+      "ref": "ref",
+      "force": "force",
+      "submit": "Install",
+      "blocked": "Audit blocked",
+      "blockedDetail": "{{count}} skills were blocked by audit"
+    },
+    "sync": {
+      "title": "Sync",
+      "dryRun": "Preview",
+      "apply": "Apply",
+      "planCount": "{{changed}}/{{total}} changes"
+    },
+    "restore": {
+      "title": "Restore",
+      "load": "Load snapshots",
+      "submit": "Restore",
+      "empty": "No snapshots loaded.",
+      "count": "{{count}} snapshots"
+    },
+    "confirm": {
+      "install": "Run install? It will audit first, then write if allowed.",
+      "forceInstall": "Force bypasses audit blocking. Continue?",
+      "toggleOn": "Enable {{name}}?",
+      "toggleOff": "Disable {{name}}?",
+      "remove": "Remove {{agent}}/{{name}}?",
+      "adopt": "Adopt {{agent}}/{{name}} into governance?",
+      "sync": "Apply {{count}} sync changes?",
+      "restore": "Restore this snapshot?"
+    },
+    "notice": {
+      "failed": "Operation failed",
+      "missingSource": "Enter a source.",
+      "installed": "Install complete",
+      "adopted": "Adopted",
+      "removed": "Removed",
+      "restored": "Restored",
+      "syncPlanned": "Sync plan ready",
+      "synced": "Sync complete",
+      "snapshotsLoaded": "Snapshots loaded",
+      "toggledOn": "Enabled",
+      "toggledOff": "Disabled",
+      "exitCode": "Exit code {{code}}"
     }
   },
   "audit": {
