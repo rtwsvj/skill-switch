@@ -91,6 +91,25 @@ h2 {
   font-size: 12px;
 }
 
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.language-switcher span {
+  color: #b7ab91;
+}
+
+.language-switcher select {
+  min-height: 30px;
+  border: 1px solid rgb(240 230 209 / 0.18);
+  border-radius: 6px;
+  background: rgb(20 19 15 / 0.95);
+  color: #f0e6d1;
+  padding: 4px 8px;
+}
+
 .screen-tabs {
   gap: 8px;
   padding: 16px 0;
@@ -226,6 +245,30 @@ h2 {
   margin: 8px 0 0;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 18px;
+}
+
+.doctor-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.doctor-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid rgb(240 230 209 / 0.1);
+  color: #b7ab91;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  padding-top: 8px;
+}
+
+.doctor-list strong {
+  color: #f5d69c;
+  font-weight: 500;
 }
 
 .attention-list {

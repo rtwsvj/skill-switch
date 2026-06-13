@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { loadDashboardData, type AuditReport, type DashboardData, type SkillRecord } from './data';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useTranslation, type TFunction } from 'react-i18next';
+import { loadDashboardData, type AuditReport, type AuditSeverity, type AuditVerdict, type DashboardData, type SkillRecord } from './data';
+import { languageLabels, supportedLanguages, type SupportedLanguage } from './i18n';
 
 type Screen = 'overview' | 'skills' | 'audit' | 'stats';
 
-const screens: Array<{ id: Screen; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'skills', label: 'Skills' },
-  { id: 'audit', label: 'Audit' },
-  { id: 'stats', label: 'Usage' },
+const screens: Array<{ id: Screen; labelKey: string }> = [
+  { id: 'overview', labelKey: 'screens.overview' },
+  { id: 'skills', labelKey: 'screens.skills' },
+  { id: 'audit', labelKey: 'screens.audit' },
+  { id: 'stats', labelKey: 'screens.stats' },
 ];
 
 function cx(...parts: Array<string | false | undefined>) {
@@ -26,7 +28,20 @@ function displaySkillName(skill: SkillRecord) {
   return skill.name ?? skill.dirName;
 }
 
-function metricLabel(value: number | string, label: string, tone = 'neutral') {
+function verdictLabel(verdict: AuditVerdict, t: TFunction) {
+  return t(`audit.verdict.${verdict}`);
+}
+
+function severityLabel(severity: AuditSeverity, t: TFunction) {
+  return t(`audit.severity.${severity}`);
+}
+
+function doctorKindLabel(kind: string, t: TFunction) {
+  const known = new Set(['missing', 'content-drift', 'stale-lock', 'extra-locked']);
+  return t(known.has(kind) ? `doctor.kind.${kind}` : 'doctor.kind.unknown');
+}
+
+function Metric({ value, label, tone = 'neutral' }: { value: number | string; label: string; tone?: 'neutral' | 'good' | 'danger' }) {
   return (
     <div className={cx('metric', tone === 'danger' && 'metric-danger', tone === 'good' && 'metric-good')}>
       <div className="metric-value">{value}</div>
@@ -35,26 +50,56 @@ function metricLabel(value: number | string, label: string, tone = 'neutral') {
   );
 }
 
-function StatusPill({ children, tone = 'neutral' }: { children: string; tone?: 'neutral' | 'good' | 'warn' | 'danger' }) {
+function StatusPill({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'good' | 'warn' | 'danger' }) {
   return <span className={cx('pill', `pill-${tone}`)}>{children}</span>;
 }
 
+function LanguageSwitcher() {
+  const { i18n, t } = useTranslation();
+  const activeLanguage = supportedLanguages.includes(i18n.resolvedLanguage as SupportedLanguage) ? (i18n.resolvedLanguage as SupportedLanguage) : 'en';
+
+  return (
+    <label className="language-switcher">
+      <span>{t('header.languageLabel')}</span>
+      <select
+        aria-label={t('header.languageLabel')}
+        value={activeLanguage}
+        onChange={(event) => {
+          const language = event.target.value as SupportedLanguage;
+          window.localStorage.setItem('skill-switch-language', language);
+          void i18n.changeLanguage(language);
+        }}
+      >
+        {supportedLanguages.map((language) => (
+          <option key={language} value={language}>
+            {languageLabels[language]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Header({ data }: { data: DashboardData }) {
+  const { t, i18n } = useTranslation();
+
   return (
     <header className="header">
       <div>
         <p className="eyebrow">skill-switch</p>
-        <h1>Governance Console</h1>
+        <h1>{t('header.title')}</h1>
       </div>
       <div className="header-meta">
-        <StatusPill tone={data.source === 'fixtures' ? 'warn' : 'good'}>{data.source === 'fixtures' ? 'Fixture feed' : 'Live shell feed'}</StatusPill>
-        <span>{new Date(data.loadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        <StatusPill tone={data.source === 'fixtures' ? 'warn' : 'good'}>{data.source === 'fixtures' ? t('header.source.fixtures') : t('header.source.live')}</StatusPill>
+        <span>{new Date(data.loadedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</span>
+        <LanguageSwitcher />
       </div>
     </header>
   );
 }
 
 function Overview({ data }: { data: DashboardData }) {
+  const { t } = useTranslation();
   const agents = new Set(data.scan.skills.flatMap((skill) => skill.agents));
   const broken = data.scan.skills.filter((skill) => skill.error || isNameMismatch(skill));
   const blocking = data.audit.filter(isBlockingAudit);
@@ -62,17 +107,17 @@ function Overview({ data }: { data: DashboardData }) {
   return (
     <section className="screen">
       <div className="metric-grid">
-        {metricLabel(agents.size, 'agents mapped', 'good')}
-        {metricLabel(data.scan.total, 'skills visible')}
-        {metricLabel(data.stats.zombies.length, 'zombies', data.stats.zombies.length > 0 ? 'danger' : 'good')}
-        {metricLabel(data.doctor.clean ? 'clean' : data.doctor.findings.length, 'doctor state', data.doctor.clean ? 'good' : 'danger')}
+        <Metric value={agents.size} label={t('overview.metrics.agents')} tone="good" />
+        <Metric value={data.scan.total} label={t('overview.metrics.skills')} />
+        <Metric value={data.stats.zombies.length} label={t('overview.metrics.zombies')} tone={data.stats.zombies.length > 0 ? 'danger' : 'good'} />
+        <Metric value={data.doctor.clean ? t('status.clean') : data.doctor.findings.length} label={t('overview.metrics.doctor')} tone={data.doctor.clean ? 'good' : 'danger'} />
       </div>
 
       <div className="overview-grid">
         <section className="panel">
           <div className="panel-title">
-            <h2>Read-Only Control Surface</h2>
-            <StatusPill tone="good">safe mode</StatusPill>
+            <h2>{t('overview.controlSurface.title')}</h2>
+            <StatusPill tone="good">{t('overview.controlSurface.safeMode')}</StatusPill>
           </div>
           <div className="command-strip">
             <span>scan --json</span>
@@ -85,45 +130,55 @@ function Overview({ data }: { data: DashboardData }) {
 
         <section className="panel">
           <div className="panel-title">
-            <h2>Doctor</h2>
-            <StatusPill tone={data.doctor.clean ? 'good' : 'danger'}>{data.doctor.clean ? 'clean' : 'drift'}</StatusPill>
+            <h2>{t('doctor.title')}</h2>
+            <StatusPill tone={data.doctor.clean ? 'good' : 'danger'}>{data.doctor.clean ? t('status.clean') : t('status.drift')}</StatusPill>
           </div>
           <dl className="definition-grid">
             <div>
-              <dt>declared</dt>
+              <dt>{t('doctor.checked.declared')}</dt>
               <dd>{data.doctor.checked.declared}</dd>
             </div>
             <div>
-              <dt>locked</dt>
+              <dt>{t('doctor.checked.locked')}</dt>
               <dd>{data.doctor.checked.locked}</dd>
             </div>
             <div>
-              <dt>lock verify</dt>
-              <dd>{data.lockVerify.ok ? 'ok' : 'failed'}</dd>
+              <dt>{t('doctor.checked.lockVerify')}</dt>
+              <dd>{data.lockVerify.ok ? t('status.ok') : t('status.failed')}</dd>
             </div>
           </dl>
+          {data.doctor.clean ? null : (
+            <ul className="doctor-list">
+              {data.doctor.findings.slice(0, 4).map((finding) => (
+                <li key={`${finding.kind}-${finding.agent}-${finding.name}`}>
+                  <strong>{doctorKindLabel(finding.kind, t)}</strong>
+                  <span>{`${finding.agent}/${finding.name}`}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 
       <section className="panel">
         <div className="panel-title">
-          <h2>Attention Queue</h2>
-          <span>{broken.length + blocking.length} items</span>
+          <h2>{t('overview.attention.title')}</h2>
+          <span>{t('overview.attention.itemCount', { count: broken.length + blocking.length })}</span>
         </div>
         <div className="attention-list">
           {broken.map((skill) => (
             <div className="attention-row" key={`${skill.relSkillsDir}/${skill.dirName}`}>
               <span>{skill.dirName}</span>
-              <StatusPill tone={skill.error ? 'danger' : 'warn'}>{skill.error ? 'bad frontmatter' : 'name mismatch'}</StatusPill>
+              <StatusPill tone={skill.error ? 'danger' : 'warn'}>{skill.error ? t('status.badFrontmatter') : t('status.nameMismatch')}</StatusPill>
             </div>
           ))}
           {blocking.map((report) => (
             <div className="attention-row" key={report.path}>
               <span>{report.name ?? report.path.split('/').at(-1)}</span>
-              <StatusPill tone="danger">audit blocks</StatusPill>
+              <StatusPill tone="danger">{t('status.auditBlocks')}</StatusPill>
             </div>
           ))}
-          {broken.length + blocking.length === 0 ? <p className="empty">No immediate governance findings.</p> : null}
+          {broken.length + blocking.length === 0 ? <p className="empty">{t('overview.attention.empty')}</p> : null}
         </div>
       </section>
     </section>
@@ -131,22 +186,24 @@ function Overview({ data }: { data: DashboardData }) {
 }
 
 function Skills({ data }: { data: DashboardData }) {
+  const { t } = useTranslation();
+
   return (
     <section className="screen">
       <section className="panel table-panel">
         <div className="panel-title">
-          <h2>Installed Skills</h2>
-          <span>{data.scan.total} records</span>
+          <h2>{t('skills.title')}</h2>
+          <span>{t('skills.recordCount', { count: data.scan.total })}</span>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Directory</th>
-                <th>Name</th>
-                <th>Agents</th>
-                <th>Location</th>
-                <th>Status</th>
+                <th>{t('skills.columns.directory')}</th>
+                <th>{t('skills.columns.name')}</th>
+                <th>{t('skills.columns.agents')}</th>
+                <th>{t('skills.columns.location')}</th>
+                <th>{t('skills.columns.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -166,7 +223,13 @@ function Skills({ data }: { data: DashboardData }) {
                     </td>
                     <td className="muted">{skill.relSkillsDir}</td>
                     <td>
-                      {hasError ? <StatusPill tone="danger">parse error</StatusPill> : mismatch ? <StatusPill tone="warn">name mismatch</StatusPill> : <StatusPill tone="good">ok</StatusPill>}
+                      {hasError ? (
+                        <StatusPill tone="danger">{t('status.parseError')}</StatusPill>
+                      ) : mismatch ? (
+                        <StatusPill tone="warn">{t('status.nameMismatch')}</StatusPill>
+                      ) : (
+                        <StatusPill tone="good">{t('status.ok')}</StatusPill>
+                      )}
                     </td>
                   </tr>
                 );
@@ -180,6 +243,7 @@ function Skills({ data }: { data: DashboardData }) {
 }
 
 function Audit({ data }: { data: DashboardData }) {
+  const { t } = useTranslation();
   const sorted = [...data.audit].sort((a, b) => Number(isBlockingAudit(b)) - Number(isBlockingAudit(a)) || a.score - b.score);
 
   return (
@@ -197,9 +261,9 @@ function Audit({ data }: { data: DashboardData }) {
                 <div className="score-dial">{report.score}</div>
               </div>
               <div className="audit-meta">
-                <StatusPill tone={report.verdict === 'DANGER' ? 'danger' : report.verdict === 'REVIEW' ? 'warn' : 'good'}>{report.verdict}</StatusPill>
-                {blocking ? <StatusPill tone="danger">blockable</StatusPill> : <StatusPill tone="good">pass</StatusPill>}
-                <span>{report.findings.length} findings</span>
+                <StatusPill tone={report.verdict === 'DANGER' ? 'danger' : report.verdict === 'REVIEW' ? 'warn' : 'good'}>{verdictLabel(report.verdict, t)}</StatusPill>
+                {blocking ? <StatusPill tone="danger">{t('status.blockable')}</StatusPill> : <StatusPill tone="good">{t('status.pass')}</StatusPill>}
+                <span>{t('audit.findingCount', { count: report.findings.length })}</span>
               </div>
               {report.findings.length > 0 ? (
                 <ul className="finding-list">
@@ -207,12 +271,12 @@ function Audit({ data }: { data: DashboardData }) {
                     <li key={`${finding.ruleId}-${finding.line}`}>
                       <span className={cx('severity-dot', `severity-${finding.severity}`)} />
                       <span>{finding.ruleId}</span>
-                      <strong>{finding.severity}</strong>
+                      <strong>{severityLabel(finding.severity, t)}</strong>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="empty">No rules fired.</p>
+                <p className="empty">{t('audit.noRules')}</p>
               )}
             </article>
           );
@@ -223,29 +287,30 @@ function Audit({ data }: { data: DashboardData }) {
 }
 
 function Stats({ data }: { data: DashboardData }) {
+  const { t } = useTranslation();
   const zombieNames = useMemo(() => new Set(data.stats.zombies.map((zombie) => zombie.name)), [data.stats.zombies]);
 
   return (
     <section className="screen">
       <div className="metric-grid compact">
-        {metricLabel(data.stats.scannedFiles, 'transcripts scanned')}
-        {metricLabel(data.stats.invocations, 'skill invocations')}
-        {metricLabel(data.stats.usage.length, 'active skills', data.stats.usage.length > 0 ? 'good' : 'neutral')}
-        {metricLabel(data.stats.zombies.length, 'zero-use installs', data.stats.zombies.length > 0 ? 'danger' : 'good')}
+        <Metric value={data.stats.scannedFiles} label={t('stats.metrics.transcripts')} />
+        <Metric value={data.stats.invocations} label={t('stats.metrics.invocations')} />
+        <Metric value={data.stats.usage.length} label={t('stats.metrics.active')} tone={data.stats.usage.length > 0 ? 'good' : 'neutral'} />
+        <Metric value={data.stats.zombies.length} label={t('stats.metrics.zeroUse')} tone={data.stats.zombies.length > 0 ? 'danger' : 'good'} />
       </div>
       <section className="panel table-panel">
         <div className="panel-title">
-          <h2>Zombie Inventory</h2>
-          <span>{data.stats.since ? `since ${data.stats.since.slice(0, 10)}` : 'all time'}</span>
+          <h2>{t('stats.zombieTitle')}</h2>
+          <span>{data.stats.since ? t('stats.since', { date: data.stats.since.slice(0, 10) }) : t('stats.allTime')}</span>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Skill</th>
-                <th>Agents</th>
-                <th>Location</th>
-                <th>State</th>
+                <th>{t('stats.columns.skill')}</th>
+                <th>{t('stats.columns.agents')}</th>
+                <th>{t('stats.columns.location')}</th>
+                <th>{t('stats.columns.state')}</th>
               </tr>
             </thead>
             <tbody>
@@ -263,7 +328,7 @@ function Stats({ data }: { data: DashboardData }) {
                       </div>
                     </td>
                     <td className="muted">{skill.relSkillsDir}</td>
-                    <td>{zombie ? <StatusPill tone="danger">zombie</StatusPill> : <StatusPill tone="good">used</StatusPill>}</td>
+                    <td>{zombie ? <StatusPill tone="danger">{t('status.zombie')}</StatusPill> : <StatusPill tone="good">{t('status.used')}</StatusPill>}</td>
                   </tr>
                 );
               })}
@@ -275,8 +340,30 @@ function Stats({ data }: { data: DashboardData }) {
   );
 }
 
+export function DashboardShell({ data, initialScreen = 'overview' }: { data: DashboardData; initialScreen?: Screen }) {
+  const { t } = useTranslation();
+  const [active, setActive] = useState<Screen>(initialScreen);
+
+  return (
+    <>
+      <Header data={data} />
+      <nav className="screen-tabs" aria-label={t('screens.ariaLabel')}>
+        {screens.map((screen) => (
+          <button className={cx(active === screen.id && 'active')} key={screen.id} onClick={() => setActive(screen.id)}>
+            {t(screen.labelKey)}
+          </button>
+        ))}
+      </nav>
+      {active === 'overview' ? <Overview data={data} /> : null}
+      {active === 'skills' ? <Skills data={data} /> : null}
+      {active === 'audit' ? <Audit data={data} /> : null}
+      {active === 'stats' ? <Stats data={data} /> : null}
+    </>
+  );
+}
+
 export default function App() {
-  const [active, setActive] = useState<Screen>('overview');
+  const { t } = useTranslation();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -305,25 +392,14 @@ export default function App() {
   if (!data) {
     return (
       <main className="app-shell">
-        <section className="loading-panel">Loading governance feed...</section>
+        <section className="loading-panel">{t('loading')}</section>
       </main>
     );
   }
 
   return (
     <main className="app-shell">
-      <Header data={data} />
-      <nav className="screen-tabs" aria-label="Dashboard screens">
-        {screens.map((screen) => (
-          <button className={cx(active === screen.id && 'active')} key={screen.id} onClick={() => setActive(screen.id)}>
-            {screen.label}
-          </button>
-        ))}
-      </nav>
-      {active === 'overview' ? <Overview data={data} /> : null}
-      {active === 'skills' ? <Skills data={data} /> : null}
-      {active === 'audit' ? <Audit data={data} /> : null}
-      {active === 'stats' ? <Stats data={data} /> : null}
+      <DashboardShell data={data} />
     </main>
   );
 }

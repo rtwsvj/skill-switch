@@ -1,0 +1,107 @@
+{
+  "header": {
+    "title": "治理控制台",
+    "languageLabel": "语言",
+    "source": {
+      "fixtures": "样例数据流",
+      "live": "实时 shell 数据流"
+    }
+  },
+  "screens": {
+    "ariaLabel": "仪表盘页面",
+    "overview": "总览",
+    "skills": "技能",
+    "audit": "审计",
+    "stats": "使用"
+  },
+  "status": {
+    "auditBlocks": "审计阻断",
+    "badFrontmatter": "frontmatter 异常",
+    "blockable": "会阻断",
+    "clean": "干净",
+    "drift": "漂移",
+    "failed": "失败",
+    "nameMismatch": "名称不一致",
+    "ok": "正常",
+    "parseError": "解析错误",
+    "pass": "通过",
+    "used": "已使用",
+    "zombie": "僵尸"
+  },
+  "overview": {
+    "metrics": {
+      "agents": "已映射 agent",
+      "skills": "可见技能",
+      "zombies": "僵尸技能",
+      "doctor": "doctor 状态"
+    },
+    "controlSurface": {
+      "title": "只读控制面",
+      "safeMode": "安全模式"
+    },
+    "attention": {
+      "title": "关注队列",
+      "itemCount": "{{count}} 项",
+      "empty": "暂无需要立即处理的治理发现。"
+    }
+  },
+  "doctor": {
+    "title": "Doctor",
+    "checked": {
+      "declared": "声明",
+      "locked": "锁定",
+      "lockVerify": "锁校验"
+    },
+    "kind": {
+      "missing": "缺少安装",
+      "content-drift": "内容漂移",
+      "stale-lock": "锁已过期",
+      "extra-locked": "多余锁定",
+      "unknown": "未知漂移"
+    }
+  },
+  "skills": {
+    "title": "已安装技能",
+    "recordCount": "{{count}} 条记录",
+    "columns": {
+      "directory": "目录",
+      "name": "名称",
+      "agents": "Agents",
+      "location": "位置",
+      "status": "状态"
+    }
+  },
+  "audit": {
+    "findingCount": "{{count}} 条发现",
+    "noRules": "没有规则命中。",
+    "verdict": {
+      "SAFE": "安全",
+      "REVIEW": "需复核",
+      "DANGER": "危险"
+    },
+    "severity": {
+      "critical": "严重",
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    }
+  },
+  "stats": {
+    "metrics": {
+      "transcripts": "已扫描记录",
+      "invocations": "技能调用",
+      "active": "活跃技能",
+      "zeroUse": "零使用安装"
+    },
+    "zombieTitle": "僵尸技能清单",
+    "since": "自 {{date}}",
+    "allTime": "全部时间",
+    "columns": {
+      "skill": "技能",
+      "agents": "Agents",
+      "location": "位置",
+      "state": "状态"
+    }
+  },
+  "loading": "正在加载治理数据..."
+}

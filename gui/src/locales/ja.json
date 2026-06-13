@@ -1,0 +1,107 @@
+{
+  "header": {
+    "title": "ガバナンスコンソール",
+    "languageLabel": "言語",
+    "source": {
+      "fixtures": "フィクスチャフィード",
+      "live": "ライブ shell フィード"
+    }
+  },
+  "screens": {
+    "ariaLabel": "ダッシュボード画面",
+    "overview": "概要",
+    "skills": "スキル",
+    "audit": "監査",
+    "stats": "使用状況"
+  },
+  "status": {
+    "auditBlocks": "監査ブロック",
+    "badFrontmatter": "frontmatter 不正",
+    "blockable": "ブロック対象",
+    "clean": "正常",
+    "drift": "ドリフト",
+    "failed": "失敗",
+    "nameMismatch": "名前不一致",
+    "ok": "OK",
+    "parseError": "解析エラー",
+    "pass": "通過",
+    "used": "使用済み",
+    "zombie": "ゾンビ"
+  },
+  "overview": {
+    "metrics": {
+      "agents": "マップ済み agent",
+      "skills": "表示スキル",
+      "zombies": "ゾンビ",
+      "doctor": "doctor 状態"
+    },
+    "controlSurface": {
+      "title": "読み取り専用コントロール面",
+      "safeMode": "セーフモード"
+    },
+    "attention": {
+      "title": "注意キュー",
+      "itemCount": "{{count}} 件",
+      "empty": "直ちに対応するガバナンス検出はありません。"
+    }
+  },
+  "doctor": {
+    "title": "Doctor",
+    "checked": {
+      "declared": "宣言",
+      "locked": "ロック",
+      "lockVerify": "ロック検証"
+    },
+    "kind": {
+      "missing": "未インストール",
+      "content-drift": "内容ドリフト",
+      "stale-lock": "古いロック",
+      "extra-locked": "余分なロック",
+      "unknown": "不明なドリフト"
+    }
+  },
+  "skills": {
+    "title": "インストール済みスキル",
+    "recordCount": "{{count}} 件",
+    "columns": {
+      "directory": "ディレクトリ",
+      "name": "名前",
+      "agents": "Agents",
+      "location": "場所",
+      "status": "状態"
+    }
+  },
+  "audit": {
+    "findingCount": "{{count}} 件の検出",
+    "noRules": "発火したルールはありません。",
+    "verdict": {
+      "SAFE": "安全",
+      "REVIEW": "要確認",
+      "DANGER": "危険"
+    },
+    "severity": {
+      "critical": "重大",
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    }
+  },
+  "stats": {
+    "metrics": {
+      "transcripts": "スキャン済み記録",
+      "invocations": "スキル呼び出し",
+      "active": "アクティブスキル",
+      "zeroUse": "未使用インストール"
+    },
+    "zombieTitle": "ゾンビインベントリ",
+    "since": "{{date}} 以降",
+    "allTime": "全期間",
+    "columns": {
+      "skill": "スキル",
+      "agents": "Agents",
+      "location": "場所",
+      "state": "状態"
+    }
+  },
+  "loading": "ガバナンスフィードを読み込み中..."
+}

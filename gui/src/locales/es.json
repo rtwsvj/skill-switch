@@ -1,0 +1,107 @@
+{
+  "header": {
+    "title": "Consola de gobernanza",
+    "languageLabel": "Idioma",
+    "source": {
+      "fixtures": "Datos de ejemplo",
+      "live": "Flujo shell en vivo"
+    }
+  },
+  "screens": {
+    "ariaLabel": "Pantallas del panel",
+    "overview": "Resumen",
+    "skills": "Skills",
+    "audit": "Auditoría",
+    "stats": "Uso"
+  },
+  "status": {
+    "auditBlocks": "bloqueos de auditoría",
+    "badFrontmatter": "frontmatter inválido",
+    "blockable": "bloqueable",
+    "clean": "limpio",
+    "drift": "deriva",
+    "failed": "falló",
+    "nameMismatch": "nombre distinto",
+    "ok": "ok",
+    "parseError": "error de lectura",
+    "pass": "pasa",
+    "used": "usado",
+    "zombie": "zombi"
+  },
+  "overview": {
+    "metrics": {
+      "agents": "agents mapeados",
+      "skills": "skills visibles",
+      "zombies": "zombis",
+      "doctor": "estado doctor"
+    },
+    "controlSurface": {
+      "title": "Superficie de control solo lectura",
+      "safeMode": "modo seguro"
+    },
+    "attention": {
+      "title": "Cola de atención",
+      "itemCount": "{{count}} elementos",
+      "empty": "No hay hallazgos de gobernanza inmediatos."
+    }
+  },
+  "doctor": {
+    "title": "Doctor",
+    "checked": {
+      "declared": "declarados",
+      "locked": "bloqueados",
+      "lockVerify": "verificación de lock"
+    },
+    "kind": {
+      "missing": "instalación faltante",
+      "content-drift": "deriva de contenido",
+      "stale-lock": "lock obsoleto",
+      "extra-locked": "lock sobrante",
+      "unknown": "deriva desconocida"
+    }
+  },
+  "skills": {
+    "title": "Skills instalados",
+    "recordCount": "{{count}} registros",
+    "columns": {
+      "directory": "Directorio",
+      "name": "Nombre",
+      "agents": "Agents",
+      "location": "Ubicación",
+      "status": "Estado"
+    }
+  },
+  "audit": {
+    "findingCount": "{{count}} hallazgos",
+    "noRules": "No se activó ninguna regla.",
+    "verdict": {
+      "SAFE": "Seguro",
+      "REVIEW": "Revisar",
+      "DANGER": "Peligro"
+    },
+    "severity": {
+      "critical": "crítica",
+      "high": "alta",
+      "medium": "media",
+      "low": "baja"
+    }
+  },
+  "stats": {
+    "metrics": {
+      "transcripts": "transcripciones leídas",
+      "invocations": "invocaciones de skill",
+      "active": "skills activos",
+      "zeroUse": "instalaciones sin uso"
+    },
+    "zombieTitle": "Inventario zombi",
+    "since": "desde {{date}}",
+    "allTime": "todo el tiempo",
+    "columns": {
+      "skill": "Skill",
+      "agents": "Agents",
+      "location": "Ubicación",
+      "state": "Estado"
+    }
+  },
+  "loading": "Cargando datos de gobernanza..."
+}

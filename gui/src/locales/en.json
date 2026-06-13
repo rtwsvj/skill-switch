@@ -1,0 +1,107 @@
+{
+  "header": {
+    "title": "Governance Console",
+    "languageLabel": "Language",
+    "source": {
+      "fixtures": "Fixture feed",
+      "live": "Live shell feed"
+    }
+  },
+  "screens": {
+    "ariaLabel": "Dashboard screens",
+    "overview": "Overview",
+    "skills": "Skills",
+    "audit": "Audit",
+    "stats": "Usage"
+  },
+  "status": {
+    "auditBlocks": "audit blocks",
+    "badFrontmatter": "bad frontmatter",
+    "blockable": "blockable",
+    "clean": "clean",
+    "drift": "drift",
+    "failed": "failed",
+    "nameMismatch": "name mismatch",
+    "ok": "ok",
+    "parseError": "parse error",
+    "pass": "pass",
+    "used": "used",
+    "zombie": "zombie"
+  },
+  "overview": {
+    "metrics": {
+      "agents": "agents mapped",
+      "skills": "skills visible",
+      "zombies": "zombies",
+      "doctor": "doctor state"
+    },
+    "controlSurface": {
+      "title": "Read-Only Control Surface",
+      "safeMode": "safe mode"
+    },
+    "attention": {
+      "title": "Attention Queue",
+      "itemCount": "{{count}} items",
+      "empty": "No immediate governance findings."
+    }
+  },
+  "doctor": {
+    "title": "Doctor",
+    "checked": {
+      "declared": "declared",
+      "locked": "locked",
+      "lockVerify": "lock verify"
+    },
+    "kind": {
+      "missing": "missing install",
+      "content-drift": "content drift",
+      "stale-lock": "stale lock",
+      "extra-locked": "extra locked",
+      "unknown": "unknown drift"
+    }
+  },
+  "skills": {
+    "title": "Installed Skills",
+    "recordCount": "{{count}} records",
+    "columns": {
+      "directory": "Directory",
+      "name": "Name",
+      "agents": "Agents",
+      "location": "Location",
+      "status": "Status"
+    }
+  },
+  "audit": {
+    "findingCount": "{{count}} findings",
+    "noRules": "No rules fired.",
+    "verdict": {
+      "SAFE": "Safe",
+      "REVIEW": "Review",
+      "DANGER": "Danger"
+    },
+    "severity": {
+      "critical": "critical",
+      "high": "high",
+      "medium": "medium",
+      "low": "low"
+    }
+  },
+  "stats": {
+    "metrics": {
+      "transcripts": "transcripts scanned",
+      "invocations": "skill invocations",
+      "active": "active skills",
+      "zeroUse": "zero-use installs"
+    },
+    "zombieTitle": "Zombie Inventory",
+    "since": "since {{date}}",
+    "allTime": "all time",
+    "columns": {
+      "skill": "Skill",
+      "agents": "Agents",
+      "location": "Location",
+      "state": "State"
+    }
+  },
+  "loading": "Loading governance feed..."
+}
