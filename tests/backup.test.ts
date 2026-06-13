@@ -52,7 +52,28 @@ describe('core/backup', () => {
     expect(list[0]!.path).toBe(s2.path); // newest first
     expect(list[1]!.path).toBe(s1.path);
     expect(list[0]!.label).toBe('second');
+    expect(list[0]!.sourceDir).toBe(target);
     expect(list[0]!.createdAt.getTime()).toBeGreaterThanOrEqual(list[1]!.createdAt.getTime());
+  });
+
+  it('writes a sidecar manifest and tolerates legacy snapshots without one', async () => {
+    const snap = await snapshot(target, { store, label: 'manifest check' });
+    const manifest = JSON.parse(await readFile(`${snap.path}.json`, 'utf8')) as {
+      sourceDir: string;
+      label: string;
+      createdAt: string;
+    };
+
+    expect(manifest).toEqual({
+      sourceDir: target,
+      label: 'manifest-check',
+      createdAt: snap.createdAt.toISOString(),
+    });
+
+    await rm(`${snap.path}.json`);
+    const [legacy] = await listSnapshots(store);
+    expect(legacy!.path).toBe(snap.path);
+    expect(legacy!.sourceDir).toBeUndefined();
   });
 
   it('listSnapshots on a missing store returns empty (no throw)', async () => {

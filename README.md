@@ -23,7 +23,7 @@ skill-switch doctor --home /path/to/fake-home --ci
 
 只读命令不会写 agent 配置目录:`scan`、`audit`、`lint`、`doctor`、`drift`、`stats`、`lock` 默认查看模式。
 
-写命令只通过显式解析的 `--home` 目标工作:`install`、`toggle`、`sync`、`remove`。写入真实 `~/.claude`、`~/.codex`、`~/.agents`、`~/.gemini`、`~/.hermes` 等目录前必须格外确认;测试和演练应使用 fixture 或临时 home。写命令会在修改前对受影响 agent 目录拍快照,快照默认在 `<home>/.skill-switch/backups/`。
+写命令只通过显式解析的 `--home` 目标工作:`install`、`toggle`、`sync`、`remove`、`restore --id/--latest`。写入真实 `~/.claude`、`~/.codex`、`~/.agents`、`~/.gemini`、`~/.hermes` 等目录前必须格外确认;测试和演练应使用 fixture 或临时 home。写命令会在修改前对受影响 agent 目录拍快照,快照默认在 `<home>/.skill-switch/backups/`。
 
 目录解析统一走 `src/core/paths.ts`;测试基建会重定向 HOME,防止误写真实配置目录。
 
@@ -37,6 +37,7 @@ skill-switch doctor --home /path/to/fake-home --ci
 | `toggle` | 按 `skills.json` 开关单个 skill;codex 使用 config.toml 原生开关。 | `pnpm cli toggle tidy-notes --off --home /tmp/ss-home` |
 | `sync` | 应用整份 `skills.json` 到磁盘;支持 dry-run。 | `pnpm cli sync --home /tmp/ss-home --dry-run` |
 | `remove` | 一致性拆除某 agent 的 skill:磁盘、lock、声明一起清理。 | `pnpm cli remove tidy-notes --agent claude-code --home /tmp/ss-home` |
+| `restore` | 列出快照,或按 `--id`/`--latest` 还原到 manifest 记录的来源目录。 | `pnpm cli restore --home /tmp/ss-home --latest` |
 | `lint` | 校验 skill 规范、跨家移植风险、冲突和上下文预算。 | `pnpm cli lint tests/fixtures/home-basic --target codex` |
 | `doctor` | 对账声明、锁和磁盘,发现 missing/content-drift/stale-lock/extra-locked。 | `pnpm cli doctor --home /tmp/ss-home --ci` |
 | `drift` | 比较上游 HEAD、锁定 commit 和本地内容 hash 的漂移状态。 | `pnpm cli drift --home /tmp/ss-home --json` |

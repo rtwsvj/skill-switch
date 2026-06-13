@@ -3,7 +3,7 @@
 // 任何对真实 agent 目录的写操作由上层命令在快照兜底后显式发起。
 import { execFile } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
-import { cp, mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -14,6 +14,7 @@ export interface SnapshotInfo {
   path: string;
   label: string;
   createdAt: Date;
+  sourceDir?: string;
 }
 
 export interface SnapshotOptions {
@@ -36,12 +37,27 @@ export async function snapshot(target: string, options: SnapshotOptions): Promis
 
   await mkdir(options.store, { recursive: true });
   const createdAt = new Date();
-  const name = `${createdAt.getTime()}__${slug(options.label)}.tar.gz`;
+  const label = slug(options.label);
+  const name = `${createdAt.getTime()}__${label}.tar.gz`;
   const path = join(options.store, name);
 
   // -C target . :归档目标目录的内容(相对根),还原时可直接铺回目标目录
   await execFileAsync('tar', ['-czf', path, '-C', target, '.']);
-  return { path, label: slug(options.label), createdAt };
+  await writeFile(
+    `${path}.json`,
+    `${JSON.stringify({ sourceDir: target, label, createdAt: createdAt.toISOString() }, null, 2)}\n`,
+    'utf8',
+  );
+  return { path, label, createdAt, sourceDir: target };
+}
+
+async function readSnapshotSourceDir(path: string): Promise<string | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(`${path}.json`, 'utf8')) as { sourceDir?: unknown };
+    return typeof parsed.sourceDir === 'string' ? parsed.sourceDir : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function listSnapshots(store: string): Promise<SnapshotInfo[]> {
@@ -55,10 +71,12 @@ export async function listSnapshots(store: string): Promise<SnapshotInfo[]> {
   for (const entry of entries) {
     const m = SNAP_RE.exec(entry);
     if (!m) continue;
+    const path = join(store, entry);
     snaps.push({
       path: join(store, entry),
       label: m[2]!,
       createdAt: new Date(Number(m[1])),
+      sourceDir: await readSnapshotSourceDir(path),
     });
   }
   // 最新在前

@@ -6,6 +6,7 @@ import { registerInstallCommand } from './commands/install.ts';
 import { registerLintCommand } from './commands/lint.ts';
 import { registerLockCommand } from './commands/lock.ts';
 import { registerRemoveCommand } from './commands/remove.ts';
+import { registerRestoreCommand } from './commands/restore.ts';
 import { registerScanCommand } from './commands/scan.ts';
 import { registerStatsCommand } from './commands/stats.ts';
 import { registerSyncCommand } from './commands/sync.ts';
@@ -23,6 +24,7 @@ export function buildProgram(): Command {
   registerToggleCommand(program);
   registerSyncCommand(program);
   registerRemoveCommand(program);
+  registerRestoreCommand(program);
   registerLintCommand(program);
   registerDoctorCommand(program);
   registerDriftCommand(program);
