@@ -11,34 +11,29 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
-          "name": "skill-switch-scan",
-          "cmd": "node",
-          "args": ["--import", "tsx", "src/cli/index.ts", "scan", "--json"],
-          "sidecar": false
+          "name": "bin/skill-switch-cli",
+          "args": ["scan", "--json"],
+          "sidecar": true
         },
         {
-          "name": "skill-switch-audit",
-          "cmd": "node",
-          "args": ["--import", "tsx", "src/cli/index.ts", "audit", { "validator": "^[^\\n]+$" }, "--json"],
-          "sidecar": false
+          "name": "bin/skill-switch-cli",
+          "args": ["audit", "--home", "--json"],
+          "sidecar": true
         },
         {
-          "name": "skill-switch-doctor",
-          "cmd": "node",
-          "args": ["--import", "tsx", "src/cli/index.ts", "doctor", "--json"],
-          "sidecar": false
+          "name": "bin/skill-switch-cli",
+          "args": ["doctor", "--json"],
+          "sidecar": true
         },
         {
-          "name": "skill-switch-stats",
-          "cmd": "node",
-          "args": ["--import", "tsx", "src/cli/index.ts", "stats", "--days", { "validator": "^[0-9]{1,4}$" }, "--json"],
-          "sidecar": false
+          "name": "bin/skill-switch-cli",
+          "args": ["stats", "--days", { "validator": "^[0-9]{1,4}$" }, "--json"],
+          "sidecar": true
         },
         {
-          "name": "skill-switch-lock",
-          "cmd": "node",
-          "args": ["--import", "tsx", "src/cli/index.ts", "lock", "--verify", "--json"],
-          "sidecar": false
+          "name": "bin/skill-switch-cli",
+          "args": ["lock", "--verify", "--json"],
+          "sidecar": true
         }
       ]
     }

@@ -5,14 +5,14 @@ import type {
   DoctorReport,
   LockVerifyReport,
   ScanReport,
-  SkillRecord,
   StatsReport,
 } from './types';
 
-const repoRoot = import.meta.env.VITE_SKILL_SWITCH_ROOT || '..';
-const cliPrefix = ['--import', 'tsx', 'src/cli/index.ts'];
+const sidecarProgram = 'bin/skill-switch-cli';
 
-type CliProgram = 'skill-switch-scan' | 'skill-switch-audit' | 'skill-switch-doctor' | 'skill-switch-stats' | 'skill-switch-lock';
+interface AuditHomeReport {
+  skills: AuditReport[];
+}
 
 function parseJson<T>(stdout: string, label: string): T {
   try {
@@ -22,9 +22,8 @@ function parseJson<T>(stdout: string, label: string): T {
   }
 }
 
-async function runCli<T>(program: CliProgram, args: string[], label: string, allowNonZero = false): Promise<T> {
-  const command = Command.create(program, [...cliPrefix, ...args], {
-    cwd: repoRoot,
+async function runCli<T>(args: string[], label: string, allowNonZero = false): Promise<T> {
+  const command = Command.sidecar(sidecarProgram, args, {
     env: {
       PAGER: '',
       GIT_PAGER: '',
@@ -40,54 +39,30 @@ async function runCli<T>(program: CliProgram, args: string[], label: string, all
   return parseJson<T>(output.stdout, label);
 }
 
-function folderFor(skill: SkillRecord): string {
-  return skill.path.endsWith('/SKILL.md') ? skill.path.slice(0, -'/SKILL.md'.length) : skill.path;
-}
-
-function blockedByPolicy(report: AuditReport): boolean {
-  return report.score < 70 || report.findings.some((finding) => finding.severity === 'critical' || finding.severity === 'high');
-}
-
-async function loadAuditForScan(scan: ScanReport): Promise<AuditReport[]> {
-  return Promise.all(
-    scan.skills.map(async (skill) => {
-      const path = folderFor(skill);
-      const report = await runCli<AuditReport>('skill-switch-audit', ['audit', path, '--json'], `audit ${skill.dirName}`, true);
-      return {
-        ...report,
-        name: skill.name ?? skill.dirName,
-        agents: skill.agents,
-        relSkillsDir: skill.relSkillsDir,
-        blocked: blockedByPolicy(report),
-      };
-    }),
-  );
-}
-
 export async function loadScan(): Promise<ScanReport> {
-  return runCli<ScanReport>('skill-switch-scan', ['scan', '--json'], 'scan');
+  return runCli<ScanReport>(['scan', '--json'], 'scan');
 }
 
 export async function loadAudit(): Promise<AuditReport[]> {
-  return loadAuditForScan(await loadScan());
+  return (await runCli<AuditHomeReport>(['audit', '--home', '--json'], 'audit --home', true)).skills;
 }
 
 export async function loadDoctor(): Promise<DoctorReport> {
-  return runCli<DoctorReport>('skill-switch-doctor', ['doctor', '--json'], 'doctor');
+  return runCli<DoctorReport>(['doctor', '--json'], 'doctor');
 }
 
 export async function loadStats(): Promise<StatsReport> {
-  return runCli<StatsReport>('skill-switch-stats', ['stats', '--days', '30', '--json'], 'stats');
+  return runCli<StatsReport>(['stats', '--days', '30', '--json'], 'stats');
 }
 
 export async function loadLockVerify(): Promise<LockVerifyReport> {
-  return runCli<LockVerifyReport>('skill-switch-lock', ['lock', '--verify', '--json'], 'lock --verify', true);
+  return runCli<LockVerifyReport>(['lock', '--verify', '--json'], 'lock --verify', true);
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const scan = await loadScan();
-  const [audit, doctor, stats, lockVerify] = await Promise.all([
-    loadAuditForScan(scan),
+  const [scan, audit, doctor, stats, lockVerify] = await Promise.all([
+    loadScan(),
+    loadAudit(),
     loadDoctor(),
     loadStats(),
     loadLockVerify(),

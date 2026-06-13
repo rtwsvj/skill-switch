@@ -138,9 +138,9 @@ export function registerAuditCommand(program: Command): void {
     .command('audit')
     .description('对 skill 目录或 home 内全部已装 skill 做安全体检(纯读;任意 critical/high 或评分<70 → exit 1)')
     .argument('[path]', 'skill 目录或 SKILL.md 路径;省略时扫描 --home 下全部已装 skill')
-    .option('--home <dir>', '覆盖 home 根目录(默认取系统 home)')
+    .option('--home [dir]', '启用 home 全量模式;可选覆盖 home 根目录(默认取系统 home)')
     .option('--json', '机器可读 JSON 输出')
-    .action(async (path: string | undefined, options: { home?: string; json?: boolean }, command: Command) => {
+    .action(async (path: string | undefined, options: { home?: string | boolean; json?: boolean }, command: Command) => {
       if (path) {
         const report = await auditSkillDir(path);
         if (options.json) {
@@ -152,7 +152,8 @@ export function registerAuditCommand(program: Command): void {
         return;
       }
 
-      const home = resolveHomeRoot(options.home ?? command.parent?.opts<{ home?: string }>().home);
+      const optionHome = typeof options.home === 'string' ? options.home : undefined;
+      const home = resolveHomeRoot(optionHome ?? command.parent?.opts<{ home?: string }>().home);
       const report = await auditHome(home);
       if (options.json) {
         console.log(JSON.stringify(report, null, 2));

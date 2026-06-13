@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "VITE_SKILL_SWITCH_ROOT=$(cd .. && pwd) vite --host 127.0.0.1",
+    "bundle:cli": "node scripts/bundle-cli.mjs",
     "build": "VITE_SKILL_SWITCH_ROOT=$(cd .. && pwd) vite build",
     "preview": "vite preview --host 127.0.0.1",
     "tauri": "PATH=$HOME/.cargo/bin:$PATH RUSTUP_TOOLCHAIN=1.88.0 tauri",
@@ -23,6 +24,7 @@
     "@tauri-apps/cli": "^2.11.2",
     "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.5.0",
+    "esbuild": "^0.28.1",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3",

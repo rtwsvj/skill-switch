@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeDevCommand": "pnpm bundle:cli && pnpm dev",
+    "beforeBuildCommand": "pnpm bundle:cli && pnpm build"
   },
   "app": {
     "windows": [
@@ -32,6 +32,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "externalBin": [
+      "bin/skill-switch-cli"
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
