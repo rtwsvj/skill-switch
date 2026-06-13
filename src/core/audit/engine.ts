@@ -12,7 +12,7 @@ export interface AuditReport {
 }
 
 const EXCERPT_LIMIT = 200;
-export const MAX_AUDIT_MATCH_LINE_LENGTH = 4 * 1024;
+export const MAX_AUDIT_MATCH_LINE_LENGTH = 2 * 1024;
 
 /** 剥离 g/y 标志:有状态的 lastIndex 会让同一规则跨行漏报。 */
 function statelessPattern(pattern: RegExp): RegExp {
