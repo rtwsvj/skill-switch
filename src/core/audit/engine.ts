@@ -1,13 +1,9 @@
 // 规则引擎骨架:对目标文件内容逐行跑规则,产出 findings + 评分 + 档位。
 // 纯函数:文件读取由调用方(S2.5 的 audit CLI)负责,引擎只看内容。
 import { scoreFindings, verdictForScore, type Verdict } from './score.ts';
-import type { AuditFinding, AuditRule } from './types.ts';
+import type { AuditFileRule, AuditFileTarget, AuditFinding, AuditRule } from './types.ts';
 
-export interface AuditTarget {
-  /** 展示用文件路径(相对 skill 根) */
-  file: string;
-  content: string;
-}
+export interface AuditTarget extends AuditFileTarget {}
 
 export interface AuditReport {
   findings: AuditFinding[];
@@ -47,8 +43,31 @@ export function runRules(rules: AuditRule[], targets: AuditTarget[]): AuditFindi
   return findings;
 }
 
-export function auditContents(rules: AuditRule[], targets: AuditTarget[]): AuditReport {
-  const findings = runRules(rules, targets);
+function excerpt(text: string): string {
+  return text.length > EXCERPT_LIMIT ? `${text.slice(0, EXCERPT_LIMIT)}…` : text;
+}
+
+export function runFileRules(fileRules: AuditFileRule[], targets: AuditTarget[]): AuditFinding[] {
+  const findings: AuditFinding[] = [];
+  for (const target of targets) {
+    for (const rule of fileRules) {
+      const match = rule.evaluate(target);
+      if (!match) continue;
+      findings.push({
+        ruleId: rule.id,
+        severity: rule.severity,
+        file: target.file,
+        line: match.line,
+        excerpt: excerpt(match.excerpt),
+        message: rule.message,
+      });
+    }
+  }
+  return findings;
+}
+
+export function auditContents(rules: AuditRule[], targets: AuditTarget[], fileRules: AuditFileRule[] = []): AuditReport {
+  const findings = [...runRules(rules, targets), ...runFileRules(fileRules, targets)];
   const score = scoreFindings(findings);
   return { findings, score, verdict: verdictForScore(score) };
 }

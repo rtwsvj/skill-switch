@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { allRules } from '../rules/index.ts';
+import { allFileRules, allRules } from '../rules/index.ts';
 import { auditContents } from '../src/core/audit/engine.ts';
 import { verdictForScore } from '../src/core/audit/score.ts';
 
@@ -11,13 +11,14 @@ const FIX = join(import.meta.dirname, 'fixtures');
 
 function auditSample(kind: 'skills-malicious' | 'skills-benign', name: string) {
   const file = join(FIX, kind, name, 'SKILL.md');
-  return auditContents(allRules, [{ file: 'SKILL.md', content: readFileSync(file, 'utf8') }]);
+  return auditContents(allRules, [{ file: 'SKILL.md', content: readFileSync(file, 'utf8') }], allFileRules);
 }
 
 const MALICIOUS_EXPECT: Array<[string, string]> = [
   ['exfil-curl-secret', 'exfiltration/curl-body-with-secret'],
   ['exfil-ssh-key', 'exfiltration/sensitive-file-exfil'],
   ['exfil-ssh-key', 'exfiltration/exfil-endpoint'],
+  ['exfil-staged-read', 'exfiltration/staged-read-exfil'],
   ['revshell-dev-tcp', 'reverse-shell/dev-tcp'],
   ['revshell-python', 'reverse-shell/scripting-socket'],
   ['revshell-netcat', 'reverse-shell/netcat-exec'],
@@ -56,6 +57,7 @@ const BENIGN_SAMPLES = [
 
 const BENIGN_SAFE_WITH_FINDINGS: Array<[string, string]> = [
   ['secret-uploader', 'exfiltration/sensitive-path-reference'],
+  ['tls-cert-curl', 'exfiltration/sensitive-path-reference'],
 ];
 
 describe('S2.2 audit rules — malicious samples', () => {
@@ -96,9 +98,10 @@ describe('S2.2 audit rules — benign counterexamples', () => {
 
 describe('S2.2 rule registry hygiene', () => {
   it('every rule has a unique id and a non-empty source attribution', () => {
-    const ids = allRules.map((r) => r.id);
+    const rules = [...allRules, ...allFileRules];
+    const ids = rules.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const rule of allRules) {
+    for (const rule of rules) {
       expect(rule.source.length, rule.id).toBeGreaterThan(0);
     }
   });

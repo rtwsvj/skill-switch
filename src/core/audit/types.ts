@@ -14,6 +14,24 @@ export interface AuditRule {
   source: string;
 }
 
+export interface AuditFileTarget {
+  /** 展示用文件路径(相对 skill 根) */
+  file: string;
+  content: string;
+}
+
+export interface AuditFileRule {
+  /** 文件级规则 ID,约定 `<类目>/<slug>` */
+  id: string;
+  severity: Severity;
+  /** 给人看的违规说明 */
+  message: string;
+  /** 规格来源(SECURITY.md 章节名或"自写"+依据) */
+  source: string;
+  /** 返回 1-based 命中行与摘要;无命中返回 null */
+  evaluate(target: AuditFileTarget): { line: number; excerpt: string } | null;
+}
+
 export interface AuditFinding {
   ruleId: string;
   severity: Severity;

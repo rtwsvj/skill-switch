@@ -7,7 +7,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import type { Command } from 'commander';
-import { allRules } from '../../../rules/index.ts';
+import { allFileRules, allRules } from '../../../rules/index.ts';
 import { auditContents, type AuditReport, type AuditTarget } from '../../core/audit/engine.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
 
@@ -50,7 +50,7 @@ async function collectTextFiles(root: string): Promise<AuditTarget[]> {
 
 export async function auditSkillDir(path: string): Promise<AuditReport> {
   const targets = await collectTextFiles(path);
-  return auditContents(allRules, targets);
+  return auditContents(allRules, targets, allFileRules);
 }
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'] as const;
