@@ -102,25 +102,30 @@ function validateAllowedFields(metadata: Record<string, unknown>): string[] {
 }
 
 export function validateMetadata(
-  metadata: Record<string, unknown>,
+  metadata: unknown,
   dirName?: string,
 ): string[] {
-  const errors: string[] = [...validateAllowedFields(metadata)];
+  if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
+    return ['Frontmatter metadata must be an object'];
+  }
 
-  if (!('name' in metadata)) {
+  const record = metadata as Record<string, unknown>;
+  const errors: string[] = [...validateAllowedFields(record)];
+
+  if (!('name' in record)) {
     errors.push('Missing required field in frontmatter: name');
   } else {
-    errors.push(...validateName(metadata.name, dirName));
+    errors.push(...validateName(record.name, dirName));
   }
 
-  if (!('description' in metadata)) {
+  if (!('description' in record)) {
     errors.push('Missing required field in frontmatter: description');
   } else {
-    errors.push(...validateDescription(metadata.description));
+    errors.push(...validateDescription(record.description));
   }
 
-  if ('compatibility' in metadata) {
-    errors.push(...validateCompatibility(metadata.compatibility));
+  if ('compatibility' in record) {
+    errors.push(...validateCompatibility(record.compatibility));
   }
 
   return errors;
@@ -146,7 +151,7 @@ export async function validateSkillDir(skillDir: string): Promise<string[]> {
   try {
     // 空 options 绕过 gray-matter 全局缓存(见 core/scan.ts 的教训)
     const { data } = matter(raw, {});
-    return validateMetadata(data as Record<string, unknown>, basename(skillDir));
+    return validateMetadata(data, basename(skillDir));
   } catch (cause) {
     return [cause instanceof Error ? cause.message : String(cause)];
   }

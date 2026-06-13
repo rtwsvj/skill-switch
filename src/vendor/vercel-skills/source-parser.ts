@@ -120,6 +120,20 @@ export function sanitizeSubpath(subpath: string): string {
   return subpath;
 }
 
+// [skill-switch 本地改动] A1 parser hardening: parseSource must never throw on
+// adversarial input. Unsafe subpaths are safely downgraded to "no subpath"
+// while sanitizeSubpath keeps its original throwing contract for direct callers.
+function sanitizeSubpathOrUndefined(subpath: string | undefined): string | undefined {
+  if (!subpath) {
+    return subpath;
+  }
+  try {
+    return sanitizeSubpath(subpath);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Check if a string represents a local file system path
  */
@@ -289,7 +303,7 @@ export function parseSource(input: string): ParsedSource {
       type: 'github',
       url: `https://github.com/${owner}/${repo}.git`,
       ref: ref || fragmentRef,
-      subpath: subpath ? sanitizeSubpath(subpath) : subpath,
+      subpath: sanitizeSubpathOrUndefined(subpath),
     };
   }
 
@@ -329,7 +343,7 @@ export function parseSource(input: string): ParsedSource {
         type: 'gitlab',
         url: `${protocol}://${hostname}/${repoPath.replace(/\.git$/, '')}.git`,
         ref: ref || fragmentRef,
-        subpath: subpath ? sanitizeSubpath(subpath) : subpath,
+        subpath: sanitizeSubpathOrUndefined(subpath),
       };
     }
   }
@@ -384,7 +398,7 @@ export function parseSource(input: string): ParsedSource {
       type: 'github',
       url: `https://github.com/${owner}/${repo}.git`,
       ...(fragmentRef ? { ref: fragmentRef } : {}),
-      subpath: subpath ? sanitizeSubpath(subpath) : subpath,
+      subpath: sanitizeSubpathOrUndefined(subpath),
       ...(fragmentSkillFilter ? { skillFilter: fragmentSkillFilter } : {}),
     };
   }
