@@ -10,7 +10,12 @@ import { join } from 'node:path';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
 import { getSkillsLockPath, readSkillsLock } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
-import { getSkillsJsonPath, readDeclaration } from './sync.ts';
+import {
+  getSkillsJsonPath,
+  readDeclaration,
+  type SkillAgentSource,
+  type SkillDeclaration,
+} from './sync.ts';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 
 export type DriftKind = 'missing' | 'content-drift' | 'stale-lock' | 'extra-locked';
@@ -23,15 +28,36 @@ export interface DriftFinding {
   detail: string;
 }
 
+export interface DoctorDeclaration {
+  name: string;
+  source: string;
+  agents: AgentType[];
+  enabled: boolean;
+  mode: 'symlink' | 'copy';
+  agentSources?: Partial<Record<AgentType, SkillAgentSource>>;
+}
+
 export interface DoctorReport {
   findings: DriftFinding[];
   clean: boolean;
   checked: { declared: number; locked: number };
+  declarations: DoctorDeclaration[];
 }
 
 function skillsDirFor(home: string, agent: AgentType): string | undefined {
   const location = getAgentSkillsLocations().find((l) => l.agent === agent);
   return location ? resolveGlobalSkillsDir(home, location) : undefined;
+}
+
+function summarizeDeclaration(skill: SkillDeclaration): DoctorDeclaration {
+  return {
+    name: skill.name,
+    source: skill.source,
+    agents: [...skill.agents],
+    enabled: skill.enabled,
+    mode: skill.mode,
+    ...(skill.agentSources ? { agentSources: structuredClone(skill.agentSources) } : {}),
+  };
 }
 
 export async function runDoctor(home: string): Promise<DoctorReport> {
@@ -93,5 +119,6 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
     findings,
     clean: findings.length === 0,
     checked: { declared: declaredPairs, locked: lock.skills.length },
+    declarations: declaration.skills.map(summarizeDeclaration),
   };
 }

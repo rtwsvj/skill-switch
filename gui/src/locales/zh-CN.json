@@ -119,6 +119,11 @@
       "empty": "还没有加载备份。",
       "count": "{{count}} 个备份"
     },
+    "confirmDialog": {
+      "title": "确认操作",
+      "confirm": "确定",
+      "cancel": "取消"
+    },
     "confirm": {
       "install": "要安装这个技能吗？会先安全检查，通过后才写入。",
       "forceInstall": "这会跳过安全拦截继续安装。确定继续吗？",

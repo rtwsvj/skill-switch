@@ -119,6 +119,11 @@
       "empty": "Aún no hay copias cargadas.",
       "count": "{{count}} copias"
     },
+    "confirmDialog": {
+      "title": "Confirmar cambio",
+      "confirm": "Aceptar",
+      "cancel": "Cancelar"
+    },
     "confirm": {
       "install": "¿Instalar este skill? Se revisará la seguridad antes de escribir.",
       "forceInstall": "Esto omite el bloqueo de seguridad y continúa. ¿Seguro?",

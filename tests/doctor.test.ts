@@ -108,4 +108,23 @@ describe('core/doctor 四类漂移', () => {
     const report = await runDoctor(home);
     expect(report.findings.filter((f) => f.kind === 'missing')).toEqual([]);
   });
+
+  it('JSON report includes disabled declarations so GUI can keep them visible', async () => {
+    const beta = await makeSkill('beta');
+    await writeDecl({
+      version: 1,
+      skills: [{ name: 'beta', source: beta, agents: ['claude-code'], enabled: false, mode: 'copy' }],
+    });
+
+    const report = await runDoctor(home);
+    expect(report.declarations).toEqual([
+      {
+        name: 'beta',
+        source: beta,
+        agents: ['claude-code'],
+        enabled: false,
+        mode: 'copy',
+      },
+    ]);
+  });
 });

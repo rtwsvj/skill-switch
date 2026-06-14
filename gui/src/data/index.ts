@@ -63,6 +63,7 @@ export type {
   AuditVerdict,
   CliJsonResult,
   DashboardData,
+  DoctorDeclaration,
   DoctorFinding,
   DoctorReport,
   InstallMode,

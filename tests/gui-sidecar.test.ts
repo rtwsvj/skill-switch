@@ -139,12 +139,14 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(restoreArgs({ id: '123' })).toEqual(['restore', '--id', '123', '--json']);
   });
 
-  it('GUI write UI wires install, toggle, sync, remove, restore behind confirmation and refresh', () => {
+  it('GUI write UI wires install, toggle, sync, remove, restore behind the app confirmation dialog and refresh', () => {
     const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
     for (const method of ['runInstall', 'runToggle', 'runSync', 'runRemove', 'runRestore']) {
       expect(app.includes(method), `App should call ${method}`).toBe(true);
     }
-    expect(app).toContain('window.confirm');
+    expect(app).not.toContain('window.confirm');
+    expect(app).toContain('ConfirmationDialog');
+    expect(app).toContain('requestConfirmation');
     expect(app).toContain('runSync({ dryRun: true })');
     expect(app).toContain('runRestore({})');
     expect(app).toContain('onRefresh');
@@ -188,10 +190,10 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(skillsBody).not.toContain('onAdopt');
   });
 
-  it('GUI write safety UX keeps confirmations, audit blocking, snapshots, and refresh visible', () => {
+  it('GUI write safety UX keeps app confirmations, audit blocking, snapshots, and refresh visible', () => {
     const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
-    const confirmCount = app.match(/window\.confirm/g)?.length ?? 0;
-    expect(confirmCount).toBeGreaterThanOrEqual(5);
+    const confirmationCount = app.match(/requestConfirmation/g)?.length ?? 0;
+    expect(confirmationCount).toBeGreaterThanOrEqual(5);
     for (const key of [
       'operations.confirm.install',
       'operations.confirm.forceInstall',
@@ -207,6 +209,19 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(app).toContain('return;');
     expect(app).toContain('snapshotPaths(result.data)');
     expect(app.match(/await onRefresh\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
+  });
+
+  it('GUI derives declared state from skills.json data instead of lock-only data', () => {
+    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const shellStart = app.indexOf('export function DashboardShell');
+    const shellEnd = app.indexOf('const setAdvancedPreference');
+    const shellBody = app.slice(shellStart, shellEnd);
+
+    expect(shellStart).toBeGreaterThanOrEqual(0);
+    expect(shellEnd).toBeGreaterThan(shellStart);
+    expect(shellBody).toContain('mergeDeclaredSkills');
+    expect(shellBody).toContain('data.doctor.declarations');
+    expect(shellBody).not.toContain('data.lockVerify.entries.map');
   });
 
   it('runs both the tsx CLI and the SEA sidecar as real child processes', () => {

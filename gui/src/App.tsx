@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation, type TFunction } from 'react-i18next';
 import {
   loadDashboardData,
@@ -11,6 +11,7 @@ import {
   type AuditSeverity,
   type AuditVerdict,
   type DashboardData,
+  type DoctorDeclaration,
   type InstallMode,
   type InstallRunResult,
   type RestoreListResult,
@@ -53,6 +54,61 @@ function actionSkillName(skill: SkillRecord) {
 
 function isSkillEnabled(skill: SkillRecord) {
   return skill.enabled ?? true;
+}
+
+function skillMatchesDeclaration(skill: SkillRecord, declaration: DoctorDeclaration) {
+  return skill.dirName === declaration.name || skill.name === declaration.name;
+}
+
+function mergeAgents(first: string[], second: string[]) {
+  return [...new Set([...first, ...second])];
+}
+
+function declarationToSkillRecord(declaration: DoctorDeclaration): SkillRecord {
+  const source = declaration.source || '.skill-switch/skills.json';
+  return {
+    agents: [...declaration.agents],
+    relSkillsDir: '.skill-switch/skills.json',
+    dirName: declaration.name,
+    dir: source,
+    path: `${source}/SKILL.md`,
+    name: declaration.name,
+    enabled: declaration.enabled,
+  };
+}
+
+export function mergeDeclaredSkills(data: DashboardData): DashboardData {
+  const declarations = data.doctor.declarations ?? [];
+  if (declarations.length === 0) return data;
+
+  const skills = data.scan.skills.map((skill) => ({
+    ...skill,
+    agents: [...skill.agents],
+  }));
+
+  for (const declaration of declarations) {
+    const index = skills.findIndex((skill) => skillMatchesDeclaration(skill, declaration));
+    if (index >= 0) {
+      const existing = skills[index]!;
+      skills[index] = {
+        ...existing,
+        name: existing.name ?? declaration.name,
+        agents: mergeAgents(existing.agents, declaration.agents),
+        enabled: declaration.enabled,
+      };
+      continue;
+    }
+    skills.push(declarationToSkillRecord(declaration));
+  }
+
+  return {
+    ...data,
+    scan: {
+      ...data.scan,
+      total: skills.length,
+      skills,
+    },
+  };
 }
 
 function skillAgentKey(agent: string, name: string) {
@@ -145,6 +201,85 @@ function OperationBanner({ notice }: { notice: OperationNotice | null }) {
         </ul>
       ) : null}
     </section>
+  );
+}
+
+interface ConfirmationDialogRequest {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  tone?: 'warn' | 'danger';
+  onConfirm: () => void | Promise<void>;
+}
+
+interface WriteConfirmationRequest {
+  message: string;
+  tone?: 'warn' | 'danger';
+  onConfirm: () => void | Promise<void>;
+}
+
+export interface ConfirmationDialogState {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  tone: 'warn' | 'danger';
+  onConfirm: () => Promise<void>;
+  onCancel: () => Promise<void>;
+}
+
+export function createConfirmationDialogState(
+  request: ConfirmationDialogRequest,
+  close: () => void,
+): ConfirmationDialogState {
+  return {
+    title: request.title,
+    message: request.message,
+    confirmLabel: request.confirmLabel,
+    cancelLabel: request.cancelLabel,
+    tone: request.tone ?? 'warn',
+    onConfirm: async () => {
+      close();
+      await request.onConfirm();
+    },
+    onCancel: async () => {
+      close();
+    },
+  };
+}
+
+function ConfirmationDialog({ confirmation }: { confirmation: ConfirmationDialogState | null }) {
+  const titleId = useId();
+  const messageId = useId();
+  if (!confirmation) return null;
+
+  return (
+    <div className="dialog-backdrop">
+      <section
+        className={cx('confirm-dialog', confirmation.tone === 'danger' && 'confirm-dialog-danger')}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={messageId}
+      >
+        <h2 id={titleId}>{confirmation.title}</h2>
+        <p id={messageId}>{confirmation.message}</p>
+        <div className="dialog-actions">
+          <button type="button" onClick={() => void confirmation.onCancel()}>
+            {confirmation.cancelLabel}
+          </button>
+          <button
+            className={confirmation.tone === 'danger' ? 'danger-action' : 'primary-action'}
+            type="button"
+            onClick={() => void confirmation.onConfirm()}
+            autoFocus
+          >
+            {confirmation.confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -695,12 +830,13 @@ export function DashboardShell({
   onRefresh: () => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const mergedData = useMemo(() => mergeDeclaredSkills(data), [data]);
   const [active, setActive] = useState<Screen>(initialScreen);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<OperationNotice | null>(null);
   const [installDraft, setInstallDraft] = useState<InstallDraft>({
     source: '',
-    agent: agentOptions(data)[0] ?? 'claude-code',
+    agent: agentOptions(mergedData)[0] ?? 'claude-code',
     mode: 'copy',
     skill: '',
     ref: '',
@@ -710,11 +846,21 @@ export function DashboardShell({
   const [syncPlan, setSyncPlan] = useState<SyncRunResult | null>(null);
   const [restoreList, setRestoreList] = useState<RestoreListResult | null>(null);
   const [advanced, setAdvanced] = useState(readStoredAdvanced);
+  const [confirmation, setConfirmation] = useState<ConfirmationDialogState | null>(null);
 
   const declaredAgentPairs = useMemo(
-    () => new Set(data.lockVerify.entries.map((entry) => skillAgentKey(entry.agent, entry.name))),
-    [data.lockVerify.entries],
+    () => new Set((data.doctor.declarations ?? []).flatMap((entry) => entry.agents.map((agent) => skillAgentKey(agent, entry.name)))),
+    [data.doctor.declarations],
   );
+
+  const requestConfirmation = useCallback((request: WriteConfirmationRequest) => {
+    setConfirmation(createConfirmationDialogState({
+      title: t('operations.confirmDialog.title'),
+      confirmLabel: t('operations.confirmDialog.confirm'),
+      cancelLabel: t('operations.confirmDialog.cancel'),
+      ...request,
+    }, () => setConfirmation(null)));
+  }, [t]);
 
   const setAdvancedPreference = useCallback((enabled: boolean) => {
     setAdvanced(enabled);
@@ -744,89 +890,97 @@ export function DashboardShell({
       setNotice({ tone: 'warn', title: t('operations.notice.missingSource') });
       return;
     }
-    if (!window.confirm(t(installDraft.force ? 'operations.confirm.forceInstall' : 'operations.confirm.install'))) return;
-    void runBusy('install', async () => {
-      const result = await runInstall({
-        source,
-        agent: installDraft.agent,
-        mode: installDraft.mode,
-        ...(installDraft.skill.trim() ? { skill: installDraft.skill.trim() } : {}),
-        ...(installDraft.ref.trim() ? { ref: installDraft.ref.trim() } : {}),
-        force: installDraft.force,
-      });
-      setInstallResult(result.data);
-      if (result.data.blocked.length > 0) {
-        setNotice({
-          tone: 'danger',
-          title: t('operations.install.blocked'),
-          detail: t('operations.install.blockedDetail', { count: result.data.blocked.length }),
+    requestConfirmation({
+      message: t(installDraft.force ? 'operations.confirm.forceInstall' : 'operations.confirm.install'),
+      tone: installDraft.force ? 'danger' : 'warn',
+      onConfirm: () => runBusy('install', async () => {
+        const result = await runInstall({
+          source,
+          agent: installDraft.agent,
+          mode: installDraft.mode,
+          ...(installDraft.skill.trim() ? { skill: installDraft.skill.trim() } : {}),
+          ...(installDraft.ref.trim() ? { ref: installDraft.ref.trim() } : {}),
+          force: installDraft.force,
         });
-        return;
-      }
-      setNotice({
-        tone: 'good',
-        title: t('operations.notice.installed'),
-        detail: t('operations.notice.exitCode', { code: result.exitCode }),
-        snapshots: snapshotPaths(result.data),
-      });
-      await onRefresh();
-    });
-  }, [installDraft, onRefresh, runBusy, t]);
-
-  const handleToggle = useCallback((skill: SkillRecord, enabled: boolean) => {
-    const name = actionSkillName(skill);
-    if (!window.confirm(t(enabled ? 'operations.confirm.toggleOn' : 'operations.confirm.toggleOff', { name }))) return;
-    void runBusy(`toggle-${name}`, async () => {
-      const installSnapshots: string[] = [];
-      const agentsToPrepare = skill.agents.filter((agent) => !declaredAgentPairs.has(skillAgentKey(agent, name)));
-      for (const agent of agentsToPrepare) {
-        const prepared = await runInstall({
-          source: skill.dir,
-          agent,
-          mode: 'copy',
-          skill: name,
-          force: false,
-        });
-        setInstallResult(prepared.data);
-        if (prepared.data.blocked.length > 0) {
+        setInstallResult(result.data);
+        if (result.data.blocked.length > 0) {
           setNotice({
             tone: 'danger',
             title: t('operations.install.blocked'),
-            detail: t('operations.install.blockedDetail', { count: prepared.data.blocked.length }),
+            detail: t('operations.install.blockedDetail', { count: result.data.blocked.length }),
           });
           return;
         }
-        installSnapshots.push(...snapshotPaths(prepared.data));
-      }
-      const result = await runToggle({ name, enabled });
-      setNotice({
-        tone: 'good',
-        title: enabled ? t('operations.notice.toggledOn') : t('operations.notice.toggledOff'),
-        detail: `${result.data.actions.length} actions`,
-        snapshots: [...installSnapshots, ...snapshotPaths(result.data)],
-      });
-      await onRefresh();
+        setNotice({
+          tone: 'good',
+          title: t('operations.notice.installed'),
+          detail: t('operations.notice.exitCode', { code: result.exitCode }),
+          snapshots: snapshotPaths(result.data),
+        });
+        await onRefresh();
+      }),
     });
-  }, [declaredAgentPairs, onRefresh, runBusy, t]);
+  }, [installDraft, onRefresh, requestConfirmation, runBusy, t]);
+
+  const handleToggle = useCallback((skill: SkillRecord, enabled: boolean) => {
+    const name = actionSkillName(skill);
+    requestConfirmation({
+      message: t(enabled ? 'operations.confirm.toggleOn' : 'operations.confirm.toggleOff', { name }),
+      onConfirm: () => runBusy(`toggle-${name}`, async () => {
+        const installSnapshots: string[] = [];
+        const agentsToPrepare = skill.agents.filter((agent) => !declaredAgentPairs.has(skillAgentKey(agent, name)));
+        for (const agent of agentsToPrepare) {
+          const prepared = await runInstall({
+            source: skill.dir,
+            agent,
+            mode: 'copy',
+            skill: name,
+            force: false,
+          });
+          setInstallResult(prepared.data);
+          if (prepared.data.blocked.length > 0) {
+            setNotice({
+              tone: 'danger',
+              title: t('operations.install.blocked'),
+              detail: t('operations.install.blockedDetail', { count: prepared.data.blocked.length }),
+            });
+            return;
+          }
+          installSnapshots.push(...snapshotPaths(prepared.data));
+        }
+        const result = await runToggle({ name, enabled });
+        setNotice({
+          tone: 'good',
+          title: enabled ? t('operations.notice.toggledOn') : t('operations.notice.toggledOff'),
+          detail: `${result.data.actions.length} actions`,
+          snapshots: [...installSnapshots, ...snapshotPaths(result.data)],
+        });
+        await onRefresh();
+      }),
+    });
+  }, [declaredAgentPairs, onRefresh, requestConfirmation, runBusy, t]);
 
   const handleRemove = useCallback((skill: SkillRecord) => {
     const name = actionSkillName(skill);
-    if (!window.confirm(t('operations.confirm.remove', { name }))) return;
-    void runBusy(`remove-${name}`, async () => {
-      const snapshots: string[] = [];
-      for (const agent of skill.agents) {
-        const result = await runRemove({ name, agent });
-        snapshots.push(...snapshotPaths(result.data));
-      }
-      setNotice({
-        tone: 'good',
-        title: t('operations.notice.removed'),
-        detail: name,
-        snapshots,
-      });
-      await onRefresh();
+    requestConfirmation({
+      message: t('operations.confirm.remove', { name }),
+      tone: 'danger',
+      onConfirm: () => runBusy(`remove-${name}`, async () => {
+        const snapshots: string[] = [];
+        for (const agent of skill.agents) {
+          const result = await runRemove({ name, agent });
+          snapshots.push(...snapshotPaths(result.data));
+        }
+        setNotice({
+          tone: 'good',
+          title: t('operations.notice.removed'),
+          detail: name,
+          snapshots,
+        });
+        await onRefresh();
+      }),
     });
-  }, [onRefresh, runBusy, t]);
+  }, [onRefresh, requestConfirmation, runBusy, t]);
 
   const handleSyncDryRun = useCallback(() => {
     void runBusy('sync-dry-run', async () => {
@@ -842,19 +996,21 @@ export function DashboardShell({
 
   const handleSyncApply = useCallback(() => {
     if (!syncPlan) return;
-    if (!window.confirm(t('operations.confirm.sync', { count: changedActionCount(syncPlan) }))) return;
-    void runBusy('sync-apply', async () => {
-      const result = await runSync({ dryRun: false });
-      setSyncPlan(result.data);
-      setNotice({
-        tone: 'good',
-        title: t('operations.notice.synced'),
-        detail: t('operations.sync.planCount', { changed: changedActionCount(result.data), total: result.data.actions.length }),
-        snapshots: snapshotPaths(result.data),
-      });
-      await onRefresh();
+    requestConfirmation({
+      message: t('operations.confirm.sync', { count: changedActionCount(syncPlan) }),
+      onConfirm: () => runBusy('sync-apply', async () => {
+        const result = await runSync({ dryRun: false });
+        setSyncPlan(result.data);
+        setNotice({
+          tone: 'good',
+          title: t('operations.notice.synced'),
+          detail: t('operations.sync.planCount', { changed: changedActionCount(result.data), total: result.data.actions.length }),
+          snapshots: snapshotPaths(result.data),
+        });
+        await onRefresh();
+      }),
     });
-  }, [onRefresh, runBusy, syncPlan, t]);
+  }, [onRefresh, requestConfirmation, runBusy, syncPlan, t]);
 
   const handleLoadSnapshots = useCallback(() => {
     void runBusy('restore-list', async () => {
@@ -871,25 +1027,29 @@ export function DashboardShell({
   }, [runBusy, t]);
 
   const handleRestore = useCallback((id: string) => {
-    if (!id || !window.confirm(t('operations.confirm.restore'))) return;
-    void runBusy('restore-apply', async () => {
-      const result = await runRestore({ id });
-      if (!isRestoreList(result.data)) {
-        setNotice({
-          tone: 'good',
-          title: t('operations.notice.restored'),
-          detail: result.data.target,
-          snapshots: snapshotPaths(result.data),
-        });
-        await onRefresh();
-        const list = await runRestore({});
-        if (isRestoreList(list.data)) setRestoreList(list.data);
-      }
+    if (!id) return;
+    requestConfirmation({
+      message: t('operations.confirm.restore'),
+      tone: 'danger',
+      onConfirm: () => runBusy('restore-apply', async () => {
+        const result = await runRestore({ id });
+        if (!isRestoreList(result.data)) {
+          setNotice({
+            tone: 'good',
+            title: t('operations.notice.restored'),
+            detail: result.data.target,
+            snapshots: snapshotPaths(result.data),
+          });
+          await onRefresh();
+          const list = await runRestore({});
+          if (isRestoreList(list.data)) setRestoreList(list.data);
+        }
+      }),
     });
-  }, [onRefresh, runBusy, t]);
+  }, [onRefresh, requestConfirmation, runBusy, t]);
 
   const operations: WriteOperationsProps = {
-    data,
+    data: mergedData,
     busy,
     installDraft,
     installResult,
@@ -911,7 +1071,7 @@ export function DashboardShell({
 
   return (
     <>
-      <Header data={data} advanced={advanced} onAdvancedChange={setAdvancedPreference} />
+      <Header data={mergedData} advanced={advanced} onAdvancedChange={setAdvancedPreference} />
       <nav className="screen-tabs" aria-label={t('screens.ariaLabel')}>
         {screens.map((screen) => (
           <button className={cx(active === screen.id && 'active')} key={screen.id} onClick={() => setActive(screen.id)}>
@@ -920,10 +1080,11 @@ export function DashboardShell({
         ))}
       </nav>
       <OperationBanner notice={notice} />
-      {active === 'overview' ? <Overview data={data} operations={operations} advanced={advanced} /> : null}
-      {active === 'skills' ? <Skills data={data} actions={skillActions} /> : null}
-      {active === 'audit' ? <Audit data={data} /> : null}
-      {active === 'stats' ? <Stats data={data} /> : null}
+      <ConfirmationDialog confirmation={confirmation} />
+      {active === 'overview' ? <Overview data={mergedData} operations={operations} advanced={advanced} /> : null}
+      {active === 'skills' ? <Skills data={mergedData} actions={skillActions} /> : null}
+      {active === 'audit' ? <Audit data={mergedData} /> : null}
+      {active === 'stats' ? <Stats data={mergedData} /> : null}
     </>
   );
 }

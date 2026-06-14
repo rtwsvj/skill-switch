@@ -47,6 +47,15 @@ export interface DoctorFinding {
   detail: string;
 }
 
+export interface DoctorDeclaration {
+  name: string;
+  source: string;
+  agents: string[];
+  enabled: boolean;
+  mode: 'copy' | 'symlink';
+  agentSources?: Record<string, { source: string; mode: 'copy' | 'symlink' }>;
+}
+
 export interface DoctorReport {
   findings: DoctorFinding[];
   clean: boolean;
@@ -54,6 +63,7 @@ export interface DoctorReport {
     declared: number;
     locked: number;
   };
+  declarations: DoctorDeclaration[];
 }
 
 export interface StatsUsage {

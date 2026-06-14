@@ -119,6 +119,11 @@
       "empty": "No backups loaded yet.",
       "count": "{{count}} backups"
     },
+    "confirmDialog": {
+      "title": "Confirm change",
+      "confirm": "OK",
+      "cancel": "Cancel"
+    },
     "confirm": {
       "install": "Install this skill? It will run a safety check before writing.",
       "forceInstall": "This skips safety blocking and continues. Are you sure?",
