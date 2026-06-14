@@ -1,52 +1,57 @@
 {
   "header": {
-    "title": "治理控制台",
+    "title": "我的技能",
     "languageLabel": "语言",
+    "advanced": "高级",
     "source": {
-      "fixtures": "样例数据流",
-      "live": "实时 shell 数据流"
+      "fixtures": "样例数据",
+      "live": "已连接"
     }
   },
   "screens": {
-    "ariaLabel": "仪表盘页面",
+    "ariaLabel": "页面",
     "overview": "总览",
     "skills": "技能",
-    "audit": "审计",
+    "audit": "安全",
     "stats": "使用"
   },
   "status": {
-    "auditBlocks": "审计阻断",
-    "badFrontmatter": "frontmatter 异常",
-    "blockable": "会阻断",
-    "clean": "干净",
-    "drift": "漂移",
+    "auditBlocks": "安全检查未通过",
+    "badFrontmatter": "说明格式有问题",
+    "blockable": "需要处理",
+    "clean": "正常",
+    "drift": "有问题",
+    "enabled": "已启用",
+    "disabled": "已停用",
     "failed": "失败",
-    "nameMismatch": "名称不一致",
+    "nameMismatch": "名称和目录不一致",
     "ok": "正常",
-    "parseError": "解析错误",
+    "parseError": "读取失败",
     "pass": "通过",
-    "used": "已使用",
-    "zombie": "僵尸"
+    "used": "用过",
+    "zombie": "从未用过"
   },
   "overview": {
     "metrics": {
-      "agents": "已映射 agent",
-      "skills": "可见技能",
-      "zombies": "僵尸技能",
-      "doctor": "doctor 状态"
+      "agents": "已接入的工具",
+      "skills": "技能总数",
+      "zombies": "从未用过",
+      "doctor": "健康检查",
+      "doctorOk": "正常",
+      "doctorIssues": "{{count}} 处问题"
     },
     "controlSurface": {
-      "title": "读写控制面",
-      "safeMode": "确认 + 快照"
+      "title": "底层命令",
+      "safeMode": "高级"
     },
     "attention": {
       "title": "关注队列",
       "itemCount": "{{count}} 项",
-      "empty": "暂无需要立即处理的治理发现。"
+      "empty": "目前没有需要处理的问题。"
     }
   },
   "doctor": {
-    "title": "Doctor",
+    "title": "健康检查明细",
     "checked": {
       "declared": "声明",
       "locked": "锁定",
@@ -54,83 +59,84 @@
     },
     "kind": {
       "missing": "缺少安装",
-      "content-drift": "内容漂移",
+      "content-drift": "内容不一致",
       "stale-lock": "锁已过期",
       "extra-locked": "多余锁定",
-      "unknown": "未知漂移"
+      "unknown": "未知问题"
     }
   },
   "skills": {
-    "title": "已安装技能",
-    "recordCount": "{{count}} 条记录",
+    "title": "我的技能",
+    "guide": "这些技能是其他工具装的。点“停用”暂时关掉、“删除”彻底移除——都会先自动备份，可随时在“撤销”里恢复。",
+    "recordCount": "{{count}} 个技能",
     "columns": {
       "directory": "目录",
-      "name": "名称",
-      "agents": "Agents",
+      "name": "显示名称",
+      "agents": "工具",
       "location": "位置",
       "status": "状态",
       "actions": "操作"
     },
     "actions": {
-      "on": "开",
-      "off": "关",
-      "remove": "移除 {{agent}}",
-      "adopt": "纳入治理 {{agent}}"
+      "enable": "启用",
+      "disable": "停用",
+      "delete": "删除"
     }
   },
   "operations": {
-    "title": "写操作",
-    "writeEnabled": "可操作",
-    "busy": "执行中",
-    "snapshot": "已拍快照",
+    "title": "安装与维护",
+    "writeEnabled": "会先备份",
+    "busy": "处理中",
+    "snapshot": "备份",
     "install": {
       "title": "安装",
+      "help": "把新的技能放进所选工具里；安装前会先做安全检查。",
       "source": "来源",
-      "sourcePlaceholder": "git URL 或本地路径",
-      "agent": "目标 agent",
-      "mode": "模式",
-      "copy": "copy",
-      "symlink": "symlink",
-      "skill": "指定 skill",
-      "ref": "ref",
-      "force": "force",
+      "sourcePlaceholder": "Git 地址或本地文件夹",
+      "agent": "安装到",
+      "mode": "保存方式",
+      "copy": "复制",
+      "symlink": "链接",
+      "skill": "只安装这个技能",
+      "ref": "版本",
+      "force": "遇到安全拦截也继续",
       "submit": "安装",
-      "blocked": "审计拦截",
-      "blockedDetail": "{{count}} 个 skill 被审计拦截"
+      "blocked": "安全检查拦住了",
+      "blockedDetail": "{{count}} 个技能需要先处理"
     },
     "sync": {
       "title": "同步",
-      "dryRun": "预览",
-      "apply": "应用",
-      "planCount": "{{changed}}/{{total}} 项变更"
+      "help": "按已保存的清单重新整理技能，适合修复缺失或不一致。",
+      "dryRun": "先预览",
+      "apply": "开始同步",
+      "planCount": "{{changed}}/{{total}} 项会变化"
     },
     "restore": {
-      "title": "回滚",
-      "load": "加载快照",
-      "submit": "还原",
-      "empty": "尚未加载快照。",
-      "count": "{{count}} 个快照"
+      "title": "撤销(历史备份)",
+      "help": "查看自动备份，并把误删或误停用的技能恢复回来。",
+      "load": "查看备份",
+      "submit": "恢复",
+      "empty": "还没有加载备份。",
+      "count": "{{count}} 个备份"
     },
     "confirm": {
-      "install": "执行安装? 将先经过 audit,通过后写入目标目录。",
-      "forceInstall": "force 会越过 audit 拦截。确定继续?",
-      "toggleOn": "启用 {{name}}?",
-      "toggleOff": "停用 {{name}}?",
-      "remove": "移除 {{agent}}/{{name}}?",
-      "adopt": "把 {{agent}}/{{name}} 纳入治理?",
-      "sync": "应用 {{count}} 项 sync 变更?",
-      "restore": "还原该快照?"
+      "install": "要安装这个技能吗？会先安全检查，通过后才写入。",
+      "forceInstall": "这会跳过安全拦截继续安装。确定继续吗？",
+      "toggleOn": "启用 {{name}} 吗？会先自动备份。",
+      "toggleOff": "停用 {{name}} 吗？会先自动备份。",
+      "remove": "删除 {{name}} 吗？会先自动备份。",
+      "sync": "应用 {{count}} 项同步变更吗？",
+      "restore": "恢复这个备份吗？"
     },
     "notice": {
       "failed": "操作失败",
       "missingSource": "请填写来源。",
       "installed": "安装完成",
-      "adopted": "已纳入治理",
-      "removed": "已移除",
-      "restored": "已还原",
-      "syncPlanned": "同步计划已生成",
+      "removed": "已删除",
+      "restored": "已恢复",
+      "syncPlanned": "同步预览已生成",
       "synced": "同步完成",
-      "snapshotsLoaded": "快照已加载",
+      "snapshotsLoaded": "备份已加载",
       "toggledOn": "已启用",
       "toggledOff": "已停用",
       "exitCode": "退出码 {{code}}"
@@ -138,10 +144,10 @@
   },
   "audit": {
     "findingCount": "{{count}} 条发现",
-    "noRules": "没有规则命中。",
+    "noRules": "没有发现明显风险。",
     "verdict": {
       "SAFE": "安全",
-      "REVIEW": "需复核",
+      "REVIEW": "建议看看",
       "DANGER": "危险"
     },
     "severity": {
@@ -155,18 +161,18 @@
     "metrics": {
       "transcripts": "已扫描记录",
       "invocations": "技能调用",
-      "active": "活跃技能",
-      "zeroUse": "零使用安装"
+      "active": "用过的技能",
+      "zeroUse": "从未用过"
     },
-    "zombieTitle": "僵尸技能清单",
+    "zombieTitle": "从未用过的技能",
     "since": "自 {{date}}",
     "allTime": "全部时间",
     "columns": {
       "skill": "技能",
-      "agents": "Agents",
+      "agents": "工具",
       "location": "位置",
       "state": "状态"
     }
   },
-  "loading": "正在加载治理数据..."
+  "loading": "正在加载技能..."
 }

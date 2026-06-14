@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  color: #f0e6d1;
-  background: #14130f;
+  color: #edf2f7;
+  background: #111418;
   font-family: Aptos, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: geometricPrecision;
@@ -21,7 +21,7 @@ body {
   background:
     linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px),
     linear-gradient(180deg, rgb(255 255 255 / 0.025) 1px, transparent 1px),
-    #14130f;
+    #111418;
   background-size: 42px 42px;
 }
 
@@ -33,10 +33,10 @@ select {
 
 button {
   min-height: 34px;
-  border: 1px solid rgb(240 230 209 / 0.16);
+  border: 1px solid rgb(237 242 247 / 0.16);
   border-radius: 6px;
-  background: rgb(20 19 15 / 0.9);
-  color: #f0e6d1;
+  background: rgb(17 20 24 / 0.9);
+  color: #edf2f7;
   cursor: pointer;
   padding: 7px 10px;
 }
@@ -50,10 +50,10 @@ input,
 select {
   min-height: 34px;
   width: 100%;
-  border: 1px solid rgb(240 230 209 / 0.18);
+  border: 1px solid rgb(237 242 247 / 0.18);
   border-radius: 6px;
-  background: rgb(20 19 15 / 0.95);
-  color: #f0e6d1;
+  background: rgb(17 20 24 / 0.95);
+  color: #edf2f7;
   padding: 6px 8px;
 }
 
@@ -69,7 +69,7 @@ select {
   align-items: end;
   justify-content: space-between;
   gap: 24px;
-  border-bottom: 1px solid rgb(216 153 36 / 0.5);
+  border-bottom: 1px solid rgb(36 184 166 / 0.45);
   padding-bottom: 18px;
 }
 
@@ -112,7 +112,7 @@ h2 {
 
 .header-meta {
   gap: 12px;
-  color: #b7ab91;
+  color: #a8b3c2;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
 }
@@ -124,7 +124,20 @@ h2 {
 }
 
 .language-switcher span {
-  color: #b7ab91;
+  color: #a8b3c2;
+}
+
+.advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #a8b3c2;
+}
+
+.advanced-toggle input {
+  min-height: auto;
+  width: auto;
+  accent-color: #24b8a6;
 }
 
 .screen-tabs {
@@ -292,6 +305,12 @@ h2 {
   font-size: 13px;
 }
 
+.form-help {
+  color: #a8b3c2;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .operation-form label {
   display: grid;
   gap: 5px;
@@ -435,6 +454,16 @@ h2 {
   gap: 8px;
 }
 
+.guide-panel {
+  border: 1px solid rgb(36 184 166 / 0.26);
+  border-radius: 8px;
+  background: rgb(18 34 40 / 0.82);
+  color: #dbe7ef;
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 14px 16px;
+}
+
 .attention-row {
   justify-content: space-between;
   gap: 12px;
@@ -501,6 +530,12 @@ td {
   flex-wrap: wrap;
   gap: 6px;
   min-width: 220px;
+}
+
+.status-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .row-actions button {

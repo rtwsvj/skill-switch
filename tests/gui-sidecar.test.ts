@@ -148,32 +148,56 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(app).toContain('runSync({ dryRun: true })');
     expect(app).toContain('runRestore({})');
     expect(app).toContain('onRefresh');
-    expect(app).toContain('handleAdopt');
+    expect(app).not.toContain('handleAdopt');
+    expect(app).not.toContain('skills.actions.adopt');
+    expect(app).not.toContain('operations.confirm.adopt');
   });
 
-  it('D-2: GUI adopt installs from the scanned skill directory, not the SKILL.md file', () => {
+  it('GUI disables an undeclared skill by first declaring from the scanned directory, then toggling off', () => {
     const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
-    const adoptStart = app.indexOf('const handleAdopt');
-    const adoptEnd = app.indexOf('const handleSyncDryRun');
-    const adoptBody = app.slice(adoptStart, adoptEnd);
+    const toggleStart = app.indexOf('const handleToggle');
+    const toggleEnd = app.indexOf('const handleRemove');
+    const toggleBody = app.slice(toggleStart, toggleEnd);
 
-    expect(adoptStart).toBeGreaterThanOrEqual(0);
-    expect(adoptEnd).toBeGreaterThan(adoptStart);
-    expect(adoptBody).toContain('source: skill.dir');
-    expect(adoptBody).not.toContain('source: skill.path');
+    expect(toggleStart).toBeGreaterThanOrEqual(0);
+    expect(toggleEnd).toBeGreaterThan(toggleStart);
+    expect(toggleBody).toContain('const name = actionSkillName(skill)');
+    expect(toggleBody).toContain('source: skill.dir');
+    expect(toggleBody).toContain('skill: name');
+    expect(toggleBody).toContain("mode: 'copy'");
+    expect(toggleBody).toContain('await runInstall');
+    expect(toggleBody).toContain('await runToggle({ name, enabled })');
+    expect(toggleBody.indexOf('await runInstall')).toBeLessThan(toggleBody.indexOf('await runToggle({ name, enabled })'));
+    expect(toggleBody).not.toContain('source: skill.path');
+  });
+
+  it('skill rows always expose one enable/disable action and one delete action without a governance/adopt gate', () => {
+    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const skillsStart = app.indexOf('function Skills');
+    const skillsEnd = app.indexOf('function Audit');
+    const skillsBody = app.slice(skillsStart, skillsEnd);
+
+    expect(skillsStart).toBeGreaterThanOrEqual(0);
+    expect(skillsEnd).toBeGreaterThan(skillsStart);
+    expect(skillsBody).toContain('skills.actions.disable');
+    expect(skillsBody).toContain('skills.actions.enable');
+    expect(skillsBody).toContain('skills.actions.delete');
+    expect(skillsBody).toContain('onToggle(skill, !enabled)');
+    expect(skillsBody).toContain('onRemove(skill)');
+    expect(skillsBody).not.toContain('managed');
+    expect(skillsBody).not.toContain('onAdopt');
   });
 
   it('GUI write safety UX keeps confirmations, audit blocking, snapshots, and refresh visible', () => {
     const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
     const confirmCount = app.match(/window\.confirm/g)?.length ?? 0;
-    expect(confirmCount).toBeGreaterThanOrEqual(6);
+    expect(confirmCount).toBeGreaterThanOrEqual(5);
     for (const key of [
       'operations.confirm.install',
       'operations.confirm.forceInstall',
       'operations.confirm.toggleOn',
       'operations.confirm.toggleOff',
       'operations.confirm.remove',
-      'operations.confirm.adopt',
       'operations.confirm.sync',
       'operations.confirm.restore',
     ]) {

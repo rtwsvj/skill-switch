@@ -7,7 +7,7 @@ import { DashboardShell } from '../src/App';
 import { createI18nForLanguage, supportedLanguages } from '../src/i18n';
 import { loadDashboardData } from '../src/data/fixtures';
 
-const localeDir = join(process.cwd(), 'gui/src/locales');
+const localeDir = join(import.meta.dirname, '..', 'src', 'locales');
 
 function flattenKeys(value: unknown, prefix = ''): string[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -23,6 +23,10 @@ describe('gui i18n', () => {
     const base = JSON.parse(readFileSync(join(localeDir, `${baseLanguage}.json`), 'utf8')) as unknown;
     const baseKeys = flattenKeys(base).sort();
 
+    expect(baseKeys).not.toContain('skills.actions.adopt');
+    expect(baseKeys).not.toContain('operations.confirm.adopt');
+    expect(baseKeys).not.toContain('operations.notice.adopted');
+
     for (const language of otherLanguages) {
       const locale = JSON.parse(readFileSync(join(localeDir, `${language}.json`), 'utf8')) as unknown;
       expect(flattenKeys(locale).sort(), language).toEqual(baseKeys);
@@ -35,12 +39,15 @@ describe('gui i18n', () => {
 
     const html = renderToString(
       <I18nextProvider i18n={i18n}>
-        <DashboardShell data={data} />
+        <DashboardShell data={data} onRefresh={async () => {}} />
       </I18nextProvider>,
     );
 
     expect(html).toContain(i18n.t('header.title'));
-    expect(html).toContain(i18n.t('overview.controlSurface.title'));
+    expect(html).toContain(i18n.t('header.advanced'));
+    expect(html).toContain(i18n.t('operations.title'));
+    expect(html).not.toContain(i18n.t('overview.controlSurface.title'));
+    expect(html).not.toContain('scan --json');
     if (language !== 'en') {
       expect(html).not.toContain('Governance Console');
     }

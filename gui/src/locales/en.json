@@ -1,136 +1,142 @@
 {
   "header": {
-    "title": "Governance Console",
+    "title": "My Skills",
     "languageLabel": "Language",
+    "advanced": "Advanced",
     "source": {
-      "fixtures": "Fixture feed",
-      "live": "Live shell feed"
+      "fixtures": "Sample data",
+      "live": "Connected"
     }
   },
   "screens": {
-    "ariaLabel": "Dashboard screens",
+    "ariaLabel": "Pages",
     "overview": "Overview",
     "skills": "Skills",
-    "audit": "Audit",
+    "audit": "Safety",
     "stats": "Usage"
   },
   "status": {
-    "auditBlocks": "audit blocks",
-    "badFrontmatter": "bad frontmatter",
-    "blockable": "blockable",
-    "clean": "clean",
-    "drift": "drift",
+    "auditBlocks": "safety check failed",
+    "badFrontmatter": "description format issue",
+    "blockable": "needs attention",
+    "clean": "normal",
+    "drift": "issues found",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
     "failed": "failed",
-    "nameMismatch": "name mismatch",
+    "nameMismatch": "name and folder differ",
     "ok": "ok",
-    "parseError": "parse error",
-    "pass": "pass",
+    "parseError": "read failed",
+    "pass": "passed",
     "used": "used",
-    "zombie": "zombie"
+    "zombie": "never used"
   },
   "overview": {
     "metrics": {
-      "agents": "agents mapped",
-      "skills": "skills visible",
-      "zombies": "zombies",
-      "doctor": "doctor state"
+      "agents": "Connected tools",
+      "skills": "Total skills",
+      "zombies": "Never used",
+      "doctor": "Health check",
+      "doctorOk": "Normal",
+      "doctorIssues": "{{count}} issues"
     },
     "controlSurface": {
-      "title": "Read/Write Control Surface",
-      "safeMode": "confirm + snapshot"
+      "title": "Command details",
+      "safeMode": "Advanced"
     },
     "attention": {
-      "title": "Attention Queue",
+      "title": "Needs Attention",
       "itemCount": "{{count}} items",
-      "empty": "No immediate governance findings."
+      "empty": "Nothing needs attention right now."
     }
   },
   "doctor": {
-    "title": "Doctor",
+    "title": "Health Details",
     "checked": {
       "declared": "declared",
       "locked": "locked",
-      "lockVerify": "lock verify"
+      "lockVerify": "lock check"
     },
     "kind": {
       "missing": "missing install",
-      "content-drift": "content drift",
+      "content-drift": "content mismatch",
       "stale-lock": "stale lock",
-      "extra-locked": "extra locked",
-      "unknown": "unknown drift"
+      "extra-locked": "extra lock",
+      "unknown": "unknown issue"
     }
   },
   "skills": {
-    "title": "Installed Skills",
-    "recordCount": "{{count}} records",
+    "title": "My Skills",
+    "guide": "These skills were installed by other tools. Use “Disable” to turn one off for now, or “Delete” to remove it completely. Both actions make an automatic backup first, and you can restore from “Undo” anytime.",
+    "recordCount": "{{count}} skills",
     "columns": {
-      "directory": "Directory",
-      "name": "Name",
-      "agents": "Agents",
+      "directory": "Folder",
+      "name": "Display name",
+      "agents": "Tools",
       "location": "Location",
       "status": "Status",
       "actions": "Actions"
     },
     "actions": {
-      "on": "On",
-      "off": "Off",
-      "remove": "Remove {{agent}}",
-      "adopt": "Adopt {{agent}}"
+      "enable": "Enable",
+      "disable": "Disable",
+      "delete": "Delete"
     }
   },
   "operations": {
-    "title": "Write Operations",
-    "writeEnabled": "enabled",
+    "title": "Install and Maintain",
+    "writeEnabled": "backs up first",
     "busy": "Working",
-    "snapshot": "Snapshot taken",
+    "snapshot": "Backup",
     "install": {
       "title": "Install",
+      "help": "Add a new skill to a selected tool. A safety check runs before anything is written.",
       "source": "Source",
-      "sourcePlaceholder": "git URL or local path",
-      "agent": "Target agent",
-      "mode": "Mode",
-      "copy": "copy",
-      "symlink": "symlink",
-      "skill": "Skill filter",
-      "ref": "ref",
-      "force": "force",
+      "sourcePlaceholder": "Git URL or local folder",
+      "agent": "Install to",
+      "mode": "Save as",
+      "copy": "Copy",
+      "symlink": "Link",
+      "skill": "Only this skill",
+      "ref": "Version",
+      "force": "Continue even if safety blocks it",
       "submit": "Install",
-      "blocked": "Audit blocked",
-      "blockedDetail": "{{count}} skills were blocked by audit"
+      "blocked": "Safety check blocked this",
+      "blockedDetail": "{{count}} skills need attention first"
     },
     "sync": {
       "title": "Sync",
+      "help": "Reapply the saved list of skills. Useful when something is missing or out of date.",
       "dryRun": "Preview",
-      "apply": "Apply",
+      "apply": "Sync now",
       "planCount": "{{changed}}/{{total}} changes"
     },
     "restore": {
-      "title": "Restore",
-      "load": "Load snapshots",
+      "title": "Undo (Backups)",
+      "help": "Open automatic backups and recover a skill after a mistaken delete or disable.",
+      "load": "View backups",
       "submit": "Restore",
-      "empty": "No snapshots loaded.",
-      "count": "{{count}} snapshots"
+      "empty": "No backups loaded yet.",
+      "count": "{{count}} backups"
     },
     "confirm": {
-      "install": "Run install? It will audit first, then write if allowed.",
-      "forceInstall": "Force bypasses audit blocking. Continue?",
-      "toggleOn": "Enable {{name}}?",
-      "toggleOff": "Disable {{name}}?",
-      "remove": "Remove {{agent}}/{{name}}?",
-      "adopt": "Adopt {{agent}}/{{name}} into governance?",
+      "install": "Install this skill? It will run a safety check before writing.",
+      "forceInstall": "This skips safety blocking and continues. Are you sure?",
+      "toggleOn": "Enable {{name}}? A backup will be made first.",
+      "toggleOff": "Disable {{name}}? A backup will be made first.",
+      "remove": "Delete {{name}}? A backup will be made first.",
       "sync": "Apply {{count}} sync changes?",
-      "restore": "Restore this snapshot?"
+      "restore": "Restore this backup?"
     },
     "notice": {
       "failed": "Operation failed",
       "missingSource": "Enter a source.",
-      "installed": "Install complete",
-      "adopted": "Adopted",
-      "removed": "Removed",
+      "installed": "Installed",
+      "removed": "Deleted",
       "restored": "Restored",
-      "syncPlanned": "Sync plan ready",
+      "syncPlanned": "Sync preview ready",
       "synced": "Sync complete",
-      "snapshotsLoaded": "Snapshots loaded",
+      "snapshotsLoaded": "Backups loaded",
       "toggledOn": "Enabled",
       "toggledOff": "Disabled",
       "exitCode": "Exit code {{code}}"
@@ -138,10 +144,10 @@
   },
   "audit": {
     "findingCount": "{{count}} findings",
-    "noRules": "No rules fired.",
+    "noRules": "No obvious risks found.",
     "verdict": {
       "SAFE": "Safe",
-      "REVIEW": "Review",
+      "REVIEW": "Worth a look",
       "DANGER": "Danger"
     },
     "severity": {
@@ -153,20 +159,20 @@
   },
   "stats": {
     "metrics": {
-      "transcripts": "transcripts scanned",
-      "invocations": "skill invocations",
-      "active": "active skills",
-      "zeroUse": "zero-use installs"
+      "transcripts": "Records scanned",
+      "invocations": "Skill uses",
+      "active": "Used skills",
+      "zeroUse": "Never used"
     },
-    "zombieTitle": "Zombie Inventory",
+    "zombieTitle": "Skills never used",
     "since": "since {{date}}",
     "allTime": "all time",
     "columns": {
       "skill": "Skill",
-      "agents": "Agents",
+      "agents": "Tools",
       "location": "Location",
       "state": "State"
     }
   },
-  "loading": "Loading governance feed..."
+  "loading": "Loading skills..."
 }

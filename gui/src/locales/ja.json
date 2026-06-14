@@ -1,147 +1,153 @@
 {
   "header": {
-    "title": "ガバナンスコンソール",
+    "title": "マイスキル",
     "languageLabel": "言語",
+    "advanced": "詳細",
     "source": {
-      "fixtures": "フィクスチャフィード",
-      "live": "ライブ shell フィード"
+      "fixtures": "サンプルデータ",
+      "live": "接続済み"
     }
   },
   "screens": {
-    "ariaLabel": "ダッシュボード画面",
+    "ariaLabel": "ページ",
     "overview": "概要",
     "skills": "スキル",
-    "audit": "監査",
+    "audit": "安全",
     "stats": "使用状況"
   },
   "status": {
-    "auditBlocks": "監査ブロック",
-    "badFrontmatter": "frontmatter 不正",
-    "blockable": "ブロック対象",
+    "auditBlocks": "安全チェック失敗",
+    "badFrontmatter": "説明形式に問題",
+    "blockable": "要対応",
     "clean": "正常",
-    "drift": "ドリフト",
+    "drift": "問題あり",
+    "enabled": "有効",
+    "disabled": "無効",
     "failed": "失敗",
-    "nameMismatch": "名前不一致",
-    "ok": "OK",
-    "parseError": "解析エラー",
+    "nameMismatch": "名前とフォルダが不一致",
+    "ok": "正常",
+    "parseError": "読み取り失敗",
     "pass": "通過",
     "used": "使用済み",
-    "zombie": "ゾンビ"
+    "zombie": "未使用"
   },
   "overview": {
     "metrics": {
-      "agents": "マップ済み agent",
-      "skills": "表示スキル",
-      "zombies": "ゾンビ",
-      "doctor": "doctor 状態"
+      "agents": "接続済みツール",
+      "skills": "スキル総数",
+      "zombies": "未使用",
+      "doctor": "ヘルスチェック",
+      "doctorOk": "正常",
+      "doctorIssues": "{{count}} 件の問題"
     },
     "controlSurface": {
-      "title": "読み書きコントロール面",
-      "safeMode": "確認 + スナップショット"
+      "title": "コマンド詳細",
+      "safeMode": "詳細"
     },
     "attention": {
-      "title": "注意キュー",
+      "title": "確認が必要",
       "itemCount": "{{count}} 件",
-      "empty": "直ちに対応するガバナンス検出はありません。"
+      "empty": "今すぐ対応が必要な項目はありません。"
     }
   },
   "doctor": {
-    "title": "Doctor",
+    "title": "ヘルス詳細",
     "checked": {
       "declared": "宣言",
       "locked": "ロック",
-      "lockVerify": "ロック検証"
+      "lockVerify": "ロック確認"
     },
     "kind": {
       "missing": "未インストール",
-      "content-drift": "内容ドリフト",
+      "content-drift": "内容不一致",
       "stale-lock": "古いロック",
       "extra-locked": "余分なロック",
-      "unknown": "不明なドリフト"
+      "unknown": "不明な問題"
     }
   },
   "skills": {
-    "title": "インストール済みスキル",
-    "recordCount": "{{count}} 件",
+    "title": "マイスキル",
+    "guide": "これらのスキルは他のツールがインストールしたものです。「無効」で一時的に止め、「削除」で完全に取り除けます。どちらも先に自動バックアップを作るので、「元に戻す」から復元できます。",
+    "recordCount": "{{count}} 個のスキル",
     "columns": {
-      "directory": "ディレクトリ",
-      "name": "名前",
-      "agents": "Agents",
+      "directory": "フォルダ",
+      "name": "表示名",
+      "agents": "ツール",
       "location": "場所",
       "status": "状態",
       "actions": "操作"
     },
     "actions": {
-      "on": "オン",
-      "off": "オフ",
-      "remove": "{{agent}} を削除",
-      "adopt": "{{agent}} を管理"
+      "enable": "有効",
+      "disable": "無効",
+      "delete": "削除"
     }
   },
   "operations": {
-    "title": "書き込み操作",
-    "writeEnabled": "有効",
-    "busy": "実行中",
-    "snapshot": "作成済みスナップショット",
+    "title": "インストールとメンテナンス",
+    "writeEnabled": "先にバックアップ",
+    "busy": "処理中",
+    "snapshot": "バックアップ",
     "install": {
       "title": "インストール",
+      "help": "選んだツールに新しいスキルを追加します。書き込む前に安全チェックを行います。",
       "source": "ソース",
-      "sourcePlaceholder": "git URL またはローカルパス",
-      "agent": "対象 agent",
-      "mode": "モード",
-      "copy": "copy",
-      "symlink": "symlink",
-      "skill": "skill 指定",
-      "ref": "ref",
-      "force": "force",
+      "sourcePlaceholder": "Git URL またはローカルフォルダ",
+      "agent": "インストール先",
+      "mode": "保存方法",
+      "copy": "コピー",
+      "symlink": "リンク",
+      "skill": "このスキルだけ",
+      "ref": "バージョン",
+      "force": "安全ブロックがあっても続行",
       "submit": "インストール",
-      "blocked": "監査でブロック",
-      "blockedDetail": "{{count}} 件の skill が監査でブロックされました"
+      "blocked": "安全チェックで停止",
+      "blockedDetail": "{{count}} 個のスキルを先に確認してください"
     },
     "sync": {
       "title": "同期",
+      "help": "保存済みのスキル一覧を再適用します。欠落や不一致の修復に使います。",
       "dryRun": "プレビュー",
-      "apply": "適用",
+      "apply": "同期する",
       "planCount": "{{changed}}/{{total}} 件の変更"
     },
     "restore": {
-      "title": "復元",
-      "load": "スナップショット読込",
+      "title": "元に戻す(バックアップ)",
+      "help": "自動バックアップを開き、誤って削除または無効化したスキルを復元します。",
+      "load": "バックアップを見る",
       "submit": "復元",
-      "empty": "スナップショットは未読込です。",
-      "count": "{{count}} 件のスナップショット"
+      "empty": "バックアップはまだ読み込まれていません。",
+      "count": "{{count}} 件のバックアップ"
     },
     "confirm": {
-      "install": "インストールを実行しますか? 先に監査し、許可された場合に書き込みます。",
-      "forceInstall": "force は監査ブロックを迂回します。続行しますか?",
-      "toggleOn": "{{name}} を有効化しますか?",
-      "toggleOff": "{{name}} を無効化しますか?",
-      "remove": "{{agent}}/{{name}} を削除しますか?",
-      "adopt": "{{agent}}/{{name}} を管理対象にしますか?",
-      "sync": "{{count}} 件の同期変更を適用しますか?",
-      "restore": "このスナップショットを復元しますか?"
+      "install": "このスキルをインストールしますか？書き込む前に安全チェックを行います。",
+      "forceInstall": "安全ブロックをスキップして続行します。よろしいですか？",
+      "toggleOn": "{{name}} を有効にしますか？先にバックアップします。",
+      "toggleOff": "{{name}} を無効にしますか？先にバックアップします。",
+      "remove": "{{name}} を削除しますか？先にバックアップします。",
+      "sync": "{{count}} 件の同期変更を適用しますか？",
+      "restore": "このバックアップを復元しますか？"
     },
     "notice": {
       "failed": "操作に失敗しました",
       "missingSource": "ソースを入力してください。",
-      "installed": "インストール完了",
-      "adopted": "管理対象にしました",
+      "installed": "インストールしました",
       "removed": "削除しました",
       "restored": "復元しました",
-      "syncPlanned": "同期計画を作成しました",
+      "syncPlanned": "同期プレビューを作成しました",
       "synced": "同期完了",
-      "snapshotsLoaded": "スナップショットを読み込みました",
-      "toggledOn": "有効化しました",
-      "toggledOff": "無効化しました",
+      "snapshotsLoaded": "バックアップを読み込みました",
+      "toggledOn": "有効にしました",
+      "toggledOff": "無効にしました",
       "exitCode": "終了コード {{code}}"
     }
   },
   "audit": {
     "findingCount": "{{count}} 件の検出",
-    "noRules": "発火したルールはありません。",
+    "noRules": "明らかなリスクは見つかりませんでした。",
     "verdict": {
       "SAFE": "安全",
-      "REVIEW": "要確認",
+      "REVIEW": "確認推奨",
       "DANGER": "危険"
     },
     "severity": {
@@ -154,19 +160,19 @@
   "stats": {
     "metrics": {
       "transcripts": "スキャン済み記録",
-      "invocations": "スキル呼び出し",
-      "active": "アクティブスキル",
-      "zeroUse": "未使用インストール"
+      "invocations": "スキル使用回数",
+      "active": "使用済みスキル",
+      "zeroUse": "未使用"
     },
-    "zombieTitle": "ゾンビインベントリ",
+    "zombieTitle": "未使用のスキル",
     "since": "{{date}} 以降",
     "allTime": "全期間",
     "columns": {
       "skill": "スキル",
-      "agents": "Agents",
+      "agents": "ツール",
       "location": "場所",
       "state": "状態"
     }
   },
-  "loading": "ガバナンスフィードを読み込み中..."
+  "loading": "スキルを読み込み中..."
 }

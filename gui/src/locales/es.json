@@ -1,136 +1,142 @@
 {
   "header": {
-    "title": "Consola de gobernanza",
+    "title": "Mis skills",
     "languageLabel": "Idioma",
+    "advanced": "Avanzado",
     "source": {
       "fixtures": "Datos de ejemplo",
-      "live": "Flujo shell en vivo"
+      "live": "Conectado"
     }
   },
   "screens": {
-    "ariaLabel": "Pantallas del panel",
+    "ariaLabel": "Páginas",
     "overview": "Resumen",
     "skills": "Skills",
-    "audit": "Auditoría",
+    "audit": "Seguridad",
     "stats": "Uso"
   },
   "status": {
-    "auditBlocks": "bloqueos de auditoría",
-    "badFrontmatter": "frontmatter inválido",
-    "blockable": "bloqueable",
-    "clean": "limpio",
-    "drift": "deriva",
+    "auditBlocks": "falló la revisión de seguridad",
+    "badFrontmatter": "problema en la descripción",
+    "blockable": "requiere atención",
+    "clean": "normal",
+    "drift": "hay problemas",
+    "enabled": "Activado",
+    "disabled": "Desactivado",
     "failed": "falló",
-    "nameMismatch": "nombre distinto",
+    "nameMismatch": "nombre y carpeta difieren",
     "ok": "ok",
-    "parseError": "error de lectura",
-    "pass": "pasa",
+    "parseError": "no se pudo leer",
+    "pass": "pasó",
     "used": "usado",
-    "zombie": "zombi"
+    "zombie": "nunca usado"
   },
   "overview": {
     "metrics": {
-      "agents": "agents mapeados",
-      "skills": "skills visibles",
-      "zombies": "zombis",
-      "doctor": "estado doctor"
+      "agents": "Herramientas conectadas",
+      "skills": "Skills totales",
+      "zombies": "Nunca usados",
+      "doctor": "Revisión de salud",
+      "doctorOk": "Normal",
+      "doctorIssues": "{{count}} problemas"
     },
     "controlSurface": {
-      "title": "Superficie de control lectura/escritura",
-      "safeMode": "confirmación + snapshot"
+      "title": "Detalles de comandos",
+      "safeMode": "Avanzado"
     },
     "attention": {
-      "title": "Cola de atención",
+      "title": "Requiere atención",
       "itemCount": "{{count}} elementos",
-      "empty": "No hay hallazgos de gobernanza inmediatos."
+      "empty": "Nada requiere atención ahora."
     }
   },
   "doctor": {
-    "title": "Doctor",
+    "title": "Detalles de salud",
     "checked": {
       "declared": "declarados",
       "locked": "bloqueados",
-      "lockVerify": "verificación de lock"
+      "lockVerify": "revisión de lock"
     },
     "kind": {
       "missing": "instalación faltante",
-      "content-drift": "deriva de contenido",
+      "content-drift": "contenido distinto",
       "stale-lock": "lock obsoleto",
       "extra-locked": "lock sobrante",
-      "unknown": "deriva desconocida"
+      "unknown": "problema desconocido"
     }
   },
   "skills": {
-    "title": "Skills instalados",
-    "recordCount": "{{count}} registros",
+    "title": "Mis skills",
+    "guide": "Estos skills fueron instalados por otras herramientas. Usa “Desactivar” para apagarlos temporalmente o “Eliminar” para quitarlos por completo. Ambas acciones hacen una copia de seguridad primero, y puedes restaurarla desde “Deshacer”.",
+    "recordCount": "{{count}} skills",
     "columns": {
-      "directory": "Directorio",
-      "name": "Nombre",
-      "agents": "Agents",
+      "directory": "Carpeta",
+      "name": "Nombre visible",
+      "agents": "Herramientas",
       "location": "Ubicación",
       "status": "Estado",
       "actions": "Acciones"
     },
     "actions": {
-      "on": "Activar",
-      "off": "Desactivar",
-      "remove": "Quitar {{agent}}",
-      "adopt": "Gestionar {{agent}}"
+      "enable": "Activar",
+      "disable": "Desactivar",
+      "delete": "Eliminar"
     }
   },
   "operations": {
-    "title": "Operaciones de escritura",
-    "writeEnabled": "activadas",
-    "busy": "Ejecutando",
-    "snapshot": "Snapshot creado",
+    "title": "Instalar y mantener",
+    "writeEnabled": "copia primero",
+    "busy": "Trabajando",
+    "snapshot": "Copia",
     "install": {
       "title": "Instalar",
+      "help": "Agrega un skill nuevo a una herramienta elegida. Se revisa la seguridad antes de escribir.",
       "source": "Origen",
-      "sourcePlaceholder": "git URL o ruta local",
-      "agent": "Agent destino",
-      "mode": "Modo",
-      "copy": "copy",
-      "symlink": "symlink",
-      "skill": "Filtro skill",
-      "ref": "ref",
-      "force": "force",
+      "sourcePlaceholder": "URL de Git o carpeta local",
+      "agent": "Instalar en",
+      "mode": "Guardar como",
+      "copy": "Copia",
+      "symlink": "Enlace",
+      "skill": "Solo este skill",
+      "ref": "Versión",
+      "force": "Continuar aunque seguridad lo bloquee",
       "submit": "Instalar",
-      "blocked": "Auditoría bloqueó",
-      "blockedDetail": "{{count}} skills fueron bloqueados por auditoría"
+      "blocked": "La revisión de seguridad lo bloqueó",
+      "blockedDetail": "{{count}} skills requieren atención primero"
     },
     "sync": {
       "title": "Sincronizar",
+      "help": "Vuelve a aplicar la lista guardada de skills. Sirve para reparar faltantes o diferencias.",
       "dryRun": "Vista previa",
-      "apply": "Aplicar",
+      "apply": "Sincronizar",
       "planCount": "{{changed}}/{{total}} cambios"
     },
     "restore": {
-      "title": "Restaurar",
-      "load": "Cargar snapshots",
+      "title": "Deshacer(copias)",
+      "help": "Abre copias automáticas y recupera un skill eliminado o desactivado por error.",
+      "load": "Ver copias",
       "submit": "Restaurar",
-      "empty": "No hay snapshots cargados.",
-      "count": "{{count}} snapshots"
+      "empty": "Aún no hay copias cargadas.",
+      "count": "{{count}} copias"
     },
     "confirm": {
-      "install": "Ejecutar instalación? Primero audita y luego escribe si está permitido.",
-      "forceInstall": "force omite bloqueos de auditoría. Continuar?",
-      "toggleOn": "Activar {{name}}?",
-      "toggleOff": "Desactivar {{name}}?",
-      "remove": "Quitar {{agent}}/{{name}}?",
-      "adopt": "Gestionar {{agent}}/{{name}}?",
-      "sync": "Aplicar {{count}} cambios de sync?",
-      "restore": "Restaurar este snapshot?"
+      "install": "¿Instalar este skill? Se revisará la seguridad antes de escribir.",
+      "forceInstall": "Esto omite el bloqueo de seguridad y continúa. ¿Seguro?",
+      "toggleOn": "¿Activar {{name}}? Primero se hará una copia.",
+      "toggleOff": "¿Desactivar {{name}}? Primero se hará una copia.",
+      "remove": "¿Eliminar {{name}}? Primero se hará una copia.",
+      "sync": "¿Aplicar {{count}} cambios de sincronización?",
+      "restore": "¿Restaurar esta copia?"
     },
     "notice": {
-      "failed": "Operación falló",
+      "failed": "La operación falló",
       "missingSource": "Ingresa un origen.",
-      "installed": "Instalación completa",
-      "adopted": "Gestionado",
-      "removed": "Quitado",
+      "installed": "Instalado",
+      "removed": "Eliminado",
       "restored": "Restaurado",
-      "syncPlanned": "Plan de sync listo",
-      "synced": "Sync completo",
-      "snapshotsLoaded": "Snapshots cargados",
+      "syncPlanned": "Vista previa lista",
+      "synced": "Sincronización completa",
+      "snapshotsLoaded": "Copias cargadas",
       "toggledOn": "Activado",
       "toggledOff": "Desactivado",
       "exitCode": "Código de salida {{code}}"
@@ -138,10 +144,10 @@
   },
   "audit": {
     "findingCount": "{{count}} hallazgos",
-    "noRules": "No se activó ninguna regla.",
+    "noRules": "No se encontraron riesgos evidentes.",
     "verdict": {
       "SAFE": "Seguro",
-      "REVIEW": "Revisar",
+      "REVIEW": "Conviene revisar",
       "DANGER": "Peligro"
     },
     "severity": {
@@ -153,20 +159,20 @@
   },
   "stats": {
     "metrics": {
-      "transcripts": "transcripciones leídas",
-      "invocations": "invocaciones de skill",
-      "active": "skills activos",
-      "zeroUse": "instalaciones sin uso"
+      "transcripts": "Registros leídos",
+      "invocations": "Usos de skills",
+      "active": "Skills usados",
+      "zeroUse": "Nunca usados"
     },
-    "zombieTitle": "Inventario zombi",
+    "zombieTitle": "Skills nunca usados",
     "since": "desde {{date}}",
     "allTime": "todo el tiempo",
     "columns": {
       "skill": "Skill",
-      "agents": "Agents",
+      "agents": "Herramientas",
       "location": "Ubicación",
       "state": "Estado"
     }
   },
-  "loading": "Cargando datos de gobernanza..."
+  "loading": "Cargando skills..."
 }

@@ -21,6 +21,7 @@ import {
 import { languageLabels, supportedLanguages, type SupportedLanguage } from './i18n';
 
 type Screen = 'overview' | 'skills' | 'audit' | 'stats';
+const advancedStorageKey = 'skill-switch-advanced';
 
 const screens: Array<{ id: Screen; labelKey: string }> = [
   { id: 'overview', labelKey: 'screens.overview' },
@@ -48,6 +49,19 @@ function displaySkillName(skill: SkillRecord) {
 
 function actionSkillName(skill: SkillRecord) {
   return skill.dirName;
+}
+
+function isSkillEnabled(skill: SkillRecord) {
+  return skill.enabled ?? true;
+}
+
+function skillAgentKey(agent: string, name: string) {
+  return `${agent}/${name}`;
+}
+
+function readStoredAdvanced() {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(advancedStorageKey) === 'true';
 }
 
 const fallbackAgents = ['claude-code', 'codex', 'gemini-cli', 'cursor', 'copilot'];
@@ -160,7 +174,15 @@ function LanguageSwitcher() {
   );
 }
 
-function Header({ data }: { data: DashboardData }) {
+function Header({
+  data,
+  advanced,
+  onAdvancedChange,
+}: {
+  data: DashboardData;
+  advanced: boolean;
+  onAdvancedChange: (enabled: boolean) => void;
+}) {
   const { t, i18n } = useTranslation();
 
   return (
@@ -171,8 +193,16 @@ function Header({ data }: { data: DashboardData }) {
       </div>
       <div className="header-meta">
         <StatusPill tone={data.source === 'fixtures' ? 'warn' : 'good'}>{data.source === 'fixtures' ? t('header.source.fixtures') : t('header.source.live')}</StatusPill>
-        <span>{new Date(data.loadedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</span>
+        {advanced ? <span>{new Date(data.loadedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</span> : null}
         <LanguageSwitcher />
+        <label className="advanced-toggle">
+          <input
+            type="checkbox"
+            checked={advanced}
+            onChange={(event) => onAdvancedChange(event.target.checked)}
+          />
+          <span>{t('header.advanced')}</span>
+        </label>
       </div>
     </header>
   );
@@ -235,6 +265,7 @@ function WriteOperations({
           }}
         >
           <h3>{t('operations.install.title')}</h3>
+          <p className="form-help">{t('operations.install.help')}</p>
           <label>
             <span>{t('operations.install.source')}</span>
             <input
@@ -307,6 +338,7 @@ function WriteOperations({
 
         <div className="operation-form">
           <h3>{t('operations.sync.title')}</h3>
+          <p className="form-help">{t('operations.sync.help')}</p>
           <div className="button-row">
             <button type="button" onClick={onSyncDryRun} disabled={busy === 'sync-dry-run'}>
               {busy === 'sync-dry-run' ? t('operations.busy') : t('operations.sync.dryRun')}
@@ -335,6 +367,7 @@ function WriteOperations({
 
         <div className="operation-form">
           <h3>{t('operations.restore.title')}</h3>
+          <p className="form-help">{t('operations.restore.help')}</p>
           <button type="button" onClick={onLoadSnapshots} disabled={busy === 'restore-list'}>
             {busy === 'restore-list' ? t('operations.busy') : t('operations.restore.load')}
           </button>
@@ -361,11 +394,22 @@ function WriteOperations({
   );
 }
 
-function Overview({ data, operations }: { data: DashboardData; operations: WriteOperationsProps }) {
+function Overview({
+  data,
+  operations,
+  advanced,
+}: {
+  data: DashboardData;
+  operations: WriteOperationsProps;
+  advanced: boolean;
+}) {
   const { t } = useTranslation();
   const agents = new Set(data.scan.skills.flatMap((skill) => skill.agents));
   const broken = data.scan.skills.filter((skill) => skill.error || isNameMismatch(skill));
   const blocking = data.audit.filter(isBlockingAudit);
+  const doctorValue = data.doctor.clean
+    ? t('overview.metrics.doctorOk')
+    : t('overview.metrics.doctorIssues', { count: data.doctor.findings.length });
 
   return (
     <section className="screen">
@@ -373,10 +417,10 @@ function Overview({ data, operations }: { data: DashboardData; operations: Write
         <Metric value={agents.size} label={t('overview.metrics.agents')} tone="good" />
         <Metric value={data.scan.total} label={t('overview.metrics.skills')} />
         <Metric value={data.stats.zombies.length} label={t('overview.metrics.zombies')} tone={data.stats.zombies.length > 0 ? 'danger' : 'good'} />
-        <Metric value={data.doctor.clean ? t('status.clean') : data.doctor.findings.length} label={t('overview.metrics.doctor')} tone={data.doctor.clean ? 'good' : 'danger'} />
+        <Metric value={doctorValue} label={t('overview.metrics.doctor')} tone={data.doctor.clean ? 'good' : 'danger'} />
       </div>
 
-      <div className="overview-grid">
+      {advanced ? <div className="overview-grid">
         <section className="panel">
           <div className="panel-title">
             <h2>{t('overview.controlSurface.title')}</h2>
@@ -426,7 +470,7 @@ function Overview({ data, operations }: { data: DashboardData; operations: Write
             </ul>
           )}
         </section>
-      </div>
+      </div> : null}
 
       <WriteOperations {...operations} />
 
@@ -458,19 +502,17 @@ function Overview({ data, operations }: { data: DashboardData; operations: Write
 interface SkillActionsProps {
   busy: string | null;
   onToggle: (skill: SkillRecord, enabled: boolean) => void;
-  onRemove: (skill: SkillRecord, agent: string) => void;
-  onAdopt: (skill: SkillRecord, agent: string) => void;
+  onRemove: (skill: SkillRecord) => void;
 }
 
 function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsProps }) {
   const { t } = useTranslation();
-  const locked = useMemo(
-    () => new Set(data.lockVerify.entries.map((entry) => `${entry.agent}/${entry.name}`)),
-    [data.lockVerify.entries],
-  );
 
   return (
     <section className="screen">
+      <section className="guide-panel">
+        {t('skills.guide')}
+      </section>
       <section className="panel table-panel">
         <div className="panel-title">
           <h2>{t('skills.title')}</h2>
@@ -493,7 +535,7 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
                 const mismatch = isNameMismatch(skill);
                 const hasError = Boolean(skill.error);
                 const name = actionSkillName(skill);
-                const managed = skill.agents.some((agent) => locked.has(`${agent}/${name}`));
+                const enabled = isSkillEnabled(skill);
                 return (
                   <tr className={cx((mismatch || hasError) && 'row-alert')} key={`${skill.relSkillsDir}/${skill.dirName}`}>
                     <td className="mono">{skill.dirName}</td>
@@ -507,49 +549,30 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
                     </td>
                     <td className="muted">{skill.relSkillsDir}</td>
                     <td>
-                      {hasError ? (
-                        <StatusPill tone="danger">{t('status.parseError')}</StatusPill>
-                      ) : mismatch ? (
-                        <StatusPill tone="warn">{t('status.nameMismatch')}</StatusPill>
-                      ) : (
-                        <StatusPill tone="good">{t('status.ok')}</StatusPill>
-                      )}
+                      <div className="status-stack">
+                        <StatusPill tone={enabled ? 'good' : 'warn'}>{enabled ? t('status.enabled') : t('status.disabled')}</StatusPill>
+                        {hasError ? <StatusPill tone="danger">{t('status.parseError')}</StatusPill> : null}
+                        {mismatch ? <StatusPill tone="warn">{t('status.nameMismatch')}</StatusPill> : null}
+                      </div>
                     </td>
                     <td>
                       <div className="row-actions">
-                        {managed ? (
-                          <>
-                            <button type="button" onClick={() => actions.onToggle(skill, true)} disabled={actions.busy === `toggle-${name}`}>
-                              {t('skills.actions.on')}
-                            </button>
-                            <button type="button" onClick={() => actions.onToggle(skill, false)} disabled={actions.busy === `toggle-${name}`}>
-                              {t('skills.actions.off')}
-                            </button>
-                            {skill.agents.map((agent) => (
-                              <button
-                                type="button"
-                                className="danger-action"
-                                key={agent}
-                                onClick={() => actions.onRemove(skill, agent)}
-                                disabled={actions.busy === `remove-${agent}-${name}`}
-                              >
-                                {t('skills.actions.remove', { agent })}
-                              </button>
-                            ))}
-                          </>
-                        ) : (
-                          skill.agents.map((agent) => (
-                            <button
-                              type="button"
-                              className="primary-action"
-                              key={agent}
-                              onClick={() => actions.onAdopt(skill, agent)}
-                              disabled={actions.busy === `adopt-${agent}-${name}`}
-                            >
-                              {t('skills.actions.adopt', { agent })}
-                            </button>
-                          ))
-                        )}
+                        <button
+                          type="button"
+                          className={enabled ? undefined : 'primary-action'}
+                          onClick={() => actions.onToggle(skill, !enabled)}
+                          disabled={actions.busy === `toggle-${name}`}
+                        >
+                          {enabled ? t('skills.actions.disable') : t('skills.actions.enable')}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-action"
+                          onClick={() => actions.onRemove(skill)}
+                          disabled={actions.busy === `remove-${name}`}
+                        >
+                          {t('skills.actions.delete')}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -686,6 +709,19 @@ export function DashboardShell({
   const [installResult, setInstallResult] = useState<InstallRunResult | null>(null);
   const [syncPlan, setSyncPlan] = useState<SyncRunResult | null>(null);
   const [restoreList, setRestoreList] = useState<RestoreListResult | null>(null);
+  const [advanced, setAdvanced] = useState(readStoredAdvanced);
+
+  const declaredAgentPairs = useMemo(
+    () => new Set(data.lockVerify.entries.map((entry) => skillAgentKey(entry.agent, entry.name))),
+    [data.lockVerify.entries],
+  );
+
+  const setAdvancedPreference = useCallback((enabled: boolean) => {
+    setAdvanced(enabled);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(advancedStorageKey, String(enabled));
+    }
+  }, []);
 
   const runBusy = useCallback(async (key: string, action: () => Promise<void>) => {
     setBusy(key);
@@ -741,57 +777,52 @@ export function DashboardShell({
     const name = actionSkillName(skill);
     if (!window.confirm(t(enabled ? 'operations.confirm.toggleOn' : 'operations.confirm.toggleOff', { name }))) return;
     void runBusy(`toggle-${name}`, async () => {
+      const installSnapshots: string[] = [];
+      const agentsToPrepare = skill.agents.filter((agent) => !declaredAgentPairs.has(skillAgentKey(agent, name)));
+      for (const agent of agentsToPrepare) {
+        const prepared = await runInstall({
+          source: skill.dir,
+          agent,
+          mode: 'copy',
+          skill: name,
+          force: false,
+        });
+        setInstallResult(prepared.data);
+        if (prepared.data.blocked.length > 0) {
+          setNotice({
+            tone: 'danger',
+            title: t('operations.install.blocked'),
+            detail: t('operations.install.blockedDetail', { count: prepared.data.blocked.length }),
+          });
+          return;
+        }
+        installSnapshots.push(...snapshotPaths(prepared.data));
+      }
       const result = await runToggle({ name, enabled });
       setNotice({
         tone: 'good',
         title: enabled ? t('operations.notice.toggledOn') : t('operations.notice.toggledOff'),
         detail: `${result.data.actions.length} actions`,
-        snapshots: snapshotPaths(result.data),
+        snapshots: [...installSnapshots, ...snapshotPaths(result.data)],
       });
       await onRefresh();
     });
-  }, [onRefresh, runBusy, t]);
+  }, [declaredAgentPairs, onRefresh, runBusy, t]);
 
-  const handleRemove = useCallback((skill: SkillRecord, agent: string) => {
+  const handleRemove = useCallback((skill: SkillRecord) => {
     const name = actionSkillName(skill);
-    if (!window.confirm(t('operations.confirm.remove', { agent, name }))) return;
-    void runBusy(`remove-${agent}-${name}`, async () => {
-      const result = await runRemove({ name, agent });
-      setNotice({
-        tone: 'good',
-        title: t('operations.notice.removed'),
-        detail: `${result.data.agent}/${result.data.name}`,
-        snapshots: snapshotPaths(result.data),
-      });
-      await onRefresh();
-    });
-  }, [onRefresh, runBusy, t]);
-
-  const handleAdopt = useCallback((skill: SkillRecord, agent: string) => {
-    const name = actionSkillName(skill);
-    if (!window.confirm(t('operations.confirm.adopt', { agent, name }))) return;
-    void runBusy(`adopt-${agent}-${name}`, async () => {
-      const result = await runInstall({
-        source: skill.dir,
-        agent,
-        mode: 'copy',
-        skill: name,
-        force: false,
-      });
-      setInstallResult(result.data);
-      if (result.data.blocked.length > 0) {
-        setNotice({
-          tone: 'danger',
-          title: t('operations.install.blocked'),
-          detail: t('operations.install.blockedDetail', { count: result.data.blocked.length }),
-        });
-        return;
+    if (!window.confirm(t('operations.confirm.remove', { name }))) return;
+    void runBusy(`remove-${name}`, async () => {
+      const snapshots: string[] = [];
+      for (const agent of skill.agents) {
+        const result = await runRemove({ name, agent });
+        snapshots.push(...snapshotPaths(result.data));
       }
       setNotice({
         tone: 'good',
-        title: t('operations.notice.adopted'),
-        detail: `${agent}/${name}`,
-        snapshots: snapshotPaths(result.data),
+        title: t('operations.notice.removed'),
+        detail: name,
+        snapshots,
       });
       await onRefresh();
     });
@@ -876,12 +907,11 @@ export function DashboardShell({
     busy,
     onToggle: handleToggle,
     onRemove: handleRemove,
-    onAdopt: handleAdopt,
   };
 
   return (
     <>
-      <Header data={data} />
+      <Header data={data} advanced={advanced} onAdvancedChange={setAdvancedPreference} />
       <nav className="screen-tabs" aria-label={t('screens.ariaLabel')}>
         {screens.map((screen) => (
           <button className={cx(active === screen.id && 'active')} key={screen.id} onClick={() => setActive(screen.id)}>
@@ -890,7 +920,7 @@ export function DashboardShell({
         ))}
       </nav>
       <OperationBanner notice={notice} />
-      {active === 'overview' ? <Overview data={data} operations={operations} /> : null}
+      {active === 'overview' ? <Overview data={data} operations={operations} advanced={advanced} /> : null}
       {active === 'skills' ? <Skills data={data} actions={skillActions} /> : null}
       {active === 'audit' ? <Audit data={data} /> : null}
       {active === 'stats' ? <Stats data={data} /> : null}

@@ -6,6 +6,7 @@ export interface SkillRecord {
   path: string;
   name?: string;
   description?: string;
+  enabled?: boolean;
   error?: string;
 }
 
