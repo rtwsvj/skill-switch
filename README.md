@@ -1,138 +1,134 @@
 # skill-switch
 
-跨 agent 的 skill 治理层:在 Claude Code、Codex、Gemini CLI 等生态之间盘点、审计、锁定、同步、漂移诊断和使用统计,但不试图 fork 各家的 skill CRUD 工具。
+跨 AI 编程工具的「技能(skill)治理台」——在 Claude Code、Codex、Gemini CLI、Cursor、Copilot 等之间**盘点、体检、开关、安装、同步、回滚**你装过的 skill。
 
-`skill-switch` 适合在公开安装前、团队同步前、或 CI 闸门里回答三个问题:现在装了什么,安全吗,和声明/锁/上游还一致吗。
+它是一个**跨 agent 的 skill 治理层**:不替这些工具管 skill,而是站在它们之上做 `install/toggle/sync/remove/restore` 等治理动作,回答三个问题——**现在装了什么、安不安全、和声明/锁/上游还一致吗。** 提供**桌面 App(GUI)** 和**命令行(CLI)** 两种用法,能力对等;所有改动都**先自动备份、可一键回滚**,危险 skill 在安装前会被安全体检拦下。
 
-Status: v0.1.0 early release. The CLI is useful for local governance workflows, but public distribution is still intentionally conservative: clone + run is the canonical path, npm publishing is disabled with `private: true`, and macOS GUI artifacts are unsigned until the release owner completes Developer ID signing/notarization.
+> 状态:**v0.1.0 early release**。macOS 安装包已用 Developer ID 签名 + Apple 公证,双击即可打开;源码 clone + run 亦可。
 
 ## Screenshots
 
-![GUI overview](gui/docs/g1-overview.png)
+![总览](gui/docs/g1-overview.png)
+![技能](gui/docs/g1-skills.png)
+![安全体检](gui/docs/g1-audit.png)
+![使用统计](gui/docs/g1-usage.png)
+![多语言 zh-CN](gui/docs/p1-i18n-zh-CN.png)
 
-![Audit dashboard](gui/docs/g1-audit.png)
+## 安装(macOS,Apple Silicon)
 
-![Skills inventory](gui/docs/g1-skills.png)
+1. 双击 `skill-switch_0.1.0_aarch64.dmg`,把 **skill-switch** 拖进「应用程序」。
+2. 首次打开:双击图标 → 出现「下载自互联网,确认打开吗」点**打开**(已签名公证,不会被 Gatekeeper 拦)。
+3. 默认中文界面,右上角可切语言(见下)。
 
-![Usage statistics](gui/docs/g1-usage.png)
+App 只在你点「安装/停用/删除/同步/还原」时才写入本机各工具的 skill 目录(`~/.claude`、`~/.codex`、`~/.gemini` 等),且每次写入前自动备份。
 
-![zh-CN locale](gui/docs/p1-i18n-zh-CN.png)
+## GUI 全部能力
 
-## Install And Run
+顶栏:**语言**切换、**高级**开关(默认关;打开后才显示底层命令条和一致性明细等技术信息)。界面语言覆盖 **zh-CN**、**en**、**ja**、**es** 四种。
 
-Clone + run from the repo is always supported:
+- **总览**:四个指标——已接入的工具、技能总数、从未用过(零调用)、健康检查(声明/锁/磁盘是否一致);**安装与维护**面板;**关注队列**(名称不一致 / 解析报错 / 被体检拦下的 skill)。
+- **技能**:每个 skill 一行,状态(已启用/已停用),每行两个按钮——**停用/启用**、**删除**。停用会暂时关掉并保留在列表(随时可再启用);删除彻底移除。两者都先自动备份。
+- **安全**:每个 skill 的安全评分 + 裁决(SAFE/REVIEW/DANGER)+ 命中的风险点;评分 < 70 或有 critical/high 的会被拦。
+- **使用**:每个 skill 的触发次数,并列出「僵尸」skill(装了却从没被调用)。
+- **安装与维护(写操作)**:**安装**(来源 git/本地 → 目标工具 → 保存方式 →「安装」,装前自动体检,危险源进「被拦」列表,确需安装勾「遇到拦截也继续」)、**同步**(先「预览」再「开始同步」)、**撤销(历史备份)**(「查看备份」选一个还原)。
+
+GUI 写操作走 `install/toggle/sync/remove/restore`,统一**确认 + 快照 + audit** 护栏:弹确认框 → 执行前自动拍快照(界面显示备份路径)→ 完成后刷新。
+
+## CLI 全部能力
+
+### 让 `skill-switch` 命令可用
+
+装好 App 后,CLI 已随 App 带上,在 `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli`。链到 PATH 即可直接用:
 
 ```bash
-pnpm install
-pnpm cli --help
-pnpm cli scan --home tests/fixtures/home-basic --json
-```
-
-The repo-local bin shim can run the same CLI after dependencies are installed:
-
-```bash
+ln -sf /Applications/skill-switch.app/Contents/MacOS/skill-switch-cli /usr/local/bin/skill-switch
 skill-switch --help
-skill-switch doctor --home /path/to/fake-home --ci
 ```
 
-Build all local release artifacts without publishing:
+> 试手小贴士:任何命令加 `--home <某个空目录>` 就只在那个假目录里操作,完全不碰真实配置。
 
-```bash
-pnpm release
-```
-
-That command runs tests, typecheck, `npm pack --dry-run --json`, and the Tauri release build. It produces:
-
-- `gui/src-tauri/target/release/bundle/macos/skill-switch.app`
-- `gui/src-tauri/target/release/bundle/macos/skill-switch.app/Contents/MacOS/skill-switch-cli`
-- `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.1.0_aarch64.dmg`
-
-The packaged GUI uses a Node SEA sidecar for CLI calls, so the packaged app does not need a `node` command on `PATH`. The GUI can run read/write governance operations, with confirmations, snapshots, and audit blocking in the UI. The `.app`/`.dmg` are still unsigned local artifacts; Gatekeeper-friendly distribution requires the manual signing and notarization steps in [docs/launch-checklist.md](docs/launch-checklist.md).
-
-## Commands
+### Commands
 
 | Command | Purpose | Example |
 |---|---|---|
-| `scan` | 盘点各 agent 已安装 skills;坏 frontmatter 以 `error` 字段呈现。 | `pnpm cli scan --home tests/fixtures/home-basic --json` |
-| `audit` | 对单个 skill 目录或整个 home 做安全体检;任意 critical/high 或 score<70 会阻断。 | `pnpm cli audit --home /tmp/ss-home --json` |
-| `install` | 安装本地或 git source;装前 audit、装前快照,并写 lock 与声明。 | `pnpm cli install ./my-skills --agent claude-code --home /tmp/ss-home` |
-| `toggle` | 按 `skills.json` 开关单个 skill;Codex 使用 `config.toml` 原生开关。 | `pnpm cli toggle tidy-notes --off --home /tmp/ss-home` |
-| `lint` | 校验 skill 规范、跨家移植风险、触发词健康度、冲突和上下文预算。 | `pnpm cli lint tests/fixtures/home-basic --target codex` |
-| `doctor` | 对账 `skills.json`、`skills.lock` 和磁盘,发现 missing/content-drift/stale-lock/extra-locked。 | `pnpm cli doctor --home /tmp/ss-home --ci` |
-| `drift` | 比较上游 HEAD、锁定 commit 和本地内容 hash,输出 in-sync/upstream-ahead/local-modified/diverged。 | `pnpm cli drift --home /tmp/ss-home --json` |
-| `stats` | 解析 Claude transcript,统计 skill 触发次数和僵尸 skill。 | `pnpm cli stats --home /tmp/ss-home --days 30` |
-| `lock` | 查看 `skills.lock`;`--verify` 重算磁盘 hash。 | `pnpm cli lock --home /tmp/ss-home --verify` |
-| `sync` | 应用整份 `skills.json` 到磁盘;支持 `--dry-run` 和 JSON 输出。 | `pnpm cli sync --home /tmp/ss-home --dry-run` |
-| `remove` | 一致性拆除某 agent 的 skill:磁盘、lock、声明一起清理。 | `pnpm cli remove tidy-notes --agent claude-code --home /tmp/ss-home` |
-| `restore` | 列出快照,或按 `--id`/`--latest` 还原到 manifest 记录的来源目录。 | `pnpm cli restore --home /tmp/ss-home --latest` |
+| `scan` | 盘点各工具已装的 skill(只读;坏样本以 `error` 字段呈现)。 | `skill-switch scan` |
+| `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。 | `skill-switch audit ./my-skill` |
+| `install` | 安装本地或 git 来源:装前 audit + 装前快照,写 lock 与声明。 | `skill-switch install ./my-skills --agent claude-code` |
+| `toggle` | 按声明开关单个 skill(同步前自动快照)。 | `skill-switch toggle tidy-notes --off` |
+| `sync` | 把声明应用到磁盘(`--dry-run` 只看计划)。 | `skill-switch sync --dry-run` |
+| `remove` | 一致性拆除:磁盘产物 + 锁 + 声明一起清。 | `skill-switch remove tidy-notes --agent codex` |
+| `restore` | 列出 / 还原备份(`--latest` 或 `--id`)。 | `skill-switch restore --latest` |
+| `lint` | 规范校验 + 跨工具移植告警 + 冲突 / 预算健康度。 | `skill-switch lint --target codex` |
+| `doctor` | 声明/锁/磁盘三方一致性(`--ci` 不一致即 exit 1)。 | `skill-switch doctor` |
+| `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。 | `skill-switch drift` |
+| `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
+| `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
+| `uninstall` | 一键卸载本软件(见下节)。 | `skill-switch uninstall` |
 
-## Exit Codes
+公共选项:`--json`、`--home <dir>`、`--agent <工具>`(claude-code / codex / gemini-cli / cursor / copilot …)。每个命令 `--help` 看全部。
 
-- Report-only commands exit 0 when they can produce a report.
-- `audit` exits 1 when a skill should be blocked: any critical/high finding or score below 70.
-- `doctor --ci` exits 1 when declaration, lock, and disk are not aligned.
-- `lock --verify` exits 1 when a locked target is missing, unknown, or hash-mismatched.
-- CLI action errors print `错误: <message>` to stderr and exit 1 without a stack trace.
+### Exit Codes
 
-## Safety Model
+- 只读命令能出报告就 exit 0。
+- `audit` 在该拦截时 exit 1(任意 critical/high 或评分 < 70)。
+- `doctor --ci` 在声明/锁/磁盘不一致时 exit 1。
+- `lock --verify` 在锁定目标缺失/未知/哈希不符时 exit 1。
+- 出错统一打印 `错误: <信息>` 到 stderr 并 exit 1(无堆栈)。
 
-只读命令不会写 agent 配置目录:`scan`、`audit`、`lint`、`doctor`、`drift`、`stats`、`lock` 默认查看模式。
+## 一键卸载
 
-写命令只通过显式解析的 `--home` 目标工作:`install`、`toggle`、`sync`、`remove`、`restore --id/--latest`。写入真实 `~/.claude`、`~/.codex`、`~/.agents`、`~/.gemini`、`~/.hermes` 等目录前必须格外确认;测试和演练应使用 fixture 或临时 home。
-
-写命令会在修改前做装前快照或操作前快照,默认存放在 `<home>/.skill-switch/backups/`。`restore` 还原前也会创建 pre-restore 快照。目录解析统一走 `src/core/paths.ts`;测试基建会重定向 HOME,防止误写真实配置目录。
-
-安全加固边界:
-
-- install/sync/remove 会拒绝路径穿越、绝对路径、NUL、隐藏名等 unsafe skill name。
-- copy 模式跳过 symlink,避免把指向外部目录的链接带进 agent skill 目录。
-- audit 不跟随 symlink,并有文件大小、文件数量、递归深度和单行匹配窗口上限。
-- 当前 audit recall 边界见 [docs/known-limitations.md](docs/known-limitations.md)。
-
-## GUI
-
-GUI 是本仓内的本地治理控制台,用于查看 inventory、audit、doctor、stats、lock verify,也可执行 `install/toggle/sync/remove/restore`。写操作走确认 + 快照 + audit 护栏:install 先审计,被阻断的 skill 必须显式勾选 force 才能继续;remove/toggle-off/sync apply/restore 都会确认;成功后界面展示快照路径并刷新数据。
-
-Tauri Node SEA sidecar 通过单条 `args:true` capability 调用打包 CLI;安全边界在 GUI 数据层和 UI 确认流中实现。当前界面会调用:
-
-- `scan --json`
-- `audit --json`
-- `doctor --json`
-- `stats --days <N> --json`
-- `lock --verify --json`
-- `install <source> --agent <agent> --mode <mode> --json`
-- `toggle <skill> --on|--off --json`
-- `sync --dry-run --json` / `sync --json`
-- `remove <skill> --agent <agent> --json`
-- `restore --json` / `restore --id <id> --json`
-
-运行方式:
+完整移除本软件,一条命令:
 
 ```bash
-pnpm --dir gui dev
-pnpm --dir gui tauri dev
-pnpm --dir gui tui
+skill-switch uninstall
 ```
 
-构建 Tauri sidecar:
+它会删除 `/Applications/skill-switch.app`、`~/.skill-switch`(声明/锁/内容库/备份)、`skill-switch` 命令链接,**默认保留你已经装好的各个 skill**(它们继续可用)。可选:
+
+- `--purge-skills`:连同本软件装进各工具的 skill 也一并移除(每个先快照)。
+- `--dry-run`:只列会删什么,不真删。
+- `--yes`:跳过确认。
+
+> 只装了 App、没链接 CLI:直接跑 `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli uninstall`。
+> 手动兜底:`rm -rf /Applications/skill-switch.app ~/.skill-switch`,再删掉你建过的 `skill-switch` 链接。
+
+## Safety Model(为什么可以放心点)
+
+- **只读命令永不写盘**:`scan`、`audit`、`lint`、`doctor`、`drift`、`stats`、`lock`。
+- **写命令先做装前快照再动手**:`install`、`toggle`、`sync`、`remove`、`restore` 修改前在 `~/.skill-switch/backups/` 拍 tar.gz 快照,`restore` 还原前再拍一份;任何一步都能回滚。
+- **安装前安全体检**:任何 skill 装进来前先 audit,命中反弹 shell、外传敏感文件、钓鱼式索要凭据等会被拦,需 `--force` / 勾「遇到拦截也继续」才放行。
+- **加固边界**:拒绝路径穿越/绝对路径/隐藏名等不安全 skill 名;copy 模式不跟随软链;audit 不跟随软链且有大小/数量/深度/单行匹配上限。已知盲区见 [docs/known-limitations.md](docs/known-limitations.md)。
+
+## 数据文件(都在 `~/.skill-switch/`)
+
+- `skills.json`:声明你希望哪些 skill 出现在哪些工具。
+- `skills.lock.json`:每个 skill 的来源、commit、内容哈希、保存方式。
+- `backups/`:所有写操作的自动快照。
+- `store/`:copy 安装的耐久内容库(停用后从这里还原)。
+
+## 从源码运行(开发者)
+
+clone + run 始终支持:
 
 ```bash
-pnpm --dir gui bundle:cli
-pnpm --dir gui build
-pnpm --dir gui tauri build
+pnpm install
+pnpm cli --help                          # = skill-switch
+pnpm cli scan --home tests/fixtures/home-basic
+pnpm test
+pnpm --dir gui tauri dev                 # 本地起 GUI
+pnpm release                             # 一键产出 .app / .dmg(不签名)
 ```
 
-GUI 已有 zh-CN、en、ja、es 四种语言,截图在 `gui/docs/*.png`。
+`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.1.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
 
-## Data Files
+签名 + 公证(需 Developer ID,见 [docs/launch-checklist.md](docs/launch-checklist.md)):
 
-- `<home>/.skill-switch/skills.json`:声明希望哪些 skill 出现在哪些 agent。
-- `<home>/.skill-switch/skills.lock.json`:安装来源、commit、内容 hash 和 mode。
-- `<home>/.skill-switch/backups/`:写命令的 tar.gz 快照与 sidecar manifest。
+```bash
+APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui sign
+```
 
-## Project Docs
+## 更多文档
 
-- [AGENTS.md](./AGENTS.md): collaboration rules, safety boundaries, vendor discipline, and iteration workflow.
-- [docs/ROADMAP.md](./docs/ROADMAP.md): shipped slices and candidate backlog.
-- [docs/changes/](./docs/changes): per-task operation records and verification evidence.
-- [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md): vendor snapshots and ported-rule attribution.
+- [AGENTS.md](./AGENTS.md):协作规则与安全边界。
+- [docs/ROADMAP.md](./docs/ROADMAP.md):已交付与待办。
+- [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md):第三方快照与移植规则署名。

@@ -11,6 +11,7 @@ import { registerScanCommand } from './commands/scan.ts';
 import { registerStatsCommand } from './commands/stats.ts';
 import { registerSyncCommand } from './commands/sync.ts';
 import { registerToggleCommand } from './commands/toggle.ts';
+import { registerUninstallCommand } from './commands/uninstall.ts';
 
 export function buildProgram(): Command {
   const program = new Command('skill-switch');
@@ -30,6 +31,7 @@ export function buildProgram(): Command {
   registerDriftCommand(program);
   registerStatsCommand(program);
   registerLockCommand(program);
+  registerUninstallCommand(program);
 
   return program;
 }
