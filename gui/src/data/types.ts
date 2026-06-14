@@ -2,6 +2,7 @@ export interface SkillRecord {
   agents: string[];
   relSkillsDir: string;
   dirName: string;
+  dir: string;
   path: string;
   name?: string;
   description?: string;

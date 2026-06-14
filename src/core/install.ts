@@ -92,11 +92,11 @@ function durableCopySource(home: string, agent: AgentType, name: string): string
   return join(home, '.skill-switch', 'store', agent, name);
 }
 
-async function isLocalDir(source: string): Promise<boolean> {
+async function localSourceKind(source: string): Promise<'directory' | 'non-directory' | 'missing'> {
   try {
-    return (await stat(source)).isDirectory();
+    return (await stat(source)).isDirectory() ? 'directory' : 'non-directory';
   } catch {
-    return false;
+    return 'missing';
   }
 }
 
@@ -107,7 +107,11 @@ export async function installFromSource(
   // 先解析 agent(失败要早于任何 clone/写动作)
   const skillsDir = targetSkillsDir(options.home, options.agent);
 
-  const local = await isLocalDir(source);
+  const sourceKind = await localSourceKind(source);
+  if (sourceKind === 'non-directory') {
+    throw new Error(`安装源不是目录: ${source}`);
+  }
+  const local = sourceKind === 'directory';
   if (options.skill !== undefined) {
     assertSafeSkillName(options.skill, 'install skill filter');
   }

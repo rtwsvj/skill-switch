@@ -772,7 +772,7 @@ export function DashboardShell({
     if (!window.confirm(t('operations.confirm.adopt', { agent, name }))) return;
     void runBusy(`adopt-${agent}-${name}`, async () => {
       const result = await runInstall({
-        source: skill.path,
+        source: skill.dir,
         agent,
         mode: 'copy',
         skill: name,

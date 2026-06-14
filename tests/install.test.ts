@@ -1,6 +1,6 @@
 // S3.3:install 编排验收 — 本地 file:// git 仓离线安装、audit 拦截、
 // --force 越过、symlink 仅限本地源、装前快照。全程写入临时目录。
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { lstat, mkdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -12,6 +12,8 @@ import { runDoctor } from '../src/core/doctor.ts';
 import { toggleSkill } from '../src/core/toggle.ts';
 import { applySync, getSkillsJsonPath, readDeclaration } from '../src/core/sync.ts';
 
+const ROOT = join(import.meta.dirname, '..');
+const CLI = join(ROOT, 'src', 'cli', 'index.ts');
 let work: string;
 let goodRepo: string; // 含 1 个良性 skill 的 git 仓
 let evilRepo: string; // 含 1 个反向 shell skill 的 git 仓
@@ -66,6 +68,15 @@ afterEach(() => {
 
 function freshHome(): string {
   return mkdtempSync(join(tmpdir(), 'skill-switch-ihome-'));
+}
+
+function runCli(args: string[]): { stdout: string; stderr: string; status: number | null } {
+  const result = spawnSync(process.execPath, ['--import', 'tsx', CLI, ...args], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  return { stdout: result.stdout, stderr: result.stderr, status: result.status };
 }
 
 describe('core/install', () => {
@@ -275,6 +286,16 @@ describe('core/install', () => {
     expect(result.installed.map((s) => s.name)).toEqual(['local-skill']);
     const st = await lstat(join(home, '.claude', 'skills', 'local-skill'));
     expect(st.isSymbolicLink()).toBe(true);
+  });
+
+  it('D-2: rejects a local SKILL.md file path before trying to clone it', () => {
+    const home = freshHome();
+    const sourceFile = join(localSource, 'local-skill', 'SKILL.md');
+    const result = runCli(['install', sourceFile, '--agent', 'claude-code', '--home', home, '--json']);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(`安装源不是目录: ${sourceFile}`);
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/git clone|repository|not found/i);
   });
 
   it('symlink mode rejects cloned (non-local) sources', async () => {

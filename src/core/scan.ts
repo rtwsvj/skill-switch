@@ -3,7 +3,7 @@
 // universal 目录(.agents/skills)被多个 agent 共享——按唯一目录约定去重,
 // 每条记录的 agents[] 列出按 vendor 映射能看到它的全部 agent。
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import matter from 'gray-matter';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
@@ -15,6 +15,8 @@ export interface SkillRecord {
   relSkillsDir: string;
   /** skill 目录名 */
   dirName: string;
+  /** skill 目录绝对路径(即含 SKILL.md 的目录) */
+  dir: string;
   /** SKILL.md 绝对路径 */
   path: string;
   /** frontmatter name(解析失败时为 undefined) */
@@ -47,9 +49,11 @@ async function readSkill(
   agents: AgentType[],
   relSkillsDir: string,
   dirName: string,
-  skillMdPath: string,
+  skillDir: string,
 ): Promise<SkillRecord> {
-  const record: SkillRecord = { agents, relSkillsDir, dirName, path: skillMdPath };
+  const dir = resolve(skillDir);
+  const skillMdPath = join(dir, 'SKILL.md');
+  const record: SkillRecord = { agents, relSkillsDir, dirName, dir, path: skillMdPath };
   try {
     const raw = await readFile(skillMdPath, 'utf8');
     // 必须传 options(哪怕空对象)绕过 gray-matter 的全局缓存:
@@ -79,7 +83,7 @@ export async function scanHome(home: string): Promise<SkillRecord[]> {
       } catch {
         continue; // 没有 SKILL.md 的目录不是 skill
       }
-      records.push(await readSkill(agents, relSkillsDir, entry, skillMdPath));
+      records.push(await readSkill(agents, relSkillsDir, entry, skillDir));
     }
   }
 

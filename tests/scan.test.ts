@@ -1,7 +1,8 @@
 // S1.3:scan 核心对 home-basic 假 home 的验收测试。
 // 关键容错:坏 frontmatter 记 error 字段,绝不抛出。
+import { stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { scanHome } from '../src/core/scan.ts';
 
@@ -27,6 +28,7 @@ describe('core/scan', () => {
     expect(gitHelper).toBeDefined();
     expect(gitHelper!.agents).toContain('claude-code');
     expect(gitHelper!.relSkillsDir).toBe(join('.claude', 'skills'));
+    expect(gitHelper!.dir).toBe(join(HOME_BASIC, '.claude', 'skills', 'git-helper'));
     expect(gitHelper!.path).toBe(
       join(HOME_BASIC, '.claude', 'skills', 'git-helper', 'SKILL.md'),
     );
@@ -36,6 +38,16 @@ describe('core/scan', () => {
 
     const gemini = records.find((r) => r.dirName === 'code-review-helper');
     expect(gemini!.agents).toContain('gemini-cli');
+  });
+
+  it('records the absolute skill directory separately from the SKILL.md manifest path', async () => {
+    const records = await scanHome(HOME_BASIC);
+
+    for (const record of records) {
+      expect(isAbsolute(record.dir)).toBe(true);
+      expect(join(record.dir, 'SKILL.md')).toBe(record.path);
+      expect((await stat(record.dir)).isDirectory()).toBe(true);
+    }
   });
 
   it('universal skills are visible to multiple agents but recorded once', async () => {

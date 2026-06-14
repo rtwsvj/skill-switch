@@ -151,6 +151,18 @@ describe('GUI Tauri sidecar wiring', () => {
     expect(app).toContain('handleAdopt');
   });
 
+  it('D-2: GUI adopt installs from the scanned skill directory, not the SKILL.md file', () => {
+    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const adoptStart = app.indexOf('const handleAdopt');
+    const adoptEnd = app.indexOf('const handleSyncDryRun');
+    const adoptBody = app.slice(adoptStart, adoptEnd);
+
+    expect(adoptStart).toBeGreaterThanOrEqual(0);
+    expect(adoptEnd).toBeGreaterThan(adoptStart);
+    expect(adoptBody).toContain('source: skill.dir');
+    expect(adoptBody).not.toContain('source: skill.path');
+  });
+
   it('GUI write safety UX keeps confirmations, audit blocking, snapshots, and refresh visible', () => {
     const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
     const confirmCount = app.match(/window\.confirm/g)?.length ?? 0;

@@ -6,6 +6,7 @@
       "agents": ["cline", "dexto", "kimi-code-cli", "loaf", "warp", "zed"],
       "relSkillsDir": ".agents/skills",
       "dirName": "deploy-checklist",
+      "dir": "tests/fixtures/home-basic/.agents/skills/deploy-checklist",
       "path": "tests/fixtures/home-basic/.agents/skills/deploy-checklist/SKILL.md",
       "name": "deploy-checklist",
       "description": "Run through the pre-deploy checklist covering tests, migrations, feature flags, and rollback plans. Use before any production deployment."
@@ -14,6 +15,7 @@
       "agents": ["cline", "dexto", "kimi-code-cli", "loaf", "warp", "zed"],
       "relSkillsDir": ".agents/skills",
       "dirName": "mismatched-name",
+      "dir": "tests/fixtures/home-basic/.agents/skills/mismatched-name",
       "path": "tests/fixtures/home-basic/.agents/skills/mismatched-name/SKILL.md",
       "name": "release-runbook",
       "description": "Guide the release process from tagging to changelog to announcement. Use when cutting a new release."
@@ -22,6 +24,7 @@
       "agents": ["claude-code"],
       "relSkillsDir": ".claude/skills",
       "dirName": "broken-frontmatter",
+      "dir": "tests/fixtures/home-basic/.claude/skills/broken-frontmatter",
       "path": "tests/fixtures/home-basic/.claude/skills/broken-frontmatter/SKILL.md",
       "error": "missed comma between flow collection entries at line 4, column 1:\n    tags: {also: broken\n    ^"
     },
@@ -29,6 +32,7 @@
       "agents": ["claude-code"],
       "relSkillsDir": ".claude/skills",
       "dirName": "commit-style",
+      "dir": "tests/fixtures/home-basic/.claude/skills/commit-style",
       "path": "tests/fixtures/home-basic/.claude/skills/commit-style/SKILL.md",
       "name": "commit-style",
       "description": "Write commit messages following the conventional commits specification. Use when committing changes or reviewing commit history style."
@@ -37,6 +41,7 @@
       "agents": ["claude-code"],
       "relSkillsDir": ".claude/skills",
       "dirName": "git-helper",
+      "dir": "tests/fixtures/home-basic/.claude/skills/git-helper",
       "path": "tests/fixtures/home-basic/.claude/skills/git-helper/SKILL.md",
       "name": "git-helper",
       "description": "Help with git operations like rebase, cherry-pick, and resolving merge conflicts. Use when the user asks about git commands or version control workflows."
@@ -45,6 +50,7 @@
       "agents": ["gemini-cli"],
       "relSkillsDir": ".gemini/skills",
       "dirName": "code-review-helper",
+      "dir": "tests/fixtures/home-basic/.gemini/skills/code-review-helper",
       "path": "tests/fixtures/home-basic/.gemini/skills/code-review-helper/SKILL.md",
       "name": "code-review-helper",
       "description": "Review code changes for correctness, naming, and test coverage. Use when the user asks for a code review or PR feedback."
