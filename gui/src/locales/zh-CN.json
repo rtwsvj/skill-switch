@@ -241,5 +241,8 @@
   },
   "errorBoundary": {
     "message": "skill-switch 出错了(把下面的信息发给开发者):"
+  },
+  "about": {
+    "privacy": "🔒 零遥测 · 所有操作都在你本机完成 · 配置不上传,可离线使用"
   }
 }

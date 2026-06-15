@@ -241,5 +241,8 @@
   },
   "errorBoundary": {
     "message": "skill-switch tuvo un error (envía los detalles de abajo al desarrollador):"
+  },
+  "about": {
+    "privacy": "🔒 Sin telemetría · todo se ejecuta en tu equipo · nada se sube, funciona sin conexión"
   }
 }

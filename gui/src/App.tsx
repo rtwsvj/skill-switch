@@ -1438,6 +1438,7 @@ export function DashboardShell({
         />
       ) : null}
       {active === 'stats' ? <Stats data={mergedData} section={sections.stats} onReload={() => onReloadSection?.('stats')} /> : null}
+      <footer className="app-footer">{t('about.privacy')}</footer>
     </>
   );
 }

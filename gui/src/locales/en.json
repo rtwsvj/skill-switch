@@ -241,5 +241,8 @@
   },
   "errorBoundary": {
     "message": "skill-switch hit an error (please send the details below to the developer):"
+  },
+  "about": {
+    "privacy": "🔒 Zero telemetry · everything runs on your machine · nothing is uploaded, works offline"
   }
 }

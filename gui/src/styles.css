@@ -565,6 +565,16 @@ h2 {
   gap: 8px;
 }
 
+/* F-F2:本地优先/零遥测承诺页脚 */
+.app-footer {
+  margin-top: 18px;
+  padding: 12px 0 4px;
+  border-top: 1px solid rgb(240 230 209 / 0.1);
+  text-align: center;
+  color: #8c8068;
+  font-size: 12px;
+}
+
 .command-strip {
   flex-wrap: wrap;
   gap: 8px;
