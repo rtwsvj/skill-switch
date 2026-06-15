@@ -141,6 +141,21 @@ describe('GUI write confirmation and disabled declarations', () => {
     expect(merged.scan.total).toBe(data.scan.total + 1);
   });
 
+  it('M3: shows a guidance empty-state on the Skills tab when there are no skills', async () => {
+    const i18n = await createI18nForLanguage('en');
+    const empty = cloneData(await loadDashboardData());
+    empty.scan.skills = [];
+    empty.scan.total = 0;
+    empty.doctor.declarations = [];
+
+    const html = renderToString(
+      <I18nextProvider i18n={i18n}>
+        <DashboardShell data={empty} initialScreen="skills" onRefresh={async () => {}} />
+      </I18nextProvider>,
+    );
+    expect(html).toContain(i18n.t('skills.empty'));
+  });
+
   it('renders a disabled declared-only skill with an Enable action', async () => {
     const data = withDeclarations(await loadDashboardData(), [
       {

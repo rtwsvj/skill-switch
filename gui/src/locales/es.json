@@ -89,7 +89,8 @@
     "import": {
       "found": "Se encontraron {{count}} skills aún sin gestionar",
       "action": "Importar todas"
-    }
+    },
+    "empty": "Aún no hay skills. Usa “Importar todas” arriba, o ve a Resumen → Instalar para añadir la primera."
   },
   "operations": {
     "title": "Instalar y mantener",

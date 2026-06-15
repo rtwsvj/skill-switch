@@ -336,6 +336,15 @@ export function createConfirmationDialogState(
 function ConfirmationDialog({ confirmation }: { confirmation: ConfirmationDialogState | null }) {
   const titleId = useId();
   const messageId = useId();
+  // M3 可达性:Esc 取消高风险弹窗(键盘用户不必用鼠标)。
+  useEffect(() => {
+    if (!confirmation) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') void confirmation.onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirmation]);
   if (!confirmation) return null;
 
   return (
@@ -886,6 +895,11 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
                   </tr>
                 );
               })}
+              {data.scan.skills.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="empty">{t('skills.empty')}</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

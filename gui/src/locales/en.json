@@ -89,7 +89,8 @@
     "import": {
       "found": "Found {{count}} skills not yet under management",
       "action": "Import all"
-    }
+    },
+    "empty": "No skills yet. Use “Import all” above, or go to Overview → Install to add your first one."
   },
   "operations": {
     "title": "Install and Maintain",
