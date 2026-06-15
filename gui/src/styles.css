@@ -565,6 +565,24 @@ h2 {
   gap: 8px;
 }
 
+/* v0.3 D1:健康中心 —— 三方对账漂移分组 */
+.drift-group {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(240 230 209 / 0.1);
+}
+
+.drift-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.health-center .doctor-list {
+  margin-top: 4px;
+}
+
 /* F-A3:导入未管理技能的提示条 */
 .import-banner {
   display: flex;

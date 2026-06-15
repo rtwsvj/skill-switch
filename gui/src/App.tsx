@@ -14,6 +14,7 @@ import {
   type AuditVerdict,
   type DashboardData,
   type DoctorDeclaration,
+  type DoctorReport,
   type InstallMode,
   type InstallRunResult,
   type RestoreListResult,
@@ -214,6 +215,83 @@ function severityLabel(severity: AuditSeverity, t: TFunction) {
 function doctorKindLabel(kind: string, t: TFunction) {
   const known = new Set(['missing', 'content-drift', 'stale-lock', 'extra-locked']);
   return t(known.has(kind) ? `doctor.kind.${kind}` : 'doctor.kind.unknown');
+}
+
+// v0.3 D1:漂移严重度着色 —— 内容被改最危险(可能被篡改/上游覆盖),其余是「该同步了」的提醒。
+function driftTone(kind: string): 'warn' | 'danger' {
+  return kind === 'content-drift' ? 'danger' : 'warn';
+}
+
+function doctorHint(kind: string, t: TFunction): string {
+  const known = new Set(['missing', 'content-drift', 'stale-lock', 'extra-locked']);
+  return t(known.has(kind) ? `doctor.hint.${kind}` : 'doctor.kind.unknown');
+}
+
+// v0.3 D1:健康中心 —— doctor 三方对账(声明×锁×磁盘)可视化,按漂移类型分组 + 本地化提示 + legacy 名告警。
+// 纯展示,便于测试;沿用「高级」面板定位(技术受众 P2/P4),文案全 i18n(不暴露 CLI 的中文 detail)。
+export function HealthCenter({ doctor, lockOk }: { doctor: DoctorReport; lockOk: boolean }) {
+  const { t } = useTranslation();
+  const findings = doctor.findings ?? [];
+  const legacyNames = doctor.legacyNames ?? [];
+  const kinds = [...new Set(findings.map((finding) => finding.kind))];
+  const allGood = findings.length === 0 && legacyNames.length === 0;
+
+  return (
+    <section className="panel health-center">
+      <div className="panel-title">
+        <h2>{t('doctor.title')}</h2>
+        <StatusPill tone={doctor.clean ? 'good' : 'danger'}>{doctor.clean ? t('status.clean') : t('status.drift')}</StatusPill>
+      </div>
+      <dl className="definition-grid">
+        <div>
+          <dt>{t('doctor.checked.declared')}</dt>
+          <dd>{doctor.checked.declared}</dd>
+        </div>
+        <div>
+          <dt>{t('doctor.checked.locked')}</dt>
+          <dd>{doctor.checked.locked}</dd>
+        </div>
+        <div>
+          <dt>{t('doctor.checked.lockVerify')}</dt>
+          <dd>{lockOk ? t('status.ok') : t('status.failed')}</dd>
+        </div>
+      </dl>
+      {allGood ? <p className="empty">{t('doctor.allGood')}</p> : null}
+      {kinds.map((kind) => {
+        const items = findings.filter((finding) => finding.kind === kind);
+        return (
+          <div className="drift-group" key={kind}>
+            <div className="drift-group-head">
+              <StatusPill tone={driftTone(kind)}>{doctorKindLabel(kind, t)}</StatusPill>
+              <span className="muted">{t('doctor.kindCount', { count: items.length })}</span>
+            </div>
+            <p className="muted">{doctorHint(kind, t)}</p>
+            <ul className="doctor-list">
+              {items.map((finding) => (
+                <li key={`${finding.kind}-${finding.agent}-${finding.name}`}>
+                  <strong>{`${finding.agent} / ${finding.name}`}</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+      {legacyNames.length > 0 ? (
+        <div className="drift-group">
+          <div className="drift-group-head">
+            <StatusPill tone="warn">{t('doctor.legacy.title')}</StatusPill>
+            <span className="muted">{t('doctor.kindCount', { count: legacyNames.length })}</span>
+          </div>
+          <p className="muted">{t('doctor.legacy.hint')}</p>
+          <ul className="doctor-list">
+            {legacyNames.map((name) => (
+              <li key={name}><strong>{name}</strong></li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function Metric({ value, label, tone = 'neutral' }: { value: number | string; label: string; tone?: 'neutral' | 'good' | 'danger' }) {
@@ -733,36 +811,7 @@ function Overview({
           </div>
         </section>
 
-        <section className="panel">
-          <div className="panel-title">
-            <h2>{t('doctor.title')}</h2>
-            <StatusPill tone={data.doctor.clean ? 'good' : 'danger'}>{data.doctor.clean ? t('status.clean') : t('status.drift')}</StatusPill>
-          </div>
-          <dl className="definition-grid">
-            <div>
-              <dt>{t('doctor.checked.declared')}</dt>
-              <dd>{data.doctor.checked.declared}</dd>
-            </div>
-            <div>
-              <dt>{t('doctor.checked.locked')}</dt>
-              <dd>{data.doctor.checked.locked}</dd>
-            </div>
-            <div>
-              <dt>{t('doctor.checked.lockVerify')}</dt>
-              <dd>{data.lockVerify.ok ? t('status.ok') : t('status.failed')}</dd>
-            </div>
-          </dl>
-          {data.doctor.clean ? null : (
-            <ul className="doctor-list">
-              {data.doctor.findings.slice(0, 4).map((finding) => (
-                <li key={`${finding.kind}-${finding.agent}-${finding.name}`}>
-                  <strong>{doctorKindLabel(finding.kind, t)}</strong>
-                  <span>{`${finding.agent}/${finding.name}`}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <HealthCenter doctor={data.doctor} lockOk={data.lockVerify.ok} />
       </div> : null}
 
       <WriteOperations {...operations} />

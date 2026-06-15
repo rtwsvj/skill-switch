@@ -65,6 +65,18 @@
       "stale-lock": "lock obsoleto",
       "extra-locked": "lock sobrante",
       "unknown": "problema desconocido"
+    },
+    "hint": {
+      "missing": "Declarada pero ausente en el disco. Ejecuta Sincronizar para instalarla.",
+      "content-drift": "El contenido en disco ya no coincide con el lock (editado o sobrescrito). Si no fuiste tú, restaura desde Historial.",
+      "stale-lock": "En el disco pero ausente del lock (lock obsoleto o instalado fuera de la herramienta). Ejecuta Sincronizar para realinear.",
+      "extra-locked": "En el lock pero sin declarar (lock huérfano)."
+    },
+    "kindCount": "{{count}}",
+    "allGood": "Todo coherente: sin desviaciones.",
+    "legacy": {
+      "title": "Nombres por migrar",
+      "hint": "Estos nombres de skills no cumplen las nuevas reglas (siguen funcionando; se recomienda renombrar)."
     }
   },
   "skills": {

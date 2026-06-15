@@ -65,6 +65,18 @@
       "stale-lock": "stale lock",
       "extra-locked": "extra lock",
       "unknown": "unknown issue"
+    },
+    "hint": {
+      "missing": "Declared but missing on disk. Run Sync to install.",
+      "content-drift": "On-disk content no longer matches the lock (edited or overwritten upstream). If this wasn't you, restore from History.",
+      "stale-lock": "On disk but missing from the lock (stale lock or installed outside the tool). Run Sync to realign.",
+      "extra-locked": "In the lock but not declared (orphan lock)."
+    },
+    "kindCount": "{{count}}",
+    "allGood": "Everything is consistent — no drift found.",
+    "legacy": {
+      "title": "Names to migrate",
+      "hint": "These skill names don't match the new naming rules (still usable; renaming recommended)."
     }
   },
   "skills": {
