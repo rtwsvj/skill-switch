@@ -160,6 +160,14 @@
       "toggledOn": "Enabled",
       "toggledOff": "Disabled",
       "exitCode": "Exit code {{code}}"
+    },
+    "preview": {
+      "create": "Add {{target}}",
+      "replace": "Update {{target}}",
+      "remove": "Remove {{target}}",
+      "disable": "Disable {{target}}",
+      "enable": "Enable {{target}}",
+      "other": "Change {{target}}"
     }
   },
   "audit": {

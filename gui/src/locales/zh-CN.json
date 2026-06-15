@@ -160,6 +160,14 @@
       "toggledOn": "已启用",
       "toggledOff": "已停用",
       "exitCode": "退出码 {{code}}"
+    },
+    "preview": {
+      "create": "新建 {{target}}",
+      "replace": "更新 {{target}}",
+      "remove": "移除 {{target}}",
+      "disable": "停用 {{target}}",
+      "enable": "启用 {{target}}",
+      "other": "调整 {{target}}"
     }
   },
   "audit": {

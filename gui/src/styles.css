@@ -318,6 +318,24 @@ h2 {
   line-height: 1.5;
 }
 
+/* F-A2:确认框里的「将发生什么」结构化预览 */
+.confirm-dialog .dialog-details {
+  margin: 2px 0 0;
+  padding: 8px 12px 8px 26px;
+  border-radius: 6px;
+  background: rgb(17 20 24 / 0.55);
+  border: 1px solid rgb(240 230 209 / 0.12);
+  list-style: disc;
+  display: grid;
+  gap: 3px;
+}
+
+.confirm-dialog .dialog-details li {
+  color: #d8cdb4;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* F-B2:确认框里的大白话「后果/安心」提示(用后代选择器压过 .confirm-dialog p) */
 .confirm-dialog .dialog-consequence {
   margin: 2px 0 0;

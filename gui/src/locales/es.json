@@ -160,6 +160,14 @@
       "toggledOn": "Activado",
       "toggledOff": "Desactivado",
       "exitCode": "Código de salida {{code}}"
+    },
+    "preview": {
+      "create": "Añadir {{target}}",
+      "replace": "Actualizar {{target}}",
+      "remove": "Quitar {{target}}",
+      "disable": "Desactivar {{target}}",
+      "enable": "Activar {{target}}",
+      "other": "Cambiar {{target}}"
     }
   },
   "audit": {

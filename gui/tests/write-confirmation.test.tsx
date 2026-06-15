@@ -5,6 +5,7 @@ import {
   DashboardShell,
   createConfirmationDialogState,
   mergeDeclaredSkills,
+  syncActionLabel,
 } from '../src/App';
 import { createI18nForLanguage } from '../src/i18n';
 import { loadDashboardData } from '../src/data/fixtures';
@@ -70,6 +71,33 @@ describe('GUI write confirmation and disabled declarations', () => {
       onConfirm: () => {},
     }, () => {});
     expect(withoutConsequence.consequence).toBeUndefined();
+  });
+
+  it('F-A2: carries the structured "what will happen" details into the dialog state', () => {
+    const withDetails = createConfirmationDialogState({
+      title: 'Confirm',
+      message: 'Apply sync?',
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      details: ['Add claude-code / foo', 'Remove gemini / bar'],
+      onConfirm: () => {},
+    }, () => {});
+    expect(withDetails.details).toEqual(['Add claude-code / foo', 'Remove gemini / bar']);
+
+    // 空 details 不应凭空出现该字段。
+    const empty = createConfirmationDialogState({
+      title: 'Confirm', message: 'x', confirmLabel: 'OK', cancelLabel: 'Cancel', details: [], onConfirm: () => {},
+    }, () => {});
+    expect(empty.details).toBeUndefined();
+  });
+
+  it('F-A2: syncActionLabel maps each action kind to plain language', async () => {
+    const i18n = await createI18nForLanguage('en');
+    const t = i18n.t.bind(i18n);
+    expect(syncActionLabel({ kind: 'create', agent: 'claude-code', name: 'foo' }, t)).toBe('Add claude-code / foo');
+    expect(syncActionLabel({ kind: 'remove', agent: 'gemini', name: 'bar' }, t)).toBe('Remove gemini / bar');
+    expect(syncActionLabel({ kind: 'config-disable', agent: 'codex', name: 'baz' }, t)).toBe('Disable codex / baz');
+    expect(syncActionLabel({ kind: 'weird-unknown', agent: 'a', name: 'b' }, t)).toBe('Change a / b');
   });
 
   it('renders the consequence reassurance text for the four consequence keys (i18n parity smoke)', async () => {

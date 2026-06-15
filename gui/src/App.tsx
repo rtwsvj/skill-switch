@@ -162,6 +162,20 @@ function changedActionCount(result: SyncRunResult) {
   return result.actions.filter((action) => action.kind !== 'noop').length;
 }
 
+// F-A2:把一条 sync 动作翻成大白话(「新建 claude-code / foo」),用于确认框的「将发生什么」预览。
+const SYNC_ACTION_KEY: Record<string, string> = {
+  create: 'operations.preview.create',
+  replace: 'operations.preview.replace',
+  remove: 'operations.preview.remove',
+  'config-disable': 'operations.preview.disable',
+  'config-enable': 'operations.preview.enable',
+};
+
+export function syncActionLabel(action: { kind: string; agent: string; name: string }, t: TFunction): string {
+  const key = SYNC_ACTION_KEY[action.kind] ?? 'operations.preview.other';
+  return t(key, { target: `${action.agent} / ${action.name}` });
+}
+
 function snapshotPaths(
   result: Partial<{
     snapshotPath: string;
@@ -263,6 +277,8 @@ interface ConfirmationDialogRequest {
   tone?: 'warn' | 'danger';
   /** F-B2:大白话后果/安心提示(如「已自动备份,可在『历史』还原」),直击 P6 怕翻车。 */
   consequence?: string;
+  /** F-A2:结构化「将发生什么」预览(每行一条大白话,如「新建 claude-code / foo」)。 */
+  details?: string[];
   onConfirm: () => void | Promise<void>;
 }
 
@@ -270,6 +286,7 @@ interface WriteConfirmationRequest {
   message: string;
   tone?: 'warn' | 'danger';
   consequence?: string;
+  details?: string[];
   onConfirm: () => void | Promise<void>;
 }
 
@@ -280,6 +297,7 @@ export interface ConfirmationDialogState {
   cancelLabel: string;
   tone: 'warn' | 'danger';
   consequence?: string;
+  details?: string[];
   onConfirm: () => Promise<void>;
   onCancel: () => Promise<void>;
 }
@@ -295,6 +313,7 @@ export function createConfirmationDialogState(
     cancelLabel: request.cancelLabel,
     tone: request.tone ?? 'warn',
     ...(request.consequence ? { consequence: request.consequence } : {}),
+    ...(request.details && request.details.length > 0 ? { details: request.details } : {}),
     onConfirm: async () => {
       close();
       await request.onConfirm();
@@ -321,6 +340,13 @@ function ConfirmationDialog({ confirmation }: { confirmation: ConfirmationDialog
       >
         <h2 id={titleId}>{confirmation.title}</h2>
         <p id={messageId}>{confirmation.message}</p>
+        {confirmation.details && confirmation.details.length > 0 ? (
+          <ul className="dialog-details">
+            {confirmation.details.map((line, index) => (
+              <li key={`${index}-${line}`}>{line}</li>
+            ))}
+          </ul>
+        ) : null}
         {confirmation.consequence ? (
           <p className={cx('dialog-consequence', confirmation.tone === 'danger' && 'dialog-consequence-danger')}>
             {confirmation.consequence}
@@ -1213,6 +1239,7 @@ export function DashboardShell({
     requestConfirmation({
       message: t(enabled ? 'operations.confirm.toggleOn' : 'operations.confirm.toggleOff', { name }),
       consequence: t(enabled ? 'operations.confirm.consequence.backup' : 'operations.confirm.consequence.disableKept'),
+      details: skill.agents.map((agent) => syncActionLabel({ kind: enabled ? 'config-enable' : 'config-disable', agent, name }, t)),
       onConfirm: () => runBusy(`toggle-${name}`, async () => {
         const installSnapshots: string[] = [];
         const agentsToPrepare = skill.agents.filter((agent) => !declaredAgentPairs.has(skillAgentKey(agent, name)));
@@ -1253,6 +1280,7 @@ export function DashboardShell({
       message: t('operations.confirm.remove', { name }),
       tone: 'danger',
       consequence: t('operations.confirm.consequence.backup'),
+      details: skill.agents.map((agent) => syncActionLabel({ kind: 'remove', agent, name }, t)),
       onConfirm: () => runBusy(`remove-${name}`, async () => {
         const snapshots: string[] = [];
         for (const agent of skill.agents) {
@@ -1287,6 +1315,7 @@ export function DashboardShell({
     requestConfirmation({
       message: t('operations.confirm.sync', { count: changedActionCount(syncPlan) }),
       consequence: t('operations.confirm.consequence.backup'),
+      details: syncPlan.actions.filter((action) => action.kind !== 'noop').slice(0, 8).map((action) => syncActionLabel(action, t)),
       onConfirm: () => runBusy('sync-apply', async () => {
         const result = await runSync({ dryRun: false });
         setSyncPlan(result.data);

@@ -160,6 +160,14 @@
       "toggledOn": "有効にしました",
       "toggledOff": "無効にしました",
       "exitCode": "終了コード {{code}}"
+    },
+    "preview": {
+      "create": "追加 {{target}}",
+      "replace": "更新 {{target}}",
+      "remove": "削除 {{target}}",
+      "disable": "無効化 {{target}}",
+      "enable": "有効化 {{target}}",
+      "other": "変更 {{target}}"
     }
   },
   "audit": {
