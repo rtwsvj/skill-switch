@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- GUI 主程序(Tauri/WKWebView)最小 entitlements:不需要 JIT / 可写可执行内存。
+       JIT 只给 Node SEA sidecar(见 entitlements-sidecar.plist)。Hardened runtime 由
+       codesign --options runtime 开启,不是 entitlement。 -->
+</dict>
+</plist>
