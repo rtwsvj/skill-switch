@@ -265,5 +265,15 @@
   },
   "about": {
     "privacy": "🔒 Zero telemetry · everything runs on your machine · nothing is uploaded, works offline"
+  },
+  "onboarding": {
+    "title": "Welcome to skill-switch",
+    "intro": "It helps you manage the skills across your AI tools — see them, switch safely, and undo with one click.",
+    "dismiss": "Got it",
+    "points": [
+      "Skills: see what you have, disable or delete anytime (always backed up first)",
+      "Safety: see which skills are risky and what bypassed the check",
+      "History: undo a mistaken change with one click"
+    ]
   }
 }

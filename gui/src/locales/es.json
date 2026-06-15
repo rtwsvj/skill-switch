@@ -265,5 +265,15 @@
   },
   "about": {
     "privacy": "🔒 Sin telemetría · todo se ejecuta en tu equipo · nada se sube, funciona sin conexión"
+  },
+  "onboarding": {
+    "title": "Bienvenido a skill-switch",
+    "intro": "Te ayuda a gestionar las skills de tus herramientas de IA: verlas, cambiarlas con seguridad y deshacer con un clic.",
+    "dismiss": "Entendido",
+    "points": [
+      "Skills: mira lo que tienes, desactiva o elimina cuando quieras (siempre con copia previa)",
+      "Seguridad: mira qué skills son riesgosas y qué omitió la comprobación",
+      "Historial: deshaz un cambio erróneo con un clic"
+    ]
   }
 }

@@ -162,6 +162,13 @@ function readStoredAdvanced() {
   return window.localStorage.getItem(advancedStorageKey) === 'true';
 }
 
+// v0.3 A1:首启引导只显示到用户「知道了」为止(localStorage 记一次)。
+const onboardedStorageKey = 'skill-switch-onboarded';
+function readStoredOnboarded() {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(onboardedStorageKey) === 'true';
+}
+
 const fallbackAgents = ['claude-code', 'codex', 'gemini-cli', 'cursor', 'copilot'];
 
 function agentOptions(data: DashboardData) {
@@ -754,16 +761,41 @@ function WriteOperations({
   );
 }
 
+// v0.3 A1:首启引导卡 —— 大白话欢迎 + 三句「去哪做什么」+「知道了」。直击 #1 onboarding 弱项(P1)。
+function Onboarding({ onDismiss }: { onDismiss: () => void }) {
+  const { t } = useTranslation();
+  const points = t('onboarding.points', { returnObjects: true });
+  const list = Array.isArray(points) ? (points as string[]) : [];
+  return (
+    <section className="panel onboarding-card">
+      <div className="panel-title">
+        <h2>{t('onboarding.title')}</h2>
+        <button type="button" className="ghost-button" onClick={onDismiss}>{t('onboarding.dismiss')}</button>
+      </div>
+      <p>{t('onboarding.intro')}</p>
+      <ul className="onboarding-points">
+        {list.map((point, index) => (
+          <li key={index}>{point}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Overview({
   data,
   operations,
   advanced,
   sections,
+  showOnboarding,
+  onDismissOnboarding,
 }: {
   data: DashboardData;
   operations: WriteOperationsProps;
   advanced: boolean;
   sections: SectionStates;
+  showOnboarding: boolean;
+  onDismissOnboarding: () => void;
 }) {
   const { t } = useTranslation();
   const agents = new Set(data.scan.skills.flatMap((skill) => skill.agents));
@@ -780,6 +812,7 @@ function Overview({
 
   return (
     <section className="screen">
+      {showOnboarding ? <Onboarding onDismiss={onDismissOnboarding} /> : null}
       <div className="metric-grid">
         <Metric value={agents.size} label={t('overview.metrics.agents')} tone="good" />
         <Metric value={data.scan.total} label={t('overview.metrics.skills')} />
@@ -1204,6 +1237,7 @@ export function DashboardShell({
   const [syncPlan, setSyncPlan] = useState<SyncRunResult | null>(null);
   const [restoreList, setRestoreList] = useState<RestoreListResult | null>(null);
   const [advanced, setAdvanced] = useState(readStoredAdvanced);
+  const [onboarded, setOnboarded] = useState(readStoredOnboarded);
   const [confirmation, setConfirmation] = useState<ConfirmationDialogState | null>(null);
 
   const declaredAgentPairs = useMemo(
@@ -1230,6 +1264,13 @@ export function DashboardShell({
     setAdvanced(enabled);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(advancedStorageKey, String(enabled));
+    }
+  }, []);
+
+  const dismissOnboarding = useCallback(() => {
+    setOnboarded(true);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(onboardedStorageKey, 'true');
     }
   }, []);
 
@@ -1554,7 +1595,7 @@ export function DashboardShell({
         </section>
       ) : null}
       <ConfirmationDialog confirmation={confirmation} />
-      {active === 'overview' ? <Overview data={mergedData} operations={operations} advanced={advanced} sections={sections} /> : null}
+      {active === 'overview' ? <Overview data={mergedData} operations={operations} advanced={advanced} sections={sections} showOnboarding={!onboarded} onDismissOnboarding={dismissOnboarding} /> : null}
       {active === 'skills' ? <Skills data={mergedData} actions={skillActions} /> : null}
       {active === 'audit' ? <Audit data={mergedData} section={sections.audit} onReload={() => onReloadSection?.('audit')} /> : null}
       {active === 'history' ? (
