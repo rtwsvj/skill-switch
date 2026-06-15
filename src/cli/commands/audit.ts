@@ -15,52 +15,126 @@ import { scanHome, type SkillRecord } from '../../core/scan.ts';
 
 const BLOCKING_SEVERITIES = new Set(['critical', 'high']);
 
-// 只读文本扩展;跳过二进制资源
-const TEXT_EXT = new Set(['.md', '.txt', '.sh', '.bash', '.zsh', '.py', '.js', '.ts', '.json', '.toml', '.yaml', '.yml', '.cfg', '.conf', '']);
+// 只读文本扩展;跳过二进制资源。扩到脚本/配置/源码常见可执行文本类型。
+const TEXT_EXT = new Set([
+  '.md', '.txt', '.sh', '.bash', '.zsh', '.fish', '.ps1',
+  '.py', '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx',
+  '.rb', '.go', '.rs', '.java', '.php',
+  '.json', '.toml', '.yaml', '.yml', '.cfg', '.conf', '.html', '.xml', '.env', '',
+]);
 export const MAX_FILE_BYTES = 512 * 1024;
 export const MAX_AUDIT_FILES = 1000;
 export const MAX_AUDIT_WALK_DEPTH = 24;
+
+// .env / .env.* 用 extname 取不到扩展(dotfile),按文件名特判;其余按扩展名。
+function isScannableFile(name: string): boolean {
+  if (name === '.env' || name.startsWith('.env.')) return true;
+  return TEXT_EXT.has(extname(name).toLowerCase());
+}
+
+export interface AuditCoverage {
+  scannedFiles: number;
+  scannedBytes: number;
+  skippedFiles: number;
+  skippedExtensions: string[];
+  tooLargeFiles: number;
+  readErrors: number;
+  truncated: boolean;
+  fileLimitReached: boolean;
+  depthLimitReached: boolean;
+  maxFiles: number;
+  maxDepth: number;
+  maxBytesPerFile: number;
+}
 
 export function shouldBlock(report: Pick<AuditReport, 'score' | 'findings'>): boolean {
   if (report.score < DANGER_THRESHOLD) return true;
   return report.findings.some((f) => BLOCKING_SEVERITIES.has(f.severity));
 }
 
-async function collectTextFiles(root: string): Promise<AuditTarget[]> {
+async function collectTextFiles(root: string): Promise<{ targets: AuditTarget[]; coverage: AuditCoverage }> {
   const targets: AuditTarget[] = [];
+  const skippedExt = new Set<string>();
+  let scannedBytes = 0;
+  let skippedFiles = 0;
+  let tooLargeFiles = 0;
+  let readErrors = 0;
+  let fileLimitReached = false;
+  let depthLimitReached = false;
+
+  async function readTarget(full: string, rel: string, size: number): Promise<void> {
+    if (size > MAX_FILE_BYTES) {
+      tooLargeFiles += 1;
+      return;
+    }
+    try {
+      targets.push({ file: rel, content: await readFile(full, 'utf8') });
+      scannedBytes += size;
+    } catch {
+      readErrors += 1;
+    }
+  }
 
   async function walk(dir: string, depth: number): Promise<void> {
-    if (targets.length >= MAX_AUDIT_FILES) return;
-    const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    if (targets.length >= MAX_AUDIT_FILES) {
+      fileLimitReached = true;
+      return;
+    }
+    const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
-      if (targets.length >= MAX_AUDIT_FILES) return;
+      if (targets.length >= MAX_AUDIT_FILES) {
+        fileLimitReached = true;
+        return;
+      }
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         if (entry.name === '.git' || entry.name === 'node_modules') continue;
-        if (depth >= MAX_AUDIT_WALK_DEPTH) continue;
+        if (depth >= MAX_AUDIT_WALK_DEPTH) {
+          depthLimitReached = true;
+          continue;
+        }
         await walk(full, depth + 1);
-      } else if (entry.isFile() && TEXT_EXT.has(extname(entry.name).toLowerCase())) {
+      } else if (entry.isFile()) {
+        if (!isScannableFile(entry.name)) {
+          skippedFiles += 1;
+          skippedExt.add(extname(entry.name).toLowerCase() || '(none)');
+          continue;
+        }
         const info = await lstat(full);
-        if (info.size > MAX_FILE_BYTES) continue;
-        targets.push({ file: relative(root, full), content: await readFile(full, 'utf8') });
+        await readTarget(full, relative(root, full), info.size);
       }
     }
   }
 
   const info = await lstat(root);
   if (info.isFile()) {
-    targets.push({ file: relative(join(root, '..'), root), content: await readFile(root, 'utf8') });
+    await readTarget(root, relative(join(root, '..'), root), info.size);
   } else if (info.isDirectory()) {
     await walk(root, 0);
   }
-  return targets;
+
+  return {
+    targets,
+    coverage: {
+      scannedFiles: targets.length,
+      scannedBytes,
+      skippedFiles,
+      skippedExtensions: [...skippedExt].sort(),
+      tooLargeFiles,
+      readErrors,
+      truncated: fileLimitReached || depthLimitReached,
+      fileLimitReached,
+      depthLimitReached,
+      maxFiles: MAX_AUDIT_FILES,
+      maxDepth: MAX_AUDIT_WALK_DEPTH,
+      maxBytesPerFile: MAX_FILE_BYTES,
+    },
+  };
 }
 
-export async function auditSkillDir(path: string): Promise<AuditReport> {
-  const targets = await collectTextFiles(path);
-  return auditContents(allRules, targets, allFileRules);
+export async function auditSkillDir(path: string): Promise<AuditReport & { coverage: AuditCoverage }> {
+  const { targets, coverage } = await collectTextFiles(path);
+  return { ...auditContents(allRules, targets, allFileRules), coverage };
 }
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'] as const;
@@ -91,6 +165,7 @@ export interface AuditHomeSkillReport extends AuditReport {
   agents: SkillRecord['agents'];
   relSkillsDir: string;
   blocked: boolean;
+  coverage: AuditCoverage;
 }
 
 export interface AuditHomeReport {
