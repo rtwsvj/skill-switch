@@ -208,4 +208,6 @@ export interface DashboardData {
   lockVerify: LockVerifyReport;
   source: 'fixtures' | 'tauri';
   loadedAt: string;
+  /** 某些区块加载失败时记录(section → 错误信息);整体仍可用安全默认值渲染,不白屏。 */
+  loadErrors?: Record<string, string>;
 }

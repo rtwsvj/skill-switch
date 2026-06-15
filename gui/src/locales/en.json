@@ -179,5 +179,8 @@
       "state": "State"
     }
   },
-  "loading": "Loading skills..."
+  "loading": "Loading skills...",
+  "dashboard": {
+    "partialLoad": "Some sections failed to load; the rest are shown normally. Affected:"
+  }
 }

@@ -3,6 +3,7 @@ import audit from '../../fixtures/audit.json';
 import doctor from '../../fixtures/doctor.json';
 import stats from '../../fixtures/stats.json';
 import lockVerify from '../../fixtures/lock-verify.json';
+import { assembleDashboard } from './dashboard';
 import type {
   AuditReport,
   CliJsonResult,
@@ -54,7 +55,7 @@ export async function loadLockVerify(): Promise<LockVerifyReport> {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [scanReport, auditReport, doctorReport, statsReport, lockReport] = await Promise.all([
+  const [scan, audit, doctor, stats, lockVerify] = await Promise.allSettled([
     loadScan(),
     loadAudit(),
     loadDoctor(),
@@ -62,15 +63,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
     loadLockVerify(),
   ]);
 
-  return {
-    scan: scanReport,
-    audit: auditReport,
-    doctor: doctorReport,
-    stats: statsReport,
-    lockVerify: lockReport,
-    source: 'fixtures',
-    loadedAt: new Date().toISOString(),
-  };
+  return assembleDashboard({ scan, audit, doctor, stats, lockVerify }, 'fixtures');
 }
 
 export async function runInstall(request: InstallRequest): Promise<CliJsonResult<InstallRunResult>> {

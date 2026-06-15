@@ -20,6 +20,7 @@ import type {
   ToggleRunResult,
 } from './types';
 import { installArgs, removeArgs, restoreArgs, syncArgs, toggleArgs } from './cli-args';
+import { assembleDashboard } from './dashboard';
 
 const sidecarProgram = 'bin/skill-switch-cli';
 
@@ -88,7 +89,8 @@ export async function loadLockVerify(): Promise<LockVerifyReport> {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [scan, audit, doctor, stats, lockVerify] = await Promise.all([
+  // allSettled:任一区块失败用安全默认值兜底 + 记 loadErrors,绝不整屏白错误。
+  const [scan, audit, doctor, stats, lockVerify] = await Promise.allSettled([
     loadScan(),
     loadAudit(),
     loadDoctor(),
@@ -96,15 +98,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
     loadLockVerify(),
   ]);
 
-  return {
-    scan,
-    audit,
-    doctor,
-    stats,
-    lockVerify,
-    source: 'tauri',
-    loadedAt: new Date().toISOString(),
-  };
+  return assembleDashboard({ scan, audit, doctor, stats, lockVerify }, 'tauri');
 }
 
 export async function runInstall(

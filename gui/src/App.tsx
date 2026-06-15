@@ -115,6 +115,12 @@ function skillAgentKey(agent: string, name: string) {
   return `${agent}/${name}`;
 }
 
+// 写操作的 busy key(install/toggle/remove/sync-apply/restore-apply 等)在飞行中即为 true;
+// 只读类(sync-dry-run / restore-list)不算,不阻塞。
+function isWriteBusy(busy: string | null): boolean {
+  return busy !== null && busy !== 'sync-dry-run' && busy !== 'restore-list';
+}
+
 function readStoredAdvanced() {
   if (typeof window === 'undefined') return false;
   return window.localStorage.getItem(advancedStorageKey) === 'true';
@@ -384,6 +390,8 @@ function WriteOperations({
   const { t } = useTranslation();
   const agents = agentOptions(data);
   const syncChanges = syncPlan ? changedActionCount(syncPlan) : 0;
+  // M0-A2:任一写操作在飞行中 → 禁用全部写控件,防 skills.json/lock 读改写竞争。
+  const writeBusy = isWriteBusy(busy);
 
   return (
     <section className="panel write-panel">
@@ -458,7 +466,7 @@ function WriteOperations({
             />
             <span>{t('operations.install.force')}</span>
           </label>
-          <button className="primary-action" type="submit" disabled={busy === 'install'}>
+          <button className="primary-action" type="submit" disabled={busy === 'install' || writeBusy}>
             {busy === 'install' ? t('operations.busy') : t('operations.install.submit')}
           </button>
           {installResult?.blocked.length ? (
@@ -475,14 +483,14 @@ function WriteOperations({
           <h3>{t('operations.sync.title')}</h3>
           <p className="form-help">{t('operations.sync.help')}</p>
           <div className="button-row">
-            <button type="button" onClick={onSyncDryRun} disabled={busy === 'sync-dry-run'}>
+            <button type="button" onClick={onSyncDryRun} disabled={busy === 'sync-dry-run' || writeBusy}>
               {busy === 'sync-dry-run' ? t('operations.busy') : t('operations.sync.dryRun')}
             </button>
             <button
               className="primary-action"
               type="button"
               onClick={onSyncApply}
-              disabled={!syncPlan || busy === 'sync-apply'}
+              disabled={!syncPlan || busy === 'sync-apply' || writeBusy}
             >
               {busy === 'sync-apply' ? t('operations.busy') : t('operations.sync.apply')}
             </button>
@@ -503,7 +511,7 @@ function WriteOperations({
         <div className="operation-form">
           <h3>{t('operations.restore.title')}</h3>
           <p className="form-help">{t('operations.restore.help')}</p>
-          <button type="button" onClick={onLoadSnapshots} disabled={busy === 'restore-list'}>
+          <button type="button" onClick={onLoadSnapshots} disabled={busy === 'restore-list' || writeBusy}>
             {busy === 'restore-list' ? t('operations.busy') : t('operations.restore.load')}
           </button>
           <div className="snapshot-list">
@@ -514,7 +522,7 @@ function WriteOperations({
                     <strong>{snapshot.label}</strong>
                     <span>{new Date(snapshot.createdAt).toLocaleString()}</span>
                   </div>
-                  <button type="button" onClick={() => onRestore(snapshot.id ?? '')} disabled={!snapshot.id || busy === 'restore-apply'}>
+                  <button type="button" onClick={() => onRestore(snapshot.id ?? '')} disabled={!snapshot.id || busy === 'restore-apply' || writeBusy}>
                     {t('operations.restore.submit')}
                   </button>
                 </div>
@@ -642,6 +650,7 @@ interface SkillActionsProps {
 
 function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsProps }) {
   const { t } = useTranslation();
+  const writeBusy = isWriteBusy(actions.busy);
 
   return (
     <section className="screen">
@@ -696,7 +705,7 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
                           type="button"
                           className={enabled ? undefined : 'primary-action'}
                           onClick={() => actions.onToggle(skill, !enabled)}
-                          disabled={actions.busy === `toggle-${name}`}
+                          disabled={actions.busy === `toggle-${name}` || writeBusy}
                         >
                           {enabled ? t('skills.actions.disable') : t('skills.actions.enable')}
                         </button>
@@ -704,7 +713,7 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
                           type="button"
                           className="danger-action"
                           onClick={() => actions.onRemove(skill)}
-                          disabled={actions.busy === `remove-${name}`}
+                          disabled={actions.busy === `remove-${name}` || writeBusy}
                         >
                           {t('skills.actions.delete')}
                         </button>
@@ -1080,6 +1089,14 @@ export function DashboardShell({
         ))}
       </nav>
       <OperationBanner notice={notice} />
+      {mergedData.loadErrors ? (
+        <section className="operation-banner operation-banner-warn">
+          <div>
+            <strong>{t('dashboard.partialLoad')}</strong>
+            <p>{Object.keys(mergedData.loadErrors).join(', ')}</p>
+          </div>
+        </section>
+      ) : null}
       <ConfirmationDialog confirmation={confirmation} />
       {active === 'overview' ? <Overview data={mergedData} operations={operations} advanced={advanced} /> : null}
       {active === 'skills' ? <Skills data={mergedData} actions={skillActions} /> : null}

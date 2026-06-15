@@ -179,5 +179,8 @@
       "state": "Estado"
     }
   },
-  "loading": "Cargando skills..."
+  "loading": "Cargando skills...",
+  "dashboard": {
+    "partialLoad": "No se pudieron cargar algunas secciones; el resto se muestra con normalidad. Afectadas:"
+  }
 }
