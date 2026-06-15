@@ -179,6 +179,16 @@
       "state": "状態"
     }
   },
+  "section": {
+    "loading": "読み込み中…",
+    "refresh": "更新",
+    "retry": "再試行",
+    "failed": "読み込み失敗",
+    "lastRefreshed": "更新 {{time}}",
+    "notLoaded": "未読み込み",
+    "auditPending": "監査を読み込み中…",
+    "statsPending": "使用統計を読み込み中…"
+  },
   "loading": "スキルを読み込み中...",
   "dashboard": {
     "partialLoad": "一部のデータを読み込めませんでした。残りは通常どおり表示しています。対象:",

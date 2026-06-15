@@ -179,6 +179,16 @@
       "state": "状态"
     }
   },
+  "section": {
+    "loading": "加载中…",
+    "refresh": "刷新",
+    "retry": "重试",
+    "failed": "加载失败",
+    "lastRefreshed": "上次刷新 {{time}}",
+    "notLoaded": "未加载",
+    "auditPending": "正在加载审计…",
+    "statsPending": "正在加载使用统计…"
+  },
   "loading": "正在加载技能...",
   "dashboard": {
     "partialLoad": "部分数据未能加载,其余照常显示。未加载的区块:",

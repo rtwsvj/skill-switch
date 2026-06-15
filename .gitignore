@@ -6,3 +6,6 @@ gui/src-tauri/bin/
 
 # 运行时锁(scheduled_tasks/loop 机制生成,不应入库)
 .claude/*.lock
+
+# fixture home 跑命令时生成的运行时目录(stats 缓存等);非 fixture 定义的一部分,不入库。
+tests/fixtures/**/.skill-switch/

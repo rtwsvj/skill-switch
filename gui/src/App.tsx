@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation, type TFunction } from 'react-i18next';
 import {
-  loadDashboardData,
+  loadAudit,
+  loadCoreDashboard,
+  loadStats,
   runInstall,
   runRemove,
   runRestore,
@@ -17,11 +19,34 @@ import {
   type RestoreListResult,
   type RestoreRunResult,
   type SkillRecord,
+  type StatsReport,
   type SyncRunResult,
 } from './data';
 import { languageLabels, supportedLanguages, type SupportedLanguage } from './i18n';
 
 type Screen = 'overview' | 'skills' | 'audit' | 'stats';
+
+// M0-5.6 懒加载:audit/stats 这两个重区块(逐文件审计 / 解析 transcript)按需加载,
+// 每个区块有独立状态机:idle 未触发 / loading 加载中 / loaded 成功 / error 失败。
+type SectionName = 'audit' | 'stats';
+type SectionStatus = 'idle' | 'loading' | 'loaded' | 'error';
+interface SectionState {
+  status: SectionStatus;
+  loadedAt?: string;
+  error?: string;
+}
+type SectionStates = Record<SectionName, SectionState>;
+const initialSectionStates: SectionStates = {
+  audit: { status: 'idle' },
+  stats: { status: 'idle' },
+};
+function sectionsForScreen(screen: Screen): SectionName[] {
+  // overview 同时消费 audit(待办)与 stats(僵尸技能数),故两者都要;各 tab 只需各自的。
+  if (screen === 'overview') return ['audit', 'stats'];
+  if (screen === 'audit') return ['audit'];
+  if (screen === 'stats') return ['stats'];
+  return [];
+}
 const advancedStorageKey = 'skill-switch-advanced';
 
 const screens: Array<{ id: Screen; labelKey: string }> = [
@@ -178,6 +203,25 @@ function Metric({ value, label, tone = 'neutral' }: { value: number | string; la
 
 function StatusPill({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'good' | 'warn' | 'danger' }) {
   return <span className={cx('pill', `pill-${tone}`)}>{children}</span>;
+}
+
+// M0-5.6:某懒加载区块(audit/stats)的状态条 —— 加载中/失败/上次刷新时间 + 刷新按钮。
+function SectionStatusBar({ section, onReload }: { section: SectionState; onReload: () => void }) {
+  const { t } = useTranslation();
+  const time = section.loadedAt
+    ? new Date(section.loadedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : '';
+  return (
+    <div className="section-status">
+      {section.status === 'loading' ? <StatusPill tone="warn">{t('section.loading')}</StatusPill> : null}
+      {section.status === 'error' ? <StatusPill tone="danger">{t('section.failed')}</StatusPill> : null}
+      {section.status === 'loaded' ? <span className="muted">{t('section.lastRefreshed', { time })}</span> : null}
+      {section.status === 'idle' ? <span className="muted">{t('section.notLoaded')}</span> : null}
+      <button type="button" className="ghost-button" onClick={onReload} disabled={section.status === 'loading'}>
+        {section.status === 'error' ? t('section.retry') : t('section.refresh')}
+      </button>
+    </div>
+  );
 }
 
 interface OperationNotice {
@@ -541,25 +585,36 @@ function Overview({
   data,
   operations,
   advanced,
+  sections,
 }: {
   data: DashboardData;
   operations: WriteOperationsProps;
   advanced: boolean;
+  sections: SectionStates;
 }) {
   const { t } = useTranslation();
   const agents = new Set(data.scan.skills.flatMap((skill) => skill.agents));
   const broken = data.scan.skills.filter((skill) => skill.error || isNameMismatch(skill));
-  const blocking = data.audit.filter(isBlockingAudit);
+  const statsReady = sections.stats.status === 'loaded';
+  const auditReady = sections.audit.status === 'loaded';
+  // 懒加载未完成时,审计待办还不可知:用占位提示,避免显示一个尚未算出的「0」误导用户。
+  const blocking = auditReady ? data.audit.filter(isBlockingAudit) : [];
   const doctorValue = data.doctor.clean
     ? t('overview.metrics.doctorOk')
     : t('overview.metrics.doctorIssues', { count: data.doctor.findings.length });
+  const zombieCount = data.stats.zombies.length;
+  const attentionPending = (!auditReady || !statsReady);
 
   return (
     <section className="screen">
       <div className="metric-grid">
         <Metric value={agents.size} label={t('overview.metrics.agents')} tone="good" />
         <Metric value={data.scan.total} label={t('overview.metrics.skills')} />
-        <Metric value={data.stats.zombies.length} label={t('overview.metrics.zombies')} tone={data.stats.zombies.length > 0 ? 'danger' : 'good'} />
+        <Metric
+          value={statsReady ? zombieCount : '…'}
+          label={t('overview.metrics.zombies')}
+          tone={statsReady ? (zombieCount > 0 ? 'danger' : 'good') : 'neutral'}
+        />
         <Metric value={doctorValue} label={t('overview.metrics.doctor')} tone={data.doctor.clean ? 'good' : 'danger'} />
       </div>
 
@@ -635,7 +690,13 @@ function Overview({
               <StatusPill tone="danger">{t('status.auditBlocks')}</StatusPill>
             </div>
           ))}
-          {broken.length + blocking.length === 0 ? <p className="empty">{t('overview.attention.empty')}</p> : null}
+          {attentionPending ? (
+            <div className="attention-row">
+              <span className="muted">{!auditReady ? t('section.auditPending') : t('section.statsPending')}</span>
+              <StatusPill tone="warn">{t('section.loading')}</StatusPill>
+            </div>
+          ) : null}
+          {!attentionPending && broken.length + blocking.length === 0 ? <p className="empty">{t('overview.attention.empty')}</p> : null}
         </div>
       </section>
     </section>
@@ -730,12 +791,19 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
   );
 }
 
-function Audit({ data }: { data: DashboardData }) {
+function Audit({ data, section, onReload }: { data: DashboardData; section: SectionState; onReload: () => void }) {
   const { t } = useTranslation();
   const sorted = [...data.audit].sort((a, b) => Number(isBlockingAudit(b)) - Number(isBlockingAudit(a)) || a.score - b.score);
+  const loadingFirstTime = section.status === 'loading' && data.audit.length === 0;
 
   return (
     <section className="screen">
+      <div className="section-toolbar">
+        <h2>{t('screens.audit')}</h2>
+        <SectionStatusBar section={section} onReload={onReload} />
+      </div>
+      {section.status === 'error' ? <p className="section-error">{section.error}</p> : null}
+      {loadingFirstTime ? <p className="empty">{t('section.loading')}</p> : null}
       <div className="audit-grid">
         {sorted.map((report) => {
           const blocking = isBlockingAudit(report);
@@ -775,12 +843,19 @@ function Audit({ data }: { data: DashboardData }) {
   );
 }
 
-function Stats({ data }: { data: DashboardData }) {
+function Stats({ data, section, onReload }: { data: DashboardData; section: SectionState; onReload: () => void }) {
   const { t } = useTranslation();
   const zombieNames = useMemo(() => new Set(data.stats.zombies.map((zombie) => zombie.name)), [data.stats.zombies]);
+  const loadingFirstTime = section.status === 'loading' && section.loadedAt === undefined;
 
   return (
     <section className="screen">
+      <div className="section-toolbar">
+        <h2>{t('screens.stats')}</h2>
+        <SectionStatusBar section={section} onReload={onReload} />
+      </div>
+      {section.status === 'error' ? <p className="section-error">{section.error}</p> : null}
+      {loadingFirstTime ? <p className="empty">{t('section.loading')}</p> : null}
       <div className="metric-grid compact">
         <Metric value={data.stats.scannedFiles} label={t('stats.metrics.transcripts')} />
         <Metric value={data.stats.invocations} label={t('stats.metrics.invocations')} />
@@ -833,14 +908,25 @@ export function DashboardShell({
   data,
   initialScreen = 'overview',
   onRefresh,
+  sections = initialSectionStates,
+  onEnsureSections,
+  onReloadSection,
 }: {
   data: DashboardData;
   initialScreen?: Screen;
   onRefresh: () => Promise<void>;
+  sections?: SectionStates;
+  onEnsureSections?: (names: SectionName[]) => void;
+  onReloadSection?: (name: SectionName) => void;
 }) {
   const { t } = useTranslation();
   const mergedData = useMemo(() => mergeDeclaredSkills(data), [data]);
   const [active, setActive] = useState<Screen>(initialScreen);
+
+  // M0-5.6:进入某屏时按需触发它消费的懒加载区块(idle→loading)。overview 触发 audit+stats。
+  useEffect(() => {
+    onEnsureSections?.(sectionsForScreen(active));
+  }, [active, onEnsureSections]);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<OperationNotice | null>(null);
   const [installDraft, setInstallDraft] = useState<InstallDraft>({
@@ -1105,38 +1191,81 @@ export function DashboardShell({
         </section>
       ) : null}
       <ConfirmationDialog confirmation={confirmation} />
-      {active === 'overview' ? <Overview data={mergedData} operations={operations} advanced={advanced} /> : null}
+      {active === 'overview' ? <Overview data={mergedData} operations={operations} advanced={advanced} sections={sections} /> : null}
       {active === 'skills' ? <Skills data={mergedData} actions={skillActions} /> : null}
-      {active === 'audit' ? <Audit data={mergedData} /> : null}
-      {active === 'stats' ? <Stats data={mergedData} /> : null}
+      {active === 'audit' ? <Audit data={mergedData} section={sections.audit} onReload={() => onReloadSection?.('audit')} /> : null}
+      {active === 'stats' ? <Stats data={mergedData} section={sections.stats} onReload={() => onReloadSection?.('stats')} /> : null}
     </>
   );
 }
 
 export default function App() {
   const { t } = useTranslation();
-  const [data, setData] = useState<DashboardData | null>(null);
+  // M0-5.6:首屏只加载 core(scan/doctor/lock),audit/stats 由各屏按需懒加载,不阻塞首屏。
+  const [core, setCore] = useState<DashboardData | null>(null);
+  const [auditValue, setAuditValue] = useState<AuditReport[] | null>(null);
+  const [statsValue, setStatsValue] = useState<StatsReport | null>(null);
+  const [sections, setSections] = useState<SectionStates>(initialSectionStates);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshData = useCallback(async () => {
-    setError(null);
-    const loaded = await loadDashboardData();
-    setData(loaded);
+  // ensureSections 需读到最新 sections 又要保持引用稳定(否则会重复触发 effect),用 ref 兜。
+  const sectionsRef = useRef(sections);
+  sectionsRef.current = sections;
+
+  const loadSection = useCallback(async (name: SectionName) => {
+    setSections((prev) => ({ ...prev, [name]: { ...prev[name], status: 'loading' } }));
+    try {
+      if (name === 'audit') {
+        setAuditValue(await loadAudit());
+      } else {
+        setStatsValue(await loadStats());
+      }
+      setSections((prev) => ({ ...prev, [name]: { status: 'loaded', loadedAt: new Date().toISOString() } }));
+    } catch (reason) {
+      setSections((prev) => ({
+        ...prev,
+        [name]: { status: 'error', error: reason instanceof Error ? reason.message : String(reason) },
+      }));
+    }
   }, []);
+
+  // 进入消费某区块的屏时调用:仅当该区块还没触发过(idle)才加载,避免重复跑。
+  const ensureSections = useCallback(
+    (names: SectionName[]) => {
+      for (const name of names) {
+        if (sectionsRef.current[name].status === 'idle') void loadSection(name);
+      }
+    },
+    [loadSection],
+  );
+
+  const reloadCore = useCallback(async () => {
+    setError(null);
+    setCore(await loadCoreDashboard());
+  }, []);
+
+  // 全局刷新(刷新按钮 / 写操作后):重载 core,并强制刷新已加载过的懒区块;idle 的保持懒态。
+  const refreshAll = useCallback(async () => {
+    await reloadCore();
+    for (const name of ['audit', 'stats'] as SectionName[]) {
+      if (sectionsRef.current[name].status !== 'idle') void loadSection(name);
+    }
+  }, [reloadCore, loadSection]);
 
   useEffect(() => {
     let cancelled = false;
-    refreshData()
-      .then(() => {
-        if (cancelled) return;
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
-      });
+    reloadCore().catch((reason: unknown) => {
+      if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
+    });
     return () => {
       cancelled = true;
     };
-  }, [refreshData]);
+  }, [reloadCore]);
+
+  const data = useMemo<DashboardData | null>(
+    () => (core ? { ...core, audit: auditValue ?? core.audit, stats: statsValue ?? core.stats } : null),
+    [core, auditValue, statsValue],
+  );
 
   if (error) {
     return (
@@ -1156,7 +1285,13 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <DashboardShell data={data} onRefresh={refreshData} />
+      <DashboardShell
+        data={data}
+        onRefresh={refreshAll}
+        sections={sections}
+        onEnsureSections={ensureSections}
+        onReloadSection={loadSection}
+      />
     </main>
   );
 }

@@ -179,6 +179,16 @@
       "state": "State"
     }
   },
+  "section": {
+    "loading": "Loading…",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "failed": "Failed to load",
+    "lastRefreshed": "Refreshed {{time}}",
+    "notLoaded": "Not loaded",
+    "auditPending": "Loading audit…",
+    "statsPending": "Loading usage stats…"
+  },
   "loading": "Loading skills...",
   "dashboard": {
     "partialLoad": "Some sections failed to load; the rest are shown normally. Affected:",

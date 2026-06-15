@@ -1,6 +1,7 @@
 // M0-5.6/A1:dashboard 装配对部分失败的容忍——一个区块失败不拖垮整体。
 import { describe, expect, it } from 'vitest';
 import { assembleDashboard, emptyStats, type DashboardParts } from '../src/data/dashboard';
+import { loadCoreDashboard, loadDashboardData } from '../src/data/fixtures';
 import type { AuditReport, DoctorReport, LockVerifyReport, ScanReport, StatsReport } from '../src/data/types';
 
 const scan: ScanReport = { home: '/h', total: 1, skills: [{ agents: ['claude-code'], relSkillsDir: '.claude/skills', dirName: 'a', dir: '/h/a', path: '/h/a/SKILL.md', name: 'a' }] };
@@ -42,5 +43,23 @@ describe('assembleDashboard', () => {
     expect(data.doctor.clean).toBe(true); // 成功区块仍在
     expect(data.scan.skills).toEqual([]); // 失败区块安全默认
     expect(data.audit).toEqual([]);
+  });
+});
+
+describe('M0-5.6 lazy core dashboard', () => {
+  it('loadCoreDashboard omits the heavy audit/stats sections (first paint stays light)', async () => {
+    const core = await loadCoreDashboard();
+    // 首屏 core 只含 scan/doctor/lock;audit/stats 留空占位,由各屏按需懒加载。
+    expect(core.audit).toEqual([]);
+    expect(core.stats).toEqual(emptyStats);
+    // 但轻量区块必须真实加载,不能也跟着空。
+    expect(core.scan.skills.length).toBeGreaterThan(0);
+    expect(core.lockVerify).toBeDefined();
+  });
+
+  it('full loadDashboardData still includes audit/stats (contrast with core)', async () => {
+    const full = await loadDashboardData();
+    // fixtures 的 stats 有真实数据;core 版本则为空 —— 证明两条路径确实不同。
+    expect(full.stats).not.toEqual(emptyStats);
   });
 });

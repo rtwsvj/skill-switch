@@ -20,7 +20,7 @@ import type {
   ToggleRunResult,
 } from './types';
 import { installArgs, removeArgs, restoreArgs, syncArgs, toggleArgs } from './cli-args';
-import { assembleDashboard } from './dashboard';
+import { assembleDashboard, emptyStats } from './dashboard';
 import { runWithTimeout, type SpawnHandle } from './run-with-timeout';
 
 const sidecarProgram = 'bin/skill-switch-cli';
@@ -124,6 +124,27 @@ export async function loadDashboardData(): Promise<DashboardData> {
   ]);
 
   return assembleDashboard({ scan, audit, doctor, stats, lockVerify }, 'tauri');
+}
+
+export async function loadCoreDashboard(): Promise<DashboardData> {
+  // M0-5.6 懒加载:首屏只跑轻量区块(scan/doctor/lock),audit/stats(可能慢:逐文件审计 /
+  // 解析 transcript)由 App 在首屏渲染后台懒加载,不阻塞首屏。audit/stats 先填空值占位。
+  const [scan, doctor, lockVerify] = await Promise.allSettled([
+    loadScan(),
+    loadDoctor(),
+    loadLockVerify(),
+  ]);
+
+  return assembleDashboard(
+    {
+      scan,
+      doctor,
+      lockVerify,
+      audit: { status: 'fulfilled', value: [] },
+      stats: { status: 'fulfilled', value: emptyStats },
+    },
+    'tauri',
+  );
 }
 
 export async function runInstall(

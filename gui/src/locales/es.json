@@ -179,6 +179,16 @@
       "state": "Estado"
     }
   },
+  "section": {
+    "loading": "Cargando…",
+    "refresh": "Actualizar",
+    "retry": "Reintentar",
+    "failed": "Error al cargar",
+    "lastRefreshed": "Actualizado {{time}}",
+    "notLoaded": "Sin cargar",
+    "auditPending": "Cargando auditoría…",
+    "statsPending": "Cargando estadísticas…"
+  },
   "loading": "Cargando skills...",
   "dashboard": {
     "partialLoad": "No se pudieron cargar algunas secciones; el resto se muestra con normalidad. Afectadas:",
