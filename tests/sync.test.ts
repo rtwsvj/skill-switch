@@ -2,7 +2,7 @@
 import { mkdtempSync } from 'node:fs';
 import { lstat, mkdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   applySync,
@@ -130,6 +130,34 @@ describe('core/sync', () => {
     await symlink(join(store, 'beta'), target, 'dir');
 
     const { actions } = await applySync(home, d);
+    expect(actions.map((a) => a.kind)).toEqual(['replace']);
+    expect(await readlink(target)).toBe(join(store, 'alpha'));
+  });
+
+  it('M0-5.4: a correct relative symlink is in-sync (no spurious replace)', async () => {
+    const d = decl([
+      { name: 'alpha', source: join(store, 'alpha'), agents: ['claude-code'], enabled: true, mode: 'symlink' },
+    ]);
+    await applySync(home, d);
+    const target = join(home, '.claude', 'skills', 'alpha');
+    await rm(target, { force: true });
+    const { symlink } = await import('node:fs/promises');
+    // 手动建一个【相对】symlink,正确指向 source(相对 symlink 所在目录)
+    await symlink(relative(dirname(target), join(store, 'alpha')), target, 'dir');
+
+    const { actions } = await applySync(home, d);
+    expect(actions.map((a) => a.kind)).toEqual(['noop']);
+  });
+
+  it('M0-5.4: does not crash on a self-referential symlink loop', async () => {
+    const d = decl([
+      { name: 'alpha', source: join(store, 'alpha'), agents: ['claude-code'], enabled: true, mode: 'symlink' },
+    ]);
+    const target = join(home, '.claude', 'skills', 'alpha');
+    const { mkdir: mkdirp, symlink } = await import('node:fs/promises');
+    await mkdirp(dirname(target), { recursive: true });
+    await symlink(target, target, 'dir'); // 自指环
+    const { actions } = await applySync(home, d); // 不跟随 → 不应崩溃
     expect(actions.map((a) => a.kind)).toEqual(['replace']);
     expect(await readlink(target)).toBe(join(store, 'alpha'));
   });

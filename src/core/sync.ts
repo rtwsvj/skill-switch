@@ -223,8 +223,14 @@ async function planOne(
   if (actual.state === 'missing') return { ...base, kind: 'create' };
 
   if (mode === 'symlink') {
-    if (actual.state === 'symlink' && resolve(actual.linkTarget) === resolve(sourceAbs)) {
-      return { ...base, kind: 'noop' };
+    if (actual.state === 'symlink') {
+      // readlink 可能返回相对目标:必须相对 symlink 所在目录解析,而非 process.cwd()。
+      const actualAbs = isAbsolute(actual.linkTarget)
+        ? actual.linkTarget
+        : resolve(dirname(target), actual.linkTarget);
+      if (resolve(actualAbs) === resolve(sourceAbs)) {
+        return { ...base, kind: 'noop' };
+      }
     }
     return { ...base, kind: 'replace', reason: 'symlink 指向不符或被实体目录占位' };
   }
