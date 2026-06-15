@@ -24,7 +24,7 @@ import {
 } from './data';
 import { languageLabels, supportedLanguages, type SupportedLanguage } from './i18n';
 
-type Screen = 'overview' | 'skills' | 'audit' | 'stats';
+type Screen = 'overview' | 'skills' | 'audit' | 'history' | 'stats';
 
 // M0-5.6 懒加载:audit/stats 这两个重区块(逐文件审计 / 解析 transcript)按需加载,
 // 每个区块有独立状态机:idle 未触发 / loading 加载中 / loaded 成功 / error 失败。
@@ -53,6 +53,7 @@ const screens: Array<{ id: Screen; labelKey: string }> = [
   { id: 'overview', labelKey: 'screens.overview' },
   { id: 'skills', labelKey: 'screens.skills' },
   { id: 'audit', labelKey: 'screens.audit' },
+  { id: 'history', labelKey: 'screens.history' },
   { id: 'stats', labelKey: 'screens.stats' },
 ];
 
@@ -916,6 +917,64 @@ function Stats({ data, section, onReload }: { data: DashboardData; section: Sect
   );
 }
 
+// F-B1:撤销/历史中心 —— 把自动备份做成可视时间线 + 一键还原。招牌「后悔药」体验。
+// 纯展示 + 回调,便于直接测试;加载触发在 DashboardShell(进 tab 时拉一次)。
+export function History({
+  restoreList,
+  busy,
+  loaded,
+  onReload,
+  onRestore,
+}: {
+  restoreList: RestoreListResult | null;
+  busy: string | null;
+  loaded: boolean;
+  onReload: () => void;
+  onRestore: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const loading = busy === 'restore-list';
+  const restoring = busy === 'restore-apply';
+  const snapshots = restoreList?.snapshots ?? [];
+
+  return (
+    <section className="screen">
+      <div className="section-toolbar">
+        <h2>{t('screens.history')}</h2>
+        <div className="section-status">
+          {loading ? <StatusPill tone="warn">{t('section.loading')}</StatusPill> : null}
+          {loaded && !loading ? <span className="muted">{t('history.count', { count: snapshots.length })}</span> : null}
+          <button type="button" className="ghost-button" onClick={onReload} disabled={loading || restoring}>
+            {t('section.refresh')}
+          </button>
+        </div>
+      </div>
+      <section className="guide-panel">{t('history.guide')}</section>
+      {loading && snapshots.length === 0 ? <p className="empty">{t('section.loading')}</p> : null}
+      {loaded && !loading && snapshots.length === 0 ? <p className="empty">{t('history.empty')}</p> : null}
+      <div className="snapshot-timeline">
+        {snapshots.map((snapshot) => (
+          <article className="timeline-row" key={snapshot.id ?? snapshot.path}>
+            <div className="timeline-main">
+              <strong>{snapshot.label}</strong>
+              <span className="muted">{new Date(snapshot.createdAt).toLocaleString()}</span>
+              {snapshot.sourceDir ? <span className="muted timeline-source">{snapshot.sourceDir}</span> : null}
+            </div>
+            <button
+              type="button"
+              className="primary-action"
+              onClick={() => onRestore(snapshot.id ?? '')}
+              disabled={!snapshot.id || restoring || loading}
+            >
+              {t('history.restoreHere')}
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function DashboardShell({
   data,
   initialScreen = 'overview',
@@ -1160,6 +1219,13 @@ export function DashboardShell({
     });
   }, [onRefresh, requestConfirmation, runBusy, t]);
 
+  // F-B1:进入「历史」tab 时按需拉一次快照列表(还没拉过才拉,避免重复)。
+  useEffect(() => {
+    if (active === 'history' && restoreList === null && busy !== 'restore-list') {
+      handleLoadSnapshots();
+    }
+  }, [active, restoreList, busy, handleLoadSnapshots]);
+
   const operations: WriteOperationsProps = {
     data: mergedData,
     busy,
@@ -1211,6 +1277,15 @@ export function DashboardShell({
       {active === 'overview' ? <Overview data={mergedData} operations={operations} advanced={advanced} sections={sections} /> : null}
       {active === 'skills' ? <Skills data={mergedData} actions={skillActions} /> : null}
       {active === 'audit' ? <Audit data={mergedData} section={sections.audit} onReload={() => onReloadSection?.('audit')} /> : null}
+      {active === 'history' ? (
+        <History
+          restoreList={restoreList}
+          busy={busy}
+          loaded={restoreList !== null}
+          onReload={handleLoadSnapshots}
+          onRestore={handleRestore}
+        />
+      ) : null}
       {active === 'stats' ? <Stats data={mergedData} section={sections.stats} onReload={() => onReloadSection?.('stats')} /> : null}
     </>
   );

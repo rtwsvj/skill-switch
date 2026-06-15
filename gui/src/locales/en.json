@@ -13,6 +13,7 @@
     "overview": "Overview",
     "skills": "Skills",
     "audit": "Safety",
+    "history": "History",
     "stats": "Usage"
   },
   "status": {
@@ -170,6 +171,12 @@
       "medium": "medium",
       "low": "low"
     }
+  },
+  "history": {
+    "guide": "Your undo button: every change is auto-backed-up here, so you can roll back to any point in time.",
+    "count": "{{count}} backups",
+    "empty": "No backups yet. After you make changes, restorable points appear here.",
+    "restoreHere": "Restore to this"
   },
   "stats": {
     "metrics": {

@@ -13,6 +13,7 @@
     "overview": "总览",
     "skills": "技能",
     "audit": "安全",
+    "history": "历史",
     "stats": "使用"
   },
   "status": {
@@ -170,6 +171,12 @@
       "medium": "中",
       "low": "低"
     }
+  },
+  "history": {
+    "guide": "这里是你的「后悔药」:每次改动前都会自动备份,随时可以一键还原回某个时间点。",
+    "count": "{{count}} 个备份",
+    "empty": "还没有备份记录。做过改动后,这里会自动出现可还原的时间点。",
+    "restoreHere": "还原到此"
   },
   "stats": {
     "metrics": {

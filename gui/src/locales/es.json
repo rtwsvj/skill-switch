@@ -13,6 +13,7 @@
     "overview": "Resumen",
     "skills": "Skills",
     "audit": "Seguridad",
+    "history": "Historial",
     "stats": "Uso"
   },
   "status": {
@@ -170,6 +171,12 @@
       "medium": "media",
       "low": "baja"
     }
+  },
+  "history": {
+    "guide": "Tu botón de deshacer: cada cambio se respalda aquí, para que puedas volver a cualquier momento.",
+    "count": "{{count}} copias",
+    "empty": "Aún no hay copias. Después de hacer cambios, aquí aparecen puntos restaurables.",
+    "restoreHere": "Restaurar a este"
   },
   "stats": {
     "metrics": {
