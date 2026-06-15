@@ -250,6 +250,12 @@
       "agents": "ツール",
       "location": "場所",
       "state": "状態"
+    },
+    "coverage": {
+      "scanned": "{{count}} 件のチャットログを走査",
+      "skipped": "{{count}} 件をスキップ(大きすぎ/バイナリ)",
+      "parseErrors": "{{count}} 件は解析不可",
+      "truncated": "データが多く、一部を切り詰めました"
     }
   },
   "section": {

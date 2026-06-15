@@ -201,6 +201,17 @@ export function describeSnapshotLabel(label: string, t: TFunction): string {
   return t(`history.op.${match[1]}`, { detail: match[2] ?? '' });
 }
 
+// 覆盖透明度:统计扫描了多少聊天记录、跳过/解析失败多少、是否截断。建立对数字的信任。
+export function coverageSummary(stats: StatsReport, t: TFunction): string {
+  if (stats.scannedFiles === 0 && !stats.truncated) return '';
+  return [
+    t('stats.coverage.scanned', { count: stats.scannedFiles }),
+    (stats.skippedFiles ?? 0) > 0 ? t('stats.coverage.skipped', { count: stats.skippedFiles }) : null,
+    (stats.parseErrors ?? 0) > 0 ? t('stats.coverage.parseErrors', { count: stats.parseErrors }) : null,
+    stats.truncated ? t('stats.coverage.truncated') : null,
+  ].filter(Boolean).join(' · ');
+}
+
 function snapshotPaths(
   result: Partial<{
     snapshotPath: string;
@@ -1107,6 +1118,7 @@ function Stats({ data, section, onReload }: { data: DashboardData; section: Sect
         <Metric value={data.stats.usage.length} label={t('stats.metrics.active')} tone={data.stats.usage.length > 0 ? 'good' : 'neutral'} />
         <Metric value={data.stats.zombies.length} label={t('stats.metrics.zeroUse')} tone={data.stats.zombies.length > 0 ? 'danger' : 'good'} />
       </div>
+      {coverageSummary(data.stats, t) ? <p className="coverage-line muted">{coverageSummary(data.stats, t)}</p> : null}
       <section className="panel table-panel">
         <div className="panel-title">
           <h2>{t('stats.zombieTitle')}</h2>

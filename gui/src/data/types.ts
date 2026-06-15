@@ -99,6 +99,10 @@ export interface StatsReport {
   invocations: number;
   usage: StatsUsage[];
   zombies: StatsZombie[];
+  /** M0-5.12 覆盖透明度(可选——旧 CLI 输出可能没有)。 */
+  skippedFiles?: number;
+  parseErrors?: number;
+  truncated?: boolean;
 }
 
 export type LockVerifyStatus = 'ok' | 'missing' | 'mismatch' | 'unknown-agent';

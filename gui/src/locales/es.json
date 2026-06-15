@@ -250,6 +250,12 @@
       "agents": "Herramientas",
       "location": "Ubicación",
       "state": "Estado"
+    },
+    "coverage": {
+      "scanned": "Se analizaron {{count}} archivos de registro",
+      "skipped": "se omitieron {{count}} (demasiado grandes / binarios)",
+      "parseErrors": "{{count}} no se pudieron analizar",
+      "truncated": "muchos datos: se truncó una parte"
     }
   },
   "section": {

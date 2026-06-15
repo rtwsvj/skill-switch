@@ -250,6 +250,12 @@
       "agents": "Tools",
       "location": "Location",
       "state": "State"
+    },
+    "coverage": {
+      "scanned": "Scanned {{count}} chat-log files",
+      "skipped": "skipped {{count}} (too large / binary)",
+      "parseErrors": "{{count}} could not be parsed",
+      "truncated": "a lot of data — some was truncated"
     }
   },
   "section": {

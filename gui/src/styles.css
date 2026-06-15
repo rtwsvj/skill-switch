@@ -565,6 +565,12 @@ h2 {
   gap: 8px;
 }
 
+/* 覆盖透明度行(stats 扫描了多少/跳过多少) */
+.coverage-line {
+  margin: 2px 0 10px;
+  font-size: 12px;
+}
+
 /* v0.3 A1:首启引导卡 */
 .onboarding-card {
   border-color: rgb(56 189 148 / 0.4);

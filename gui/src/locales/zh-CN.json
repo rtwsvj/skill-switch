@@ -250,6 +250,12 @@
       "agents": "工具",
       "location": "位置",
       "state": "状态"
+    },
+    "coverage": {
+      "scanned": "扫描了 {{count}} 个聊天记录文件",
+      "skipped": "跳过 {{count}} 个(太大/二进制)",
+      "parseErrors": "{{count}} 条无法解析",
+      "truncated": "数据较多,已截断部分"
     }
   },
   "section": {
