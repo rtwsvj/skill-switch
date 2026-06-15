@@ -85,6 +85,10 @@
       "delete": "删除",
       "disableHint": "停用只是关掉它,技能文件保留在磁盘,随时可再启用,不会删除。",
       "deleteHint": "从磁盘删除该技能(改动前会先自动备份,可从备份还原)。"
+    },
+    "import": {
+      "found": "发现 {{count}} 个还没纳入管理的技能",
+      "action": "一键导入"
     }
   },
   "operations": {
@@ -168,6 +172,10 @@
       "disable": "停用 {{target}}",
       "enable": "启用 {{target}}",
       "other": "调整 {{target}}"
+    },
+    "import": {
+      "confirm": "把这 {{count}} 个已有技能纳入管理吗?",
+      "done": "已导入 {{count}} 个技能"
     }
   },
   "audit": {

@@ -85,6 +85,10 @@
       "delete": "Eliminar",
       "disableHint": "Desactivar solo la apaga: los archivos permanecen en el disco y puedes reactivarla cuando quieras. No se elimina nada.",
       "deleteHint": "Elimina la skill del disco (se hace una copia de seguridad antes, por lo que es restaurable)."
+    },
+    "import": {
+      "found": "Se encontraron {{count}} skills aún sin gestionar",
+      "action": "Importar todas"
     }
   },
   "operations": {
@@ -168,6 +172,10 @@
       "disable": "Desactivar {{target}}",
       "enable": "Activar {{target}}",
       "other": "Cambiar {{target}}"
+    },
+    "import": {
+      "confirm": "¿Poner estas {{count}} skills existentes bajo gestión?",
+      "done": "Se importaron {{count}} skills"
     }
   },
   "audit": {

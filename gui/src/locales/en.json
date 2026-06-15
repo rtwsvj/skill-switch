@@ -85,6 +85,10 @@
       "delete": "Delete",
       "disableHint": "Disabling just turns it off — files stay on disk and you can re-enable anytime. Nothing is deleted.",
       "deleteHint": "Removes the skill from disk (a backup is taken first, so it is restorable)."
+    },
+    "import": {
+      "found": "Found {{count}} skills not yet under management",
+      "action": "Import all"
     }
   },
   "operations": {
@@ -168,6 +172,10 @@
       "disable": "Disable {{target}}",
       "enable": "Enable {{target}}",
       "other": "Change {{target}}"
+    },
+    "import": {
+      "confirm": "Bring these {{count}} existing skills under management?",
+      "done": "Imported {{count}} skills"
     }
   },
   "audit": {

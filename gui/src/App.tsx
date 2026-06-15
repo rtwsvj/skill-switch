@@ -141,6 +141,15 @@ function skillAgentKey(agent: string, name: string) {
   return `${agent}/${name}`;
 }
 
+// F-A3:磁盘上存在、但还没纳入声明(skills.json)管理的技能 —— 可一键「导入」(走 install-from-disk 收编)。
+export function importableSkills(skills: SkillRecord[], declaredAgentPairs: Set<string>): SkillRecord[] {
+  return skills.filter((skill) => {
+    if (skill.error) return false; // 解析失败的先别收编
+    const name = skill.dirName;
+    return skill.agents.some((agent) => !declaredAgentPairs.has(skillAgentKey(agent, name)));
+  });
+}
+
 // 写操作的 busy key(install/toggle/remove/sync-apply/restore-apply 等)在飞行中即为 true;
 // 只读类(sync-dry-run / restore-list)不算,不阻塞。
 function isWriteBusy(busy: string | null): boolean {
@@ -784,6 +793,8 @@ interface SkillActionsProps {
   busy: string | null;
   onToggle: (skill: SkillRecord, enabled: boolean) => void;
   onRemove: (skill: SkillRecord) => void;
+  importableCount: number;
+  onImportExisting: () => void;
 }
 
 function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsProps }) {
@@ -795,6 +806,19 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
       <section className="guide-panel">
         {t('skills.guide')}
       </section>
+      {actions.importableCount > 0 ? (
+        <section className="import-banner">
+          <span>{t('skills.import.found', { count: actions.importableCount })}</span>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={actions.onImportExisting}
+            disabled={actions.busy === 'import' || writeBusy}
+          >
+            {actions.busy === 'import' ? t('operations.busy') : t('skills.import.action')}
+          </button>
+        </section>
+      ) : null}
       <section className="panel table-panel">
         <div className="panel-title">
           <h2>{t('skills.title')}</h2>
@@ -1124,6 +1148,12 @@ export function DashboardShell({
     [data.doctor.declarations],
   );
 
+  // F-A3:磁盘上还没纳入声明管理的技能,可一键导入。
+  const importable = useMemo(
+    () => importableSkills(mergedData.scan.skills, declaredAgentPairs),
+    [mergedData.scan.skills, declaredAgentPairs],
+  );
+
   const requestConfirmation = useCallback((request: WriteConfirmationRequest) => {
     setConfirmation(createConfirmationDialogState({
       title: t('operations.confirmDialog.title'),
@@ -1193,6 +1223,40 @@ export function DashboardShell({
       }),
     });
   }, [installDraft, onRefresh, requestConfirmation, runBusy, t]);
+
+  // F-A3:把磁盘上未纳入管理的技能一键收编(对每个未声明的 agent 走 install-from-disk = 与启用未声明技能同一条成熟路径)。
+  const handleImportExisting = useCallback(() => {
+    if (importable.length === 0) return;
+    requestConfirmation({
+      message: t('operations.import.confirm', { count: importable.length }),
+      consequence: t('operations.confirm.consequence.backup'),
+      details: importable.map((skill) => skill.dirName),
+      onConfirm: () => runBusy('import', async () => {
+        const snapshots: string[] = [];
+        let imported = 0;
+        for (const skill of importable) {
+          const name = skill.dirName;
+          const undeclaredAgents = skill.agents.filter((agent) => !declaredAgentPairs.has(skillAgentKey(agent, name)));
+          for (const agent of undeclaredAgents) {
+            const result = await runInstall({ source: skill.dir, agent, mode: 'copy', skill: name, force: false });
+            if (result.data.blocked.length > 0) {
+              setInstallResult(result.data);
+              setNotice({
+                tone: 'danger',
+                title: t('operations.install.blocked'),
+                detail: t('operations.install.blockedDetail', { count: result.data.blocked.length }),
+              });
+              return;
+            }
+            snapshots.push(...snapshotPaths(result.data));
+          }
+          imported += 1;
+        }
+        setNotice({ tone: 'good', title: t('operations.import.done', { count: imported }), snapshots });
+        await onRefresh();
+      }),
+    });
+  }, [importable, declaredAgentPairs, onRefresh, requestConfirmation, runBusy, t]);
 
   // F-C2:被安全拦截后,填了原因再「仍要安装」—— force + --force-reason,留痕进 bypass-ledger。
   const handleForceInstall = useCallback(() => {
@@ -1396,6 +1460,8 @@ export function DashboardShell({
     busy,
     onToggle: handleToggle,
     onRemove: handleRemove,
+    importableCount: importable.length,
+    onImportExisting: handleImportExisting,
   };
 
   return (
