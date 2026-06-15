@@ -181,6 +181,10 @@
   },
   "loading": "Cargando skills...",
   "dashboard": {
-    "partialLoad": "No se pudieron cargar algunas secciones; el resto se muestra con normalidad. Afectadas:"
+    "partialLoad": "No se pudieron cargar algunas secciones; el resto se muestra con normalidad. Afectadas:",
+    "fixtureMode": "Modo demo: datos de muestra; las acciones de escritura son simuladas y no tocan tu configuración real."
+  },
+  "errorBoundary": {
+    "message": "skill-switch tuvo un error (envía los detalles de abajo al desarrollador):"
   }
 }

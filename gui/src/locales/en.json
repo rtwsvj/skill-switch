@@ -181,6 +181,10 @@
   },
   "loading": "Loading skills...",
   "dashboard": {
-    "partialLoad": "Some sections failed to load; the rest are shown normally. Affected:"
+    "partialLoad": "Some sections failed to load; the rest are shown normally. Affected:",
+    "fixtureMode": "Demo mode: sample data; write actions are simulated and won’t touch your real config."
+  },
+  "errorBoundary": {
+    "message": "skill-switch hit an error (please send the details below to the developer):"
   }
 }

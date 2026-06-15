@@ -1088,6 +1088,13 @@ export function DashboardShell({
           </button>
         ))}
       </nav>
+      {mergedData.source === 'fixtures' ? (
+        <section className="operation-banner operation-banner-warn">
+          <div>
+            <strong>{t('dashboard.fixtureMode')}</strong>
+          </div>
+        </section>
+      ) : null}
       <OperationBanner notice={notice} />
       {mergedData.loadErrors ? (
         <section className="operation-banner operation-banner-warn">

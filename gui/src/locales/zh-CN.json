@@ -181,6 +181,10 @@
   },
   "loading": "正在加载技能...",
   "dashboard": {
-    "partialLoad": "部分数据未能加载,其余照常显示。未加载的区块:"
+    "partialLoad": "部分数据未能加载,其余照常显示。未加载的区块:",
+    "fixtureMode": "演示模式:当前为样例数据,写操作仅为模拟,不会改动你的真实配置。"
+  },
+  "errorBoundary": {
+    "message": "skill-switch 出错了(把下面的信息发给开发者):"
   }
 }
