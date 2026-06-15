@@ -226,7 +226,14 @@
     "guide": "Your undo button: every change is auto-backed-up here, so you can roll back to any point in time.",
     "count": "{{count}} backups",
     "empty": "No backups yet. After you make changes, restorable points appear here.",
-    "restoreHere": "Restore to this"
+    "restoreHere": "Restore to this",
+    "op": {
+      "install": "Backup before installing ({{detail}})",
+      "toggle": "Backup before toggling “{{detail}}”",
+      "remove": "Backup before removing “{{detail}}”",
+      "sync": "Backup before syncing",
+      "restore": "Backup before restoring"
+    }
   },
   "stats": {
     "metrics": {

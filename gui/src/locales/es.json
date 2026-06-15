@@ -226,7 +226,14 @@
     "guide": "Tu botón de deshacer: cada cambio se respalda aquí, para que puedas volver a cualquier momento.",
     "count": "{{count}} copias",
     "empty": "Aún no hay copias. Después de hacer cambios, aquí aparecen puntos restaurables.",
-    "restoreHere": "Restaurar a este"
+    "restoreHere": "Restaurar a este",
+    "op": {
+      "install": "Copia antes de instalar ({{detail}})",
+      "toggle": "Copia antes de cambiar «{{detail}}»",
+      "remove": "Copia antes de eliminar «{{detail}}»",
+      "sync": "Copia antes de sincronizar",
+      "restore": "Copia antes de restaurar"
+    }
   },
   "stats": {
     "metrics": {

@@ -193,6 +193,14 @@ export function syncActionLabel(action: { kind: string; agent: string; name: str
   return t(key, { target: `${action.agent} / ${action.name}` });
 }
 
+// v0.3 F1:把快照标签(pre-install-<agent> / pre-toggle-<name> / pre-sync …)翻成大白话操作记录,
+// 让「历史」tab 读起来像操作日志。无法识别的标签原样返回。
+export function describeSnapshotLabel(label: string, t: TFunction): string {
+  const match = /^pre-(install|toggle|remove|sync|restore)(?:-(.+))?$/.exec(label);
+  if (!match) return label;
+  return t(`history.op.${match[1]}`, { detail: match[2] ?? '' });
+}
+
 function snapshotPaths(
   result: Partial<{
     snapshotPath: string;
@@ -1180,7 +1188,7 @@ export function History({
         {snapshots.map((snapshot) => (
           <article className="timeline-row" key={snapshot.id ?? snapshot.path}>
             <div className="timeline-main">
-              <strong>{snapshot.label}</strong>
+              <strong>{describeSnapshotLabel(snapshot.label, t)}</strong>
               <span className="muted">{new Date(snapshot.createdAt).toLocaleString()}</span>
               {snapshot.sourceDir ? <span className="muted timeline-source">{snapshot.sourceDir}</span> : null}
             </div>
