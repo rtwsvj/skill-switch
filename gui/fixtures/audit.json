@@ -5,9 +5,23 @@
     "score": 100,
     "verdict": "SAFE",
     "name": "deploy-checklist",
-    "agents": ["cline", "dexto", "kimi-code-cli", "loaf", "warp", "zed"],
+    "agents": [
+      "cline",
+      "dexto",
+      "kimi-code-cli",
+      "loaf",
+      "warp",
+      "zed"
+    ],
     "relSkillsDir": ".agents/skills",
-    "blocked": false
+    "blocked": false,
+    "coverage": {
+      "scannedFiles": 4,
+      "skippedFiles": 0,
+      "tooLargeFiles": 0,
+      "readErrors": 0,
+      "truncated": false
+    }
   },
   {
     "path": "tests/fixtures/home-basic/.agents/skills/mismatched-name",
@@ -15,9 +29,23 @@
     "score": 100,
     "verdict": "SAFE",
     "name": "release-runbook",
-    "agents": ["cline", "dexto", "kimi-code-cli", "loaf", "warp", "zed"],
+    "agents": [
+      "cline",
+      "dexto",
+      "kimi-code-cli",
+      "loaf",
+      "warp",
+      "zed"
+    ],
     "relSkillsDir": ".agents/skills",
-    "blocked": false
+    "blocked": false,
+    "coverage": {
+      "scannedFiles": 7,
+      "skippedFiles": 1,
+      "tooLargeFiles": 1,
+      "readErrors": 0,
+      "truncated": false
+    }
   },
   {
     "path": "tests/fixtures/home-basic/.claude/skills/broken-frontmatter",
@@ -25,9 +53,18 @@
     "score": 100,
     "verdict": "SAFE",
     "name": "broken-frontmatter",
-    "agents": ["claude-code"],
+    "agents": [
+      "claude-code"
+    ],
     "relSkillsDir": ".claude/skills",
-    "blocked": false
+    "blocked": false,
+    "coverage": {
+      "scannedFiles": 4,
+      "skippedFiles": 0,
+      "tooLargeFiles": 0,
+      "readErrors": 0,
+      "truncated": false
+    }
   },
   {
     "path": "tests/fixtures/home-basic/.claude/skills/commit-style",
@@ -35,9 +72,18 @@
     "score": 100,
     "verdict": "SAFE",
     "name": "commit-style",
-    "agents": ["claude-code"],
+    "agents": [
+      "claude-code"
+    ],
     "relSkillsDir": ".claude/skills",
-    "blocked": false
+    "blocked": false,
+    "coverage": {
+      "scannedFiles": 7,
+      "skippedFiles": 1,
+      "tooLargeFiles": 1,
+      "readErrors": 0,
+      "truncated": false
+    }
   },
   {
     "path": "tests/fixtures/home-basic/.claude/skills/git-helper",
@@ -45,9 +91,18 @@
     "score": 100,
     "verdict": "SAFE",
     "name": "git-helper",
-    "agents": ["claude-code"],
+    "agents": [
+      "claude-code"
+    ],
     "relSkillsDir": ".claude/skills",
-    "blocked": false
+    "blocked": false,
+    "coverage": {
+      "scannedFiles": 4,
+      "skippedFiles": 0,
+      "tooLargeFiles": 0,
+      "readErrors": 0,
+      "truncated": false
+    }
   },
   {
     "path": "tests/fixtures/home-basic/.gemini/skills/code-review-helper",
@@ -55,9 +110,18 @@
     "score": 100,
     "verdict": "SAFE",
     "name": "code-review-helper",
-    "agents": ["gemini-cli"],
+    "agents": [
+      "gemini-cli"
+    ],
     "relSkillsDir": ".gemini/skills",
-    "blocked": false
+    "blocked": false,
+    "coverage": {
+      "scannedFiles": 7,
+      "skippedFiles": 1,
+      "tooLargeFiles": 1,
+      "readErrors": 0,
+      "truncated": false
+    }
   },
   {
     "path": "tests/fixtures/skills-malicious/revshell-dev-tcp",
@@ -82,9 +146,18 @@
     "score": 77,
     "verdict": "REVIEW",
     "name": "revshell-dev-tcp",
-    "agents": ["fixture"],
+    "agents": [
+      "fixture"
+    ],
     "relSkillsDir": "skills-malicious",
-    "blocked": true
+    "blocked": true,
+    "coverage": {
+      "scannedFiles": 4,
+      "skippedFiles": 0,
+      "tooLargeFiles": 0,
+      "readErrors": 0,
+      "truncated": false
+    }
   },
   {
     "path": "tests/fixtures/skills-malicious/tamper-claude-settings",
@@ -117,8 +190,17 @@
     "score": 40,
     "verdict": "DANGER",
     "name": "tamper-claude-settings",
-    "agents": ["fixture"],
+    "agents": [
+      "fixture"
+    ],
     "relSkillsDir": "skills-malicious",
-    "blocked": true
+    "blocked": true,
+    "coverage": {
+      "scannedFiles": 7,
+      "skippedFiles": 1,
+      "tooLargeFiles": 1,
+      "readErrors": 0,
+      "truncated": false
+    }
   }
 ]

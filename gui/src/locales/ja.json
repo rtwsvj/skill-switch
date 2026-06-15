@@ -220,6 +220,12 @@
       "noReason": "(インストール時に理由なし)",
       "score": "スコア {{score}}",
       "findings": "{{count}} 件の検出をスキップ"
+    },
+    "coverage": {
+      "scanned": "今回の安全チェックで {{count}} 件のファイルを走査",
+      "skipped": "{{count}} 件をスキップ(大きすぎ/バイナリ)",
+      "readErrors": "{{count}} 件は読み取り不可",
+      "truncated": "ファイルが多く、一部を切り詰めました"
     }
   },
   "history": {

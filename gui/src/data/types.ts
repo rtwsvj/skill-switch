@@ -28,6 +28,15 @@ export interface AuditFinding {
   message: string;
 }
 
+/** M0-5.7 审计覆盖透明度(用户关心的子集;可选——旧 CLI 输出可能没有)。 */
+export interface AuditCoverage {
+  scannedFiles: number;
+  skippedFiles: number;
+  tooLargeFiles: number;
+  readErrors: number;
+  truncated: boolean;
+}
+
 export interface AuditReport {
   path: string;
   findings: AuditFinding[];
@@ -37,6 +46,7 @@ export interface AuditReport {
   agents?: string[];
   relSkillsDir?: string;
   blocked?: boolean;
+  coverage?: AuditCoverage;
 }
 
 export interface DoctorFinding {

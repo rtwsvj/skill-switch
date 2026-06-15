@@ -201,6 +201,23 @@ export function describeSnapshotLabel(label: string, t: TFunction): string {
   return t(`history.op.${match[1]}`, { detail: match[2] ?? '' });
 }
 
+// 审计覆盖透明度:把每个技能的扫描覆盖聚合成一行(共扫了多少文件、跳过多少、读失败、是否截断)。
+export function auditCoverageSummary(reports: AuditReport[], t: TFunction): string {
+  const covs = reports.map((report) => report.coverage).filter((c): c is NonNullable<typeof c> => Boolean(c));
+  if (covs.length === 0) return '';
+  const scanned = covs.reduce((sum, c) => sum + c.scannedFiles, 0);
+  const skipped = covs.reduce((sum, c) => sum + c.skippedFiles + c.tooLargeFiles, 0);
+  const readErrors = covs.reduce((sum, c) => sum + c.readErrors, 0);
+  const truncated = covs.some((c) => c.truncated);
+  if (scanned === 0 && skipped === 0 && !truncated) return '';
+  return [
+    t('safety.coverage.scanned', { count: scanned }),
+    skipped > 0 ? t('safety.coverage.skipped', { count: skipped }) : null,
+    readErrors > 0 ? t('safety.coverage.readErrors', { count: readErrors }) : null,
+    truncated ? t('safety.coverage.truncated') : null,
+  ].filter(Boolean).join(' · ');
+}
+
 // 覆盖透明度:统计扫描了多少聊天记录、跳过/解析失败多少、是否截断。建立对数字的信任。
 export function coverageSummary(stats: StatsReport, t: TFunction): string {
   if (stats.scannedFiles === 0 && !stats.truncated) return '';
@@ -1034,6 +1051,7 @@ function Audit({ data, section, onReload }: { data: DashboardData; section: Sect
           <Metric value={blockedCount} label={t('safety.summary.blocked')} tone={blockedCount > 0 ? 'danger' : 'good'} />
         </div>
       ) : null}
+      {auditCoverageSummary(data.audit, t) ? <p className="coverage-line muted">{auditCoverageSummary(data.audit, t)}</p> : null}
 
       {bypasses.length > 0 ? (
         <section className="panel bypass-panel">

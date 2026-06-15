@@ -220,6 +220,12 @@
       "noReason": "(sin motivo en la instalación)",
       "score": "Puntuación {{score}}",
       "findings": "{{count}} hallazgos omitidos"
+    },
+    "coverage": {
+      "scanned": "Esta comprobación analizó {{count}} archivos",
+      "skipped": "se omitieron {{count}} (demasiado grandes / binarios)",
+      "readErrors": "{{count}} no se pudieron leer",
+      "truncated": "muchos archivos: se truncó una parte"
     }
   },
   "history": {

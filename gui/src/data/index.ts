@@ -61,6 +61,7 @@ export async function runRestore(...args: Parameters<typeof fixtures.runRestore>
 }
 
 export type {
+  AuditCoverage,
   AuditFinding,
   AuditReport,
   AuditSeverity,

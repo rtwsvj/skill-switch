@@ -220,6 +220,12 @@
       "noReason": "(安装时未填写原因)",
       "score": "评分 {{score}}",
       "findings": "跳过了 {{count}} 项发现"
+    },
+    "coverage": {
+      "scanned": "本次安全检查共扫描 {{count}} 个文件",
+      "skipped": "跳过 {{count}} 个(太大/二进制)",
+      "readErrors": "{{count}} 个读取失败",
+      "truncated": "文件较多,已截断部分"
     }
   },
   "history": {

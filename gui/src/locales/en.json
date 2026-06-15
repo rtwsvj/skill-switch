@@ -220,6 +220,12 @@
       "noReason": "(no reason given at install)",
       "score": "Score {{score}}",
       "findings": "{{count}} findings skipped"
+    },
+    "coverage": {
+      "scanned": "This safety check scanned {{count}} files",
+      "skipped": "skipped {{count}} (too large / binary)",
+      "readErrors": "{{count}} could not be read",
+      "truncated": "many files — some were truncated"
     }
   },
   "history": {
