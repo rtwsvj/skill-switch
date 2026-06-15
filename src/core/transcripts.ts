@@ -32,9 +32,9 @@ export function discoverClaudeTranscriptRoots(
   return candidates.filter((dir) => existsSync(dir));
 }
 
-export async function listTranscriptFiles(roots: string[]): Promise<string[]> {
+export async function listTranscriptFiles(roots: string[], maxDepth = 12): Promise<string[]> {
   const files: string[] = [];
-  async function walk(dir: string): Promise<void> {
+  async function walk(dir: string, depth: number): Promise<void> {
     let entries;
     try {
       entries = await readdir(dir, { withFileTypes: true });
@@ -43,11 +43,15 @@ export async function listTranscriptFiles(roots: string[]): Promise<string[]> {
     }
     for (const entry of entries) {
       const full = join(dir, entry.name);
-      if (entry.isDirectory()) await walk(full);
-      else if (entry.isFile() && entry.name.endsWith('.jsonl')) files.push(full);
+      if (entry.isDirectory()) {
+        if (depth >= maxDepth) continue;
+        await walk(full, depth + 1);
+      } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+        files.push(full);
+      }
     }
   }
-  for (const root of roots) await walk(root);
+  for (const root of roots) await walk(root, 0);
   return files.sort();
 }
 
@@ -58,14 +62,24 @@ function asRecord(v: unknown): Record<string, unknown> | undefined {
 }
 
 export function parseSkillInvocations(jsonl: string, sessionFile: string): SkillInvocation[] {
+  return parseSkillInvocationsWithCounts(jsonl, sessionFile).invocations;
+}
+
+/** 同 parseSkillInvocations,但额外返回坏行计数(供 stats 透明报告 parseErrors)。 */
+export function parseSkillInvocationsWithCounts(
+  jsonl: string,
+  sessionFile: string,
+): { invocations: SkillInvocation[]; parseErrors: number } {
   const invocations: SkillInvocation[] = [];
+  let parseErrors = 0;
   for (const line of jsonl.split('\n')) {
     if (!line.trim()) continue;
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
     } catch {
-      continue; // 坏行跳过
+      parseErrors += 1; // 坏行跳过并计数
+      continue;
     }
     const record = asRecord(parsed);
     const message = asRecord(record?.message);
@@ -85,7 +99,7 @@ export function parseSkillInvocations(jsonl: string, sessionFile: string): Skill
       });
     }
   }
-  return invocations;
+  return { invocations, parseErrors };
 }
 
 export async function parseSkillInvocationsFromFiles(files: string[]): Promise<SkillInvocation[]> {
