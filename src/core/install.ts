@@ -21,7 +21,7 @@ import { getCliVersion, recordBypasses } from './bypass-ledger.ts';
 import { getSkillsLockPath, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { copyDirWithoutSymlinks } from './safe-copy.ts';
-import { assertSafeSkillName, isSafeSkillName } from './skill-name.ts';
+import { assertSafeSkillName, isCanonicalSkillName, isSafeSkillName } from './skill-name.ts';
 import { getSkillsJsonPath, upsertSkillDeclarations } from './sync.ts';
 
 const execFileAsync = promisify(execFile);
@@ -144,6 +144,17 @@ export async function installFromSource(
     }
     if (!options.force && blocked.length > 0) {
       return { installed: [], blocked };
+    }
+
+    // 新安装的 skill 名必须符合规范命名(在任何写动作前,保证 all-or-nothing)。
+    // 既有 legacy 名不在此硬拒——由 doctor 给迁移告警(remove/toggle/sync 仍可操作)。
+    for (const dir of skillDirs) {
+      const name = basename(dir);
+      if (!isCanonicalSkillName(name)) {
+        throw new Error(
+          `skill 名不符合规范命名(仅字母数字与 . _ -,首字符字母数字,长度≤80): ${name}`,
+        );
+      }
     }
 
     // 装前快照(目标目录已存在且非空才有内容可保)

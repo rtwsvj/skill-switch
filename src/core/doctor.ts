@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
 import { readBypassLedger, type BypassRecord } from './bypass-ledger.ts';
 import { getSkillsLockPath, readSkillsLock } from './lock.ts';
+import { isCanonicalSkillName } from './skill-name.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import {
   getSkillsJsonPath,
@@ -45,6 +46,8 @@ export interface DoctorReport {
   declarations: DoctorDeclaration[];
   /** M0-5.8:force 越过 audit 的留痕(警示用,不影响 clean——clean 只表三方一致)。 */
   bypasses: BypassRecord[];
+  /** M0-5.9:声明里不符合规范命名的 legacy skill 名(迁移告警用,不影响 clean,不硬拒)。 */
+  legacyNames: string[];
 }
 
 function skillsDirFor(home: string, agent: AgentType): string | undefined {
@@ -119,6 +122,9 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
   }
 
   const bypasses = (await readBypassLedger(home)).bypasses;
+  const legacyNames = declaration.skills
+    .map((s) => s.name)
+    .filter((name) => !isCanonicalSkillName(name));
 
   return {
     findings,
@@ -126,5 +132,6 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
     checked: { declared: declaredPairs, locked: lock.skills.length },
     declarations: declaration.skills.map(summarizeDeclaration),
     bypasses,
+    legacyNames,
   };
 }
