@@ -485,6 +485,45 @@ h2 {
   white-space: nowrap;
 }
 
+/* F-C1:安全中心的 bypass 留痕面板 */
+.bypass-panel {
+  border-color: rgb(239 68 68 / 0.4);
+  margin-bottom: 12px;
+}
+
+.bypass-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.bypass-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgb(239 68 68 / 0.28);
+  border-radius: 8px;
+  background: rgb(239 68 68 / 0.06);
+}
+
+.bypass-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bypass-main strong {
+  color: #f0e6d1;
+}
+
+.bypass-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .command-strip {
   flex-wrap: wrap;
   gap: 8px;

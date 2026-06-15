@@ -56,6 +56,17 @@ export interface DoctorDeclaration {
   agentSources?: Record<string, { source: string; mode: 'copy' | 'symlink' }>;
 }
 
+export interface BypassRecord {
+  name: string;
+  agent: string;
+  auditBypassed: true;
+  bypassedAt: string;
+  bypassReason?: string;
+  score: number;
+  bypassedFindings: Array<{ ruleId: string; severity: string }>;
+  cliVersion: string;
+}
+
 export interface DoctorReport {
   findings: DoctorFinding[];
   clean: boolean;
@@ -64,6 +75,10 @@ export interface DoctorReport {
     locked: number;
   };
   declarations: DoctorDeclaration[];
+  /** M0-5.8:force 越过 audit 的留痕(可选——旧 CLI 输出可能没有)。 */
+  bypasses?: BypassRecord[];
+  /** M0-5.9:不符合规范命名的 legacy skill 名(迁移告警)。 */
+  legacyNames?: string[];
 }
 
 export interface StatsUsage {

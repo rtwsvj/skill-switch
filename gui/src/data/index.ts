@@ -65,6 +65,7 @@ export type {
   AuditReport,
   AuditSeverity,
   AuditVerdict,
+  BypassRecord,
   CliJsonResult,
   DashboardData,
   DoctorDeclaration,

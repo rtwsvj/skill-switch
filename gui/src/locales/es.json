@@ -172,6 +172,22 @@
       "low": "baja"
     }
   },
+  "safety": {
+    "summary": {
+      "safe": "Seguras",
+      "review": "Revisar",
+      "blocked": "Bloqueadas"
+    },
+    "bypass": {
+      "title": "Skills que omitieron la comprobación de seguridad",
+      "badge": "Auditoría omitida",
+      "subtitle": "Estas skills se instalaron saltándose el bloqueo de seguridad. Asegúrate de confiar en su origen.",
+      "reason": "Motivo: {{reason}}",
+      "noReason": "(sin motivo en la instalación)",
+      "score": "Puntuación {{score}}",
+      "findings": "{{count}} hallazgos omitidos"
+    }
+  },
   "history": {
     "guide": "Tu botón de deshacer: cada cambio se respalda aquí, para que puedas volver a cualquier momento.",
     "count": "{{count}} copias",

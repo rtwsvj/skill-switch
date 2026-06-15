@@ -172,6 +172,22 @@
       "low": "low"
     }
   },
+  "safety": {
+    "summary": {
+      "safe": "Safe",
+      "review": "Review",
+      "blocked": "Blocked"
+    },
+    "bypass": {
+      "title": "Skills that skipped the safety check",
+      "badge": "Audit bypassed",
+      "subtitle": "These skills were installed past the safety block. Make sure you trust their source.",
+      "reason": "Reason: {{reason}}",
+      "noReason": "(no reason given at install)",
+      "score": "Score {{score}}",
+      "findings": "{{count}} findings skipped"
+    }
+  },
   "history": {
     "guide": "Your undo button: every change is auto-backed-up here, so you can roll back to any point in time.",
     "count": "{{count}} backups",
