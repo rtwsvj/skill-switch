@@ -9,6 +9,7 @@ import { destructiveRules } from './destructive.ts';
 import { exfiltrationRules } from './exfiltration.ts';
 import { globalTamperRules } from './global-tamper.ts';
 import { persistenceRules } from './persistence.ts';
+import { promptInjectionRules } from './prompt-injection.ts';
 import { reverseShellRules } from './reverse-shell.ts';
 import { stagedRules } from './staged.ts';
 import { stagedExfilRules } from './staged-exfil.ts';
@@ -24,6 +25,7 @@ export const allRules: AuditRule[] = [
   ...globalTamperRules,
   ...credentialTheftRules,
   ...supplyChainRules,
+  ...promptInjectionRules, // C3:对齐 Snyk hidden-instructions / prompt-injection
 ];
 
 export const allFileRules: AuditFileRule[] = [

@@ -43,6 +43,11 @@ const MALICIOUS_EXPECT: Array<[string, string]> = [
   ['cred-token-webhook', 'credential-theft/token-exfil'],
   ['supply-typosquat-package', 'supply-chain/typosquat-package'],
   ['supply-untrusted-source', 'supply-chain/untrusted-install-source'],
+  // C3:prompt-injection / 隐藏指令(对齐 Snyk SkillSpector)
+  ['inject-override-conceal', 'prompt-injection/instruction-override'],
+  ['inject-override-conceal', 'prompt-injection/conceal-from-user'],
+  ['inject-hidden-text', 'prompt-injection/zero-width-chars'],
+  ['inject-hidden-text', 'prompt-injection/hidden-style-text'],
 ];
 
 const BENIGN_SAMPLES = [
