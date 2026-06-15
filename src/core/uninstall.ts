@@ -6,14 +6,15 @@
 // skill-switch.app 的 App、确为指向 skill-switch 的软链。purge 只碰声明里
 // 列出的 skill。App/软链路径由调用方解析后注入,核心只在校验通过后删除,
 // 便于测试用假路径、绝不触碰真实 /Applications。
-import { lstat, readlink, rm } from 'node:fs/promises';
+import { lstat, realpath, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { removeSkill, type RemoveResult } from './remove.ts';
 import { getSkillsJsonPath, readDeclaration } from './sync.ts';
 
 const APP_BASENAME = 'skill-switch.app';
-const BIN_LINK_TARGET = /skill-switch-cli|skill-switch\.mjs/;
+// 经 realpath 解析后,链接最终必须指向这两个 skill-switch 二进制/shim 之一才允许删除。
+const SKILL_SWITCH_BIN_NAMES = new Set(['skill-switch-cli', 'skill-switch.mjs']);
 
 export interface UninstallInput {
   home: string;
@@ -74,13 +75,15 @@ async function resolveBinTarget(binLinkPath: string | null): Promise<string | nu
     return null;
   }
   if (!stat.isSymbolicLink()) return null;
-  let target: string;
+  // 用 realpath 解析整条链,核对最终落点确实是 skill-switch 的二进制/shim ——
+  // 不只字符串匹配 readlink 目标。悬空/无法解析的可疑软链一律不删。
+  let resolved: string;
   try {
-    target = await readlink(binLinkPath);
+    resolved = await realpath(binLinkPath);
   } catch {
     return null;
   }
-  return BIN_LINK_TARGET.test(target) ? binLinkPath : null;
+  return SKILL_SWITCH_BIN_NAMES.has(basename(resolved)) ? binLinkPath : null;
 }
 
 export async function planUninstall(input: UninstallInput): Promise<UninstallPlan> {
