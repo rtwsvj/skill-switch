@@ -131,7 +131,13 @@
       "toggleOff": "Disable {{name}}? A backup will be made first.",
       "remove": "Delete {{name}}? A backup will be made first.",
       "sync": "Apply {{count}} sync changes?",
-      "restore": "Restore this backup?"
+      "restore": "Restore this backup?",
+      "consequence": {
+        "backup": "✅ A backup is taken before any change — you can restore from a backup anytime if something goes wrong.",
+        "disableKept": "ℹ️ This only disables the skill. Its files stay on disk and you can re-enable it anytime — nothing is deleted.",
+        "restoreOverwrite": "✅ This overwrites current skills with the chosen backup; the current state is backed up first, so it stays reversible.",
+        "forceRisk": "⚠️ You are skipping the safety check. Only continue if you trust the source — at your own risk."
+      }
     },
     "notice": {
       "failed": "Operation failed",

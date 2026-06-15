@@ -318,6 +318,24 @@ h2 {
   line-height: 1.5;
 }
 
+/* F-B2:确认框里的大白话「后果/安心」提示(用后代选择器压过 .confirm-dialog p) */
+.confirm-dialog .dialog-consequence {
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgb(56 189 148 / 0.12);
+  border: 1px solid rgb(56 189 148 / 0.32);
+  color: #cde7d8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.confirm-dialog .dialog-consequence-danger {
+  background: rgb(239 68 68 / 0.12);
+  border-color: rgb(239 68 68 / 0.4);
+  color: #f6c9c0;
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;

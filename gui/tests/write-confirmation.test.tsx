@@ -49,6 +49,39 @@ describe('GUI write confirmation and disabled declarations', () => {
     expect(close).toHaveBeenCalledTimes(2);
   });
 
+  it('carries the F-B2 plain-language consequence line into the dialog state', () => {
+    const withConsequence = createConfirmationDialogState({
+      title: 'Confirm',
+      message: 'Delete this skill?',
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      tone: 'danger',
+      consequence: 'A backup is taken first — you can restore anytime.',
+      onConfirm: () => {},
+    }, () => {});
+    expect(withConsequence.consequence).toBe('A backup is taken first — you can restore anytime.');
+
+    // 省略 consequence 时不应凭空冒出该字段。
+    const withoutConsequence = createConfirmationDialogState({
+      title: 'Confirm',
+      message: 'Plain write?',
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      onConfirm: () => {},
+    }, () => {});
+    expect(withoutConsequence.consequence).toBeUndefined();
+  });
+
+  it('renders the consequence reassurance text for the four consequence keys (i18n parity smoke)', async () => {
+    const i18n = await createI18nForLanguage('zh-CN');
+    for (const key of ['backup', 'disableKept', 'restoreOverwrite', 'forceRisk']) {
+      const text = i18n.t(`operations.confirm.consequence.${key}`);
+      // 键存在且非回退到键名本身。
+      expect(text).not.toBe(`operations.confirm.consequence.${key}`);
+      expect(text.length).toBeGreaterThan(4);
+    }
+  });
+
   it('merges declared disabled skills into the dashboard list without duplicating disk rows', async () => {
     const data = await loadDashboardData();
     const merged = mergeDeclaredSkills(withDeclarations(data, [

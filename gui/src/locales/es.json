@@ -131,7 +131,13 @@
       "toggleOff": "¿Desactivar {{name}}? Primero se hará una copia.",
       "remove": "¿Eliminar {{name}}? Primero se hará una copia.",
       "sync": "¿Aplicar {{count}} cambios de sincronización?",
-      "restore": "¿Restaurar esta copia?"
+      "restore": "¿Restaurar esta copia?",
+      "consequence": {
+        "backup": "✅ Se hace una copia de seguridad antes de cualquier cambio: puedes restaurarla cuando quieras si algo sale mal.",
+        "disableKept": "ℹ️ Esto solo desactiva la skill. Sus archivos permanecen en el disco y puedes reactivarla cuando quieras (no se elimina nada).",
+        "restoreOverwrite": "✅ Esto sobrescribe las skills actuales con la copia elegida; el estado actual se respalda primero, así que sigue siendo reversible.",
+        "forceRisk": "⚠️ Estás omitiendo la comprobación de seguridad. Continúa solo si confías en el origen, bajo tu propia responsabilidad."
+      }
     },
     "notice": {
       "failed": "La operación falló",

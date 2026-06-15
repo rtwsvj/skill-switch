@@ -260,12 +260,15 @@ interface ConfirmationDialogRequest {
   confirmLabel: string;
   cancelLabel: string;
   tone?: 'warn' | 'danger';
+  /** F-B2:大白话后果/安心提示(如「已自动备份,可在『历史』还原」),直击 P6 怕翻车。 */
+  consequence?: string;
   onConfirm: () => void | Promise<void>;
 }
 
 interface WriteConfirmationRequest {
   message: string;
   tone?: 'warn' | 'danger';
+  consequence?: string;
   onConfirm: () => void | Promise<void>;
 }
 
@@ -275,6 +278,7 @@ export interface ConfirmationDialogState {
   confirmLabel: string;
   cancelLabel: string;
   tone: 'warn' | 'danger';
+  consequence?: string;
   onConfirm: () => Promise<void>;
   onCancel: () => Promise<void>;
 }
@@ -289,6 +293,7 @@ export function createConfirmationDialogState(
     confirmLabel: request.confirmLabel,
     cancelLabel: request.cancelLabel,
     tone: request.tone ?? 'warn',
+    ...(request.consequence ? { consequence: request.consequence } : {}),
     onConfirm: async () => {
       close();
       await request.onConfirm();
@@ -315,6 +320,11 @@ function ConfirmationDialog({ confirmation }: { confirmation: ConfirmationDialog
       >
         <h2 id={titleId}>{confirmation.title}</h2>
         <p id={messageId}>{confirmation.message}</p>
+        {confirmation.consequence ? (
+          <p className={cx('dialog-consequence', confirmation.tone === 'danger' && 'dialog-consequence-danger')}>
+            {confirmation.consequence}
+          </p>
+        ) : null}
         <div className="dialog-actions">
           <button type="button" onClick={() => void confirmation.onCancel()}>
             {confirmation.cancelLabel}
@@ -988,6 +998,7 @@ export function DashboardShell({
     requestConfirmation({
       message: t(installDraft.force ? 'operations.confirm.forceInstall' : 'operations.confirm.install'),
       tone: installDraft.force ? 'danger' : 'warn',
+      consequence: t(installDraft.force ? 'operations.confirm.consequence.forceRisk' : 'operations.confirm.consequence.backup'),
       onConfirm: () => runBusy('install', async () => {
         const result = await runInstall({
           source,
@@ -1021,6 +1032,7 @@ export function DashboardShell({
     const name = actionSkillName(skill);
     requestConfirmation({
       message: t(enabled ? 'operations.confirm.toggleOn' : 'operations.confirm.toggleOff', { name }),
+      consequence: t(enabled ? 'operations.confirm.consequence.backup' : 'operations.confirm.consequence.disableKept'),
       onConfirm: () => runBusy(`toggle-${name}`, async () => {
         const installSnapshots: string[] = [];
         const agentsToPrepare = skill.agents.filter((agent) => !declaredAgentPairs.has(skillAgentKey(agent, name)));
@@ -1060,6 +1072,7 @@ export function DashboardShell({
     requestConfirmation({
       message: t('operations.confirm.remove', { name }),
       tone: 'danger',
+      consequence: t('operations.confirm.consequence.backup'),
       onConfirm: () => runBusy(`remove-${name}`, async () => {
         const snapshots: string[] = [];
         for (const agent of skill.agents) {
@@ -1093,6 +1106,7 @@ export function DashboardShell({
     if (!syncPlan) return;
     requestConfirmation({
       message: t('operations.confirm.sync', { count: changedActionCount(syncPlan) }),
+      consequence: t('operations.confirm.consequence.backup'),
       onConfirm: () => runBusy('sync-apply', async () => {
         const result = await runSync({ dryRun: false });
         setSyncPlan(result.data);
@@ -1126,6 +1140,7 @@ export function DashboardShell({
     requestConfirmation({
       message: t('operations.confirm.restore'),
       tone: 'danger',
+      consequence: t('operations.confirm.consequence.restoreOverwrite'),
       onConfirm: () => runBusy('restore-apply', async () => {
         const result = await runRestore({ id });
         if (!isRestoreList(result.data)) {
