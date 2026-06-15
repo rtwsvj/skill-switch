@@ -2,10 +2,9 @@
 // 用系统 tar(execFile),不引入 npm 依赖。所有写入落在调用方给定的 store/target,
 // 任何对真实 agent 目录的写操作由上层命令在快照兜底后显式发起。
 import { execFile } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -84,22 +83,46 @@ export async function listSnapshots(store: string): Promise<SnapshotInfo[]> {
   return snaps;
 }
 
-export async function restoreSnapshot(snapshotPath: string, target: string): Promise<void> {
-  // 先验证归档存在 —— 失败必须在动 target 之前,保证还原对失败具原子性
-  await stat(snapshotPath);
-
-  const staging = mkdtempSync(join(tmpdir(), 'skill-switch-restore-'));
-  try {
-    // 先解到暂存区:解压失败时 target 完全未被触碰
-    await execFileAsync('tar', ['-xzf', snapshotPath, '-C', staging]);
-  } catch (cause) {
-    await rm(staging, { recursive: true, force: true });
-    throw cause;
+/** 防 tar path-traversal:拒绝任何绝对路径或含 `..` 段的条目(快照应只含目标目录内容)。 */
+async function assertSafeArchive(snapshotPath: string): Promise<void> {
+  const { stdout } = await execFileAsync('tar', ['-tzf', snapshotPath]);
+  for (const raw of stdout.split('\n')) {
+    const entry = raw.trim();
+    if (!entry) continue;
+    if (entry.startsWith('/') || entry.split('/').some((seg) => seg === '..')) {
+      throw new Error(`快照含不安全路径,拒绝还原: ${entry}`);
+    }
   }
+}
 
-  // 解压成功才替换:清空 target 再铺回
-  await rm(target, { recursive: true, force: true });
-  await mkdir(target, { recursive: true });
-  await cp(staging, target, { recursive: true });
-  await rm(staging, { recursive: true, force: true });
+export async function restoreSnapshot(snapshotPath: string, target: string): Promise<void> {
+  // 先验证归档存在 + 路径安全 —— 都必须在动 target 之前,保证还原对失败具原子性。
+  await stat(snapshotPath);
+  await assertSafeArchive(snapshotPath);
+
+  const parent = dirname(target);
+  await mkdir(parent, { recursive: true });
+  // staging 与 target 同文件系统(放 target 的父目录下),保证后续 rename 可用,避免跨设备 EXDEV。
+  const staging = await mkdtemp(join(parent, '.skill-switch-restore-'));
+  const backup = `${target}.restore-bak-${Date.now()}`;
+  let backedUp = false;
+  try {
+    // 先解到暂存区:解压失败时 target 完全未被触碰。
+    await execFileAsync('tar', ['-xzf', snapshotPath, '-C', staging]);
+
+    // 原子换入:先把现有 target 挪到 backup(保留恢复路径),再把 staging rename 成 target;失败回滚。
+    if (existsSync(target)) {
+      await rename(target, backup);
+      backedUp = true;
+    }
+    try {
+      await rename(staging, target);
+    } catch (swapError) {
+      if (backedUp) await rename(backup, target).catch(() => undefined); // 回滚,target 不半恢复
+      throw swapError;
+    }
+  } finally {
+    await rm(staging, { recursive: true, force: true }).catch(() => undefined);
+    if (backedUp) await rm(backup, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
