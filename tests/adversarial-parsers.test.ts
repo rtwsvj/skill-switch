@@ -68,7 +68,21 @@ describe('A1 adversarial parser inputs', () => {
     );
   });
 
-  it('declaration and lock JSON readers downgrade malformed files to empty state', async () => {
+  it('declaration and lock JSON readers reject malformed files instead of silently downgrading to empty', async () => {
+    // M0-5.1:一个存在但损坏的状态文件绝不能被当成"空声明/空锁"——否则后续写入会把它永久覆盖丢失。
+    // 要么按内容解析成功(内容本就是合法的 { version, skills:[] }),要么抛错;绝不无中生有出空状态。
+    const isValidState = (raw: string): boolean => {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        return (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          Array.isArray((parsed as { skills?: unknown }).skills)
+        );
+      } catch {
+        return false;
+      }
+    };
     await fc.assert(
       fc.asyncProperty(rawText, rawText, async (declRaw, lockRaw) => {
         await withTempDir('skill-switch-a1-json-', async (home) => {
@@ -79,8 +93,11 @@ describe('A1 adversarial parser inputs', () => {
           await writeFile(declPath, declRaw);
           await writeFile(lockPath, lockRaw);
 
-          await expect(readDeclaration(declPath)).resolves.toMatchObject({ version: 1 });
-          await expect(readSkillsLock(lockPath)).resolves.toMatchObject({ version: 1 });
+          if (isValidState(declRaw)) await expect(readDeclaration(declPath)).resolves.toEqual(JSON.parse(declRaw));
+          else await expect(readDeclaration(declPath)).rejects.toBeTruthy();
+
+          if (isValidState(lockRaw)) await expect(readSkillsLock(lockPath)).resolves.toEqual(JSON.parse(lockRaw));
+          else await expect(readSkillsLock(lockPath)).rejects.toBeTruthy();
         });
       }),
       FUZZ,

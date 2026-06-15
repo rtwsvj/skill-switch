@@ -5,9 +5,9 @@
 // 幂等约定:不含时间戳字段;条目按 (agent, name) 排序;同源重装字节不变。
 // MVP 落点是 home 级治理锚点(<home>/.skill-switch/skills.lock.json);
 // 同一 schema 未来可直接用于项目级(S6 doctor 三方校验)。
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
+import { readJsonState, StateFileError, writeJsonState } from './state-io.ts';
 
 export interface SkillsLockEntry {
   name: string;
@@ -34,23 +34,21 @@ export function getSkillsLockPath(home: string): string {
 }
 
 export async function readSkillsLock(lockPath: string): Promise<SkillsLockFile> {
-  try {
-    const raw = await readFile(lockPath, 'utf8');
-    return JSON.parse(raw) as SkillsLockFile;
-  } catch {
-    return { version: 1, skills: [] };
+  const data = await readJsonState<SkillsLockFile>(lockPath, { version: 1, skills: [] });
+  if (typeof data !== 'object' || data === null || !Array.isArray((data as SkillsLockFile).skills)) {
+    throw new StateFileError(`锁文件结构非法(期望 { version, skills: [...] }): ${lockPath}`, lockPath);
   }
+  return data;
 }
 
 export async function writeSkillsLock(lockPath: string, lock: SkillsLockFile): Promise<void> {
-  await mkdir(dirname(lockPath), { recursive: true });
   const sorted: SkillsLockFile = {
     version: lock.version,
     skills: [...lock.skills].sort((a, b) =>
       `${a.agent}|${a.name}`.localeCompare(`${b.agent}|${b.name}`),
     ),
   };
-  await writeFile(lockPath, `${JSON.stringify(sorted, null, 2)}\n`);
+  await writeJsonState(lockPath, sorted);
 }
 
 /** 按 (agent, name) upsert;同键覆盖,无重复。 */
