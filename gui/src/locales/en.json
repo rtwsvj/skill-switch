@@ -29,7 +29,8 @@
     "parseError": "read failed",
     "pass": "passed",
     "used": "used",
-    "zombie": "never used"
+    "zombie": "never used",
+    "disabledKept": "Disabled · not deleted"
   },
   "overview": {
     "metrics": {
@@ -80,7 +81,9 @@
     "actions": {
       "enable": "Enable",
       "disable": "Disable",
-      "delete": "Delete"
+      "delete": "Delete",
+      "disableHint": "Disabling just turns it off — files stay on disk and you can re-enable anytime. Nothing is deleted.",
+      "deleteHint": "Removes the skill from disk (a backup is taken first, so it is restorable)."
     }
   },
   "operations": {

@@ -132,7 +132,8 @@ describe('GUI write confirmation and disabled declarations', () => {
     );
 
     expect(html).toContain('parked-skill');
-    expect(html).toContain(i18n.t('status.disabled'));
+    // F-B3:停用状态明示「未删除」,且对停用项显示「启用」动作。
+    expect(html).toContain(i18n.t('status.disabledKept'));
     expect(html).toContain(i18n.t('skills.actions.enable'));
   });
 });

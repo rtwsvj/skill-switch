@@ -765,7 +765,7 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
                     <td className="muted">{skill.relSkillsDir}</td>
                     <td>
                       <div className="status-stack">
-                        <StatusPill tone={enabled ? 'good' : 'warn'}>{enabled ? t('status.enabled') : t('status.disabled')}</StatusPill>
+                        <StatusPill tone={enabled ? 'good' : 'warn'}>{enabled ? t('status.enabled') : t('status.disabledKept')}</StatusPill>
                         {hasError ? <StatusPill tone="danger">{t('status.parseError')}</StatusPill> : null}
                         {mismatch ? <StatusPill tone="warn">{t('status.nameMismatch')}</StatusPill> : null}
                       </div>
@@ -777,6 +777,7 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
                           className={enabled ? undefined : 'primary-action'}
                           onClick={() => actions.onToggle(skill, !enabled)}
                           disabled={actions.busy === `toggle-${name}` || writeBusy}
+                          title={enabled ? t('skills.actions.disableHint') : undefined}
                         >
                           {enabled ? t('skills.actions.disable') : t('skills.actions.enable')}
                         </button>
@@ -785,6 +786,7 @@ function Skills({ data, actions }: { data: DashboardData; actions: SkillActionsP
                           className="danger-action"
                           onClick={() => actions.onRemove(skill)}
                           disabled={actions.busy === `remove-${name}` || writeBusy}
+                          title={t('skills.actions.deleteHint')}
                         >
                           {t('skills.actions.delete')}
                         </button>

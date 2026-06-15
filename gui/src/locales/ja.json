@@ -29,7 +29,8 @@
     "parseError": "読み取り失敗",
     "pass": "通過",
     "used": "使用済み",
-    "zombie": "未使用"
+    "zombie": "未使用",
+    "disabledKept": "無効 · 削除なし"
   },
   "overview": {
     "metrics": {
@@ -80,7 +81,9 @@
     "actions": {
       "enable": "有効",
       "disable": "無効",
-      "delete": "削除"
+      "delete": "削除",
+      "disableHint": "無効化はオフにするだけです。ファイルはディスクに残り、いつでも再度有効化できます（削除されません）。",
+      "deleteHint": "スキルをディスクから削除します(事前に自動バックアップするため復元できます)。"
     }
   },
   "operations": {

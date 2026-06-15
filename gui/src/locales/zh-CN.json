@@ -29,7 +29,8 @@
     "parseError": "读取失败",
     "pass": "通过",
     "used": "用过",
-    "zombie": "从未用过"
+    "zombie": "从未用过",
+    "disabledKept": "已停用 · 未删除"
   },
   "overview": {
     "metrics": {
@@ -80,7 +81,9 @@
     "actions": {
       "enable": "启用",
       "disable": "停用",
-      "delete": "删除"
+      "delete": "删除",
+      "disableHint": "停用只是关掉它,技能文件保留在磁盘,随时可再启用,不会删除。",
+      "deleteHint": "从磁盘删除该技能(改动前会先自动备份,可从备份还原)。"
     }
   },
   "operations": {

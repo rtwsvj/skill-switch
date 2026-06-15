@@ -29,7 +29,8 @@
     "parseError": "no se pudo leer",
     "pass": "pasó",
     "used": "usado",
-    "zombie": "nunca usado"
+    "zombie": "nunca usado",
+    "disabledKept": "Desactivada · sin eliminar"
   },
   "overview": {
     "metrics": {
@@ -80,7 +81,9 @@
     "actions": {
       "enable": "Activar",
       "disable": "Desactivar",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "disableHint": "Desactivar solo la apaga: los archivos permanecen en el disco y puedes reactivarla cuando quieras. No se elimina nada.",
+      "deleteHint": "Elimina la skill del disco (se hace una copia de seguridad antes, por lo que es restaurable)."
     }
   },
   "operations": {
