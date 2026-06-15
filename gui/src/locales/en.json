@@ -106,7 +106,12 @@
       "force": "Continue even if safety blocks it",
       "submit": "Install",
       "blocked": "Safety check blocked this",
-      "blockedDetail": "{{count}} skills need attention first"
+      "blockedDetail": "{{count}} skills need attention first",
+      "blockedWhy": "These skills failed the safety check and were blocked. If you trust the source after reviewing the reasons, you can force the install with a justification (it will be recorded).",
+      "blockedScore": "Score {{score}}",
+      "forceReasonLabel": "Reason for installing anyway (required)",
+      "forceReasonPlaceholder": "e.g. from my own private repo, manually reviewed",
+      "forceAnyway": "I understand the risk — install anyway"
     },
     "sync": {
       "title": "Sync",

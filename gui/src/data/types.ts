@@ -150,6 +150,8 @@ export interface InstallRequest {
   skill?: string;
   ref?: string;
   force?: boolean;
+  /** M0-5.8 / F-C2:force 越过审计时记录原因,经 `--force-reason` 写入 bypass-ledger。 */
+  forceReason?: string;
 }
 
 export interface InstallRunResult {

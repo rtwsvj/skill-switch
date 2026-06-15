@@ -106,7 +106,12 @@
       "force": "遇到安全拦截也继续",
       "submit": "安装",
       "blocked": "安全检查拦住了",
-      "blockedDetail": "{{count}} 个技能需要先处理"
+      "blockedDetail": "{{count}} 个技能需要先处理",
+      "blockedWhy": "下面这些技能没通过安全检查,被拦下了。看清原因后,如果你确认来源可信,可以填写理由后强行安装(会记录留痕)。",
+      "blockedScore": "评分 {{score}}",
+      "forceReasonLabel": "仍要安装的理由(必填)",
+      "forceReasonPlaceholder": "例如:来自我自己的私有仓库,已人工核对",
+      "forceAnyway": "我已了解风险,仍要安装"
     },
     "sync": {
       "title": "同步",

@@ -106,7 +106,12 @@
       "force": "安全ブロックがあっても続行",
       "submit": "インストール",
       "blocked": "安全チェックで停止",
-      "blockedDetail": "{{count}} 個のスキルを先に確認してください"
+      "blockedDetail": "{{count}} 個のスキルを先に確認してください",
+      "blockedWhy": "以下のスキルは安全チェックに通らずブロックされました。理由を確認し、提供元を信頼できる場合は、理由を入力して強制インストールできます(記録されます)。",
+      "blockedScore": "スコア {{score}}",
+      "forceReasonLabel": "それでもインストールする理由(必須)",
+      "forceReasonPlaceholder": "例:自分のプライベートリポジトリ、手動で確認済み",
+      "forceAnyway": "リスクを理解した上でインストール"
     },
     "sync": {
       "title": "同期",

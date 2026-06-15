@@ -106,7 +106,12 @@
       "force": "Continuar aunque seguridad lo bloquee",
       "submit": "Instalar",
       "blocked": "La revisión de seguridad lo bloqueó",
-      "blockedDetail": "{{count}} skills requieren atención primero"
+      "blockedDetail": "{{count}} skills requieren atención primero",
+      "blockedWhy": "Estas skills no pasaron la comprobación de seguridad y fueron bloqueadas. Si confías en el origen tras revisar los motivos, puedes forzar la instalación con una justificación (quedará registrada).",
+      "blockedScore": "Puntuación {{score}}",
+      "forceReasonLabel": "Motivo para instalar de todos modos (obligatorio)",
+      "forceReasonPlaceholder": "p. ej.: de mi propio repo privado, revisado manualmente",
+      "forceAnyway": "Entiendo el riesgo: instalar igualmente"
     },
     "sync": {
       "title": "Sincronizar",

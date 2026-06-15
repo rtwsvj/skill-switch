@@ -5,6 +5,7 @@ interface InstallArgsRequest {
   skill?: string;
   ref?: string;
   force?: boolean;
+  forceReason?: string;
 }
 
 interface ToggleArgsRequest {
@@ -38,6 +39,7 @@ export function installArgs(request: InstallArgsRequest): string[] {
   if (request.skill) args.push('--skill', request.skill);
   if (request.ref) args.push('--ref', request.ref);
   if (request.force) args.push('--force');
+  if (request.force && request.forceReason?.trim()) args.push('--force-reason', request.forceReason.trim());
   args.push('--json');
   return args;
 }

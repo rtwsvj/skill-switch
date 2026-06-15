@@ -426,6 +426,9 @@ interface WriteOperationsProps {
   onSyncApply: () => void;
   onLoadSnapshots: () => void;
   onRestore: (id: string) => void;
+  blockedReason: string;
+  onBlockedReasonChange: (value: string) => void;
+  onForceInstall: () => void;
 }
 
 function WriteOperations({
@@ -441,6 +444,9 @@ function WriteOperations({
   onSyncApply,
   onLoadSnapshots,
   onRestore,
+  blockedReason,
+  onBlockedReasonChange,
+  onForceInstall,
 }: WriteOperationsProps) {
   const { t } = useTranslation();
   const agents = agentOptions(data);
@@ -527,9 +533,43 @@ function WriteOperations({
           {installResult?.blocked.length ? (
             <div className="blocked-list">
               <strong>{t('operations.install.blocked')}</strong>
+              <p className="muted">{t('operations.install.blockedWhy')}</p>
               {installResult.blocked.map((blocked) => (
-                <p key={blocked.name}>{`${blocked.name}: ${blocked.report.findings.length} findings / score ${blocked.score}`}</p>
+                <div className="blocked-item" key={blocked.name}>
+                  <div className="blocked-head">
+                    <strong>{blocked.name}</strong>
+                    <StatusPill tone="danger">{t('operations.install.blockedScore', { score: blocked.score })}</StatusPill>
+                  </div>
+                  {(blocked.report.findings ?? []).length > 0 ? (
+                    <ul className="finding-list">
+                      {(blocked.report.findings ?? []).slice(0, 4).map((finding) => (
+                        <li key={`${finding.ruleId}-${finding.line}`}>
+                          <span className={cx('severity-dot', `severity-${finding.severity}`)} />
+                          <span>{finding.ruleId}</span>
+                          <strong>{severityLabel(finding.severity, t)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
               ))}
+              <label className="field force-reason-field">
+                <span>{t('operations.install.forceReasonLabel')}</span>
+                <input
+                  type="text"
+                  value={blockedReason}
+                  placeholder={t('operations.install.forceReasonPlaceholder')}
+                  onChange={(event) => onBlockedReasonChange(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="danger-action"
+                onClick={onForceInstall}
+                disabled={!blockedReason.trim() || busy === 'install' || writeBusy}
+              >
+                {t('operations.install.forceAnyway')}
+              </button>
             </div>
           ) : null}
         </form>
@@ -1047,6 +1087,7 @@ export function DashboardShell({
     force: false,
   });
   const [installResult, setInstallResult] = useState<InstallRunResult | null>(null);
+  const [blockedReason, setBlockedReason] = useState('');
   const [syncPlan, setSyncPlan] = useState<SyncRunResult | null>(null);
   const [restoreList, setRestoreList] = useState<RestoreListResult | null>(null);
   const [advanced, setAdvanced] = useState(readStoredAdvanced);
@@ -1126,6 +1167,46 @@ export function DashboardShell({
       }),
     });
   }, [installDraft, onRefresh, requestConfirmation, runBusy, t]);
+
+  // F-C2:被安全拦截后,填了原因再「仍要安装」—— force + --force-reason,留痕进 bypass-ledger。
+  const handleForceInstall = useCallback(() => {
+    const source = installDraft.source.trim();
+    const reason = blockedReason.trim();
+    if (!source || !reason) return;
+    requestConfirmation({
+      message: t('operations.confirm.forceInstall'),
+      tone: 'danger',
+      consequence: t('operations.confirm.consequence.forceRisk'),
+      onConfirm: () => runBusy('install', async () => {
+        const result = await runInstall({
+          source,
+          agent: installDraft.agent,
+          mode: installDraft.mode,
+          ...(installDraft.skill.trim() ? { skill: installDraft.skill.trim() } : {}),
+          ...(installDraft.ref.trim() ? { ref: installDraft.ref.trim() } : {}),
+          force: true,
+          forceReason: reason,
+        });
+        setInstallResult(result.data);
+        if (result.data.blocked.length > 0) {
+          setNotice({
+            tone: 'danger',
+            title: t('operations.install.blocked'),
+            detail: t('operations.install.blockedDetail', { count: result.data.blocked.length }),
+          });
+          return;
+        }
+        setBlockedReason('');
+        setNotice({
+          tone: 'good',
+          title: t('operations.notice.installed'),
+          detail: t('operations.notice.exitCode', { code: result.exitCode }),
+          snapshots: snapshotPaths(result.data),
+        });
+        await onRefresh();
+      }),
+    });
+  }, [installDraft, blockedReason, onRefresh, requestConfirmation, runBusy, t]);
 
   const handleToggle = useCallback((skill: SkillRecord, enabled: boolean) => {
     const name = actionSkillName(skill);
@@ -1277,6 +1358,9 @@ export function DashboardShell({
     onSyncApply: handleSyncApply,
     onLoadSnapshots: handleLoadSnapshots,
     onRestore: handleRestore,
+    blockedReason,
+    onBlockedReasonChange: setBlockedReason,
+    onForceInstall: handleForceInstall,
   };
 
   const skillActions: SkillActionsProps = {

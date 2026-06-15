@@ -420,6 +420,29 @@ h2 {
 .blocked-list {
   border-left: 2px solid #ef4444;
   padding-left: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+/* F-C2:被拦技能的「为什么 + 仍要安装」面板 */
+.blocked-item {
+  display: grid;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid rgb(239 68 68 / 0.2);
+}
+
+.blocked-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.force-reason-field {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .plan-list span {
