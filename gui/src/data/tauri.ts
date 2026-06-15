@@ -21,45 +21,70 @@ import type {
 } from './types';
 import { installArgs, removeArgs, restoreArgs, syncArgs, toggleArgs } from './cli-args';
 import { assembleDashboard } from './dashboard';
+import { runWithTimeout, type SpawnHandle } from './run-with-timeout';
 
 const sidecarProgram = 'bin/skill-switch-cli';
 
-interface AuditHomeReport {
-  skills: AuditReport[];
+// 各命令的超时上限(ms)。install 走网络/clone 给足 5min;读命令短。
+const COMMAND_TIMEOUTS: Record<string, number> = {
+  scan: 10_000,
+  doctor: 15_000,
+  lock: 10_000,
+  audit: 60_000,
+  stats: 30_000,
+  install: 300_000,
+  toggle: 60_000,
+  sync: 60_000,
+  remove: 60_000,
+  restore: 60_000,
+};
+
+function timeoutFor(label: string): number {
+  return COMMAND_TIMEOUTS[label.split(' ')[0] ?? ''] ?? 60_000;
 }
 
-function parseJson<T>(stdout: string, label: string): T {
-  try {
-    return JSON.parse(stdout) as T;
-  } catch (error) {
-    throw new Error(`Unable to parse ${label} JSON: ${error instanceof Error ? error.message : String(error)}`);
-  }
+// 用 execute() 运行 sidecar:它可靠地缓冲完整 stdout/stderr(无按行分块/JSON 截断问题),
+// 且只需 capability 里已有的 shell:allow-execute。超时/取消由上层 runWithTimeout 兜底:
+// 超时/取消时 UI 的 promise 立即拒绝、界面恢复;execute() 无法中途 kill 子进程(那需要
+// shell:allow-kill,会扩大 shell capability 面,与 M0 最小权限取向相悖),因此 kill 是
+// 文档化的 no-op —— 进程自行结束,写操作本身是原子的,刷新后状态一致。后续若要真正 kill,
+// 再单独评估加 shell:allow-spawn/kill。
+function spawnSidecar(args: string[]): SpawnHandle {
+  const command = Command.sidecar(sidecarProgram, args, { env: { PAGER: '', GIT_PAGER: '' } });
+  const result = command
+    .execute()
+    .then((output) => ({ code: output.code, stdout: output.stdout, stderr: output.stderr }));
+  return { result, kill: () => undefined };
+}
+
+interface AuditHomeReport {
+  skills: AuditReport[];
 }
 
 async function runCliJson<T>(
   args: string[],
   label: string,
   allowNonZero = false,
+  signal?: AbortSignal,
 ): Promise<CliJsonResult<T>> {
-  const command = Command.sidecar(sidecarProgram, args, {
-    env: {
-      PAGER: '',
-      GIT_PAGER: '',
-    },
-  });
-  const output = await command.execute();
+  const output = await runWithTimeout(() => spawnSidecar(args), label, timeoutFor(label), signal);
   if (!allowNonZero && output.code !== 0) {
-    throw new Error(`${label} exited ${output.code}: ${output.stderr || output.stdout}`);
+    throw new Error(`${label} exited ${output.code ?? 'null'}: ${output.stderr || output.stdout}`);
   }
   if (!output.stdout.trim()) {
-    throw new Error(`${label} produced no JSON output.`);
+    throw new Error(`${label} 无 JSON 输出。stderr: ${output.stderr.slice(0, 300)}`);
   }
-  return {
-    data: parseJson<T>(output.stdout, label),
-    stdout: output.stdout,
-    stderr: output.stderr,
-    exitCode: output.code ?? -1,
-  };
+  let data: T;
+  try {
+    data = JSON.parse(output.stdout) as T;
+  } catch (error) {
+    // JSON 解析失败:展示 stdout/stderr 摘要,而不是裸抛一个无上下文的 SyntaxError。
+    throw new Error(
+      `${label} 输出不是合法 JSON:${error instanceof Error ? error.message : String(error)}` +
+        `\nstdout: ${output.stdout.slice(0, 300)}\nstderr: ${output.stderr.slice(0, 300)}`,
+    );
+  }
+  return { data, stdout: output.stdout, stderr: output.stderr, exitCode: output.code ?? -1 };
 }
 
 async function runCli<T>(args: string[], label: string, allowNonZero = false): Promise<T> {
