@@ -60,6 +60,7 @@ skill-switch --help
 | `restore` | 列出 / 还原备份(`--latest` 或 `--id`)。 | `skill-switch restore --latest` |
 | `lint` | 规范校验 + 跨工具移植告警 + 冲突 / 预算健康度。 | `skill-switch lint --target codex` |
 | `doctor` | 声明/锁/磁盘三方一致性(`--ci` 不一致即 exit 1)。 | `skill-switch doctor` |
+| `diff` | 内容漂移的「改了什么」:磁盘 vs store 副本,逐文件 added/removed/modified。 | `skill-switch diff my-skill` |
 | `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。 | `skill-switch drift` |
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
