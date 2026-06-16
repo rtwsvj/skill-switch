@@ -27,6 +27,7 @@ const cases: Array<[string, string[]]> = [
   ['scan', ['scan', '--home', FIXTURE, '--json']],
   ['audit', ['audit', '--home', FIXTURE, '--json']],
   ['doctor', ['doctor', '--home', FIXTURE, '--json']],
+  ['diff', ['diff', 'deploy-checklist', '--home', FIXTURE, '--json']],
   ['drift', ['drift', '--home', FIXTURE, '--json']],
   ['stats', ['stats', '--home', FIXTURE, '--json']],
   ['lint', ['lint', '--home', FIXTURE, '--json']],

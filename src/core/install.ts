@@ -103,6 +103,18 @@ async function localSourceKind(source: string): Promise<'directory' | 'non-direc
   }
 }
 
+// P1-1 安全:clone 前拒绝 git「远程助手」传输形式(`<helper>::<address>`,如 ext::/fd::/file::)——
+// 它们能在「装前 audit」之前执行任意命令(RCE);也拒绝以 '-' 开头的源(防 git 参数注入)。
+// 正常 https:// / git@host: / ssh:// / git:// 均不含 `word::`,照常放行;本地目录源走另一分支不经此。
+export function assertSafeCloneSource(source: string): void {
+  if (source.startsWith('-')) {
+    throw new Error(`不安全的安装源(不能以 '-' 开头): ${source}`);
+  }
+  if (/^[a-z][a-z0-9+.-]*::/i.test(source)) {
+    throw new Error(`不支持的 git 传输形式(可能在安全检查前执行命令,已拒绝): ${source}`);
+  }
+}
+
 export async function installFromSource(
   source: string,
   options: InstallOptions,
@@ -122,6 +134,7 @@ export async function installFromSource(
     throw new Error('symlink 模式仅支持本地目录源:克隆的临时目录会被清理,symlink 会悬空');
   }
 
+  if (!local) assertSafeCloneSource(source); // P1-1:clone 前拦下危险传输形式
   const sourceRoot = local ? resolve(source) : await cloneRepo(source, options.ref);
   try {
     let skillDirs = await discoverSkillDirs(sourceRoot);

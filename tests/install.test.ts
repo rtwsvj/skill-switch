@@ -328,4 +328,39 @@ describe('core/install', () => {
       installFromSource(localSource, { home, agent: 'no-such-agent' as never, mode: 'copy' }),
     ).rejects.toThrow(/agent/i);
   });
+
+  // P1-1:危险 git 传输形式(remote-helper / ext::)在 clone(及任意写)之前就被拒,不执行命令。
+  it('rejects dangerous git transport-helper sources before cloning', async () => {
+    const home = freshHome();
+    const marker = join(home, 'PWNED');
+    await expect(
+      installFromSource(`ext::sh -c "touch ${marker}"`, { home, agent: 'claude-code', mode: 'copy' }),
+    ).rejects.toThrow(/传输形式|transport/i);
+    await expect(lstat(marker)).rejects.toThrow(); // 命令绝不能被执行
+  });
+
+  it('rejects sources starting with a dash (argument injection)', async () => {
+    const home = freshHome();
+    await expect(
+      installFromSource('--upload-pack=evil', { home, agent: 'claude-code', mode: 'copy' }),
+    ).rejects.toThrow(/'-'|开头/);
+  });
+});
+
+describe('assertSafeCloneSource (P1-1 unit)', () => {
+  it('blocks remote-helper transports but allows normal git URLs', async () => {
+    const { assertSafeCloneSource } = await import('../src/core/install.ts');
+    for (const bad of ['ext::sh -c x', 'fd::17/foo', 'file::/etc/passwd', '-oProxyCommand=x']) {
+      expect(() => assertSafeCloneSource(bad), bad).toThrow();
+    }
+    for (const ok of [
+      'https://github.com/u/r.git',
+      'git@github.com:u/r.git',
+      'ssh://git@host/u/r',
+      'git://host/u/r',
+      'file:///tmp/local-repo',
+    ]) {
+      expect(() => assertSafeCloneSource(ok), ok).not.toThrow();
+    }
+  });
 });
