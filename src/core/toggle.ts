@@ -1,7 +1,7 @@
 // S4.3 toggle:声明是唯一事实来源 — 翻 enabled 位 → 写回 skills.json →
 // 对受影响 agent 目录拍快照(S3.1 原语)→ applySync(S4.1/4.2 引擎)。
 // 回滚 = restoreSnapshot(快照, 对应目录)。
-import { type SnapshotInfo } from './backup.ts';
+import type { SnapshotInfo } from './backup.ts';
 import { snapshotAgents } from './agent-snapshots.ts';
 import { writeJsonState } from './state-io.ts';
 import {

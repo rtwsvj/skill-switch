@@ -6,6 +6,7 @@
 // 触发事件形态(2026-06-12 本机实证):assistant 行 message.content[] 内
 //   {"type":"tool_use","name":"Skill","input":{"skill":"…","args":"…"}}。
 import { existsSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -35,7 +36,7 @@ export function discoverClaudeTranscriptRoots(
 export async function listTranscriptFiles(roots: string[], maxDepth = 12): Promise<string[]> {
   const files: string[] = [];
   async function walk(dir: string, depth: number): Promise<void> {
-    let entries;
+    let entries: Dirent[];
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {

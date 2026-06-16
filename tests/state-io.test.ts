@@ -1,7 +1,7 @@
 // M0-5.1 / 5.2:关键状态文件的读不静默吞错、写原子。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
-import { chmod, lstat, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';

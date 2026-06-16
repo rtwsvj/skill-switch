@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { type InstallMode } from '../data';
+import type { InstallMode } from '../data';
 import { agentOptions, changedActionCount, cx, isWriteBusy, severityLabel } from '../lib/helpers';
 import type { WriteOperationsProps } from '../lib/types';
 import { StatusPill } from './atoms';

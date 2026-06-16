@@ -76,7 +76,7 @@ if (sidecarEnt === null) {
 
 if (problems.length > 0) {
   console.error('✗ entitlement 分离检查未通过:');
-  for (const p of problems) console.error('  - ' + p);
+  for (const p of problems) console.error(`  - ${p}`);
   console.error('\n修法:tauri.conf macOS.entitlements 指向 entitlements-app.plist(最小);');
   console.error('sign 时对 Contents/MacOS/skill-switch-cli 单独用 entitlements-sidecar.plist 重签(JIT)。');
   process.exit(1);

@@ -1,15 +1,15 @@
-import { type TFunction } from 'react-i18next';
-import {
-  type AuditReport,
-  type AuditSeverity,
-  type AuditVerdict,
-  type DashboardData,
-  type DoctorDeclaration,
-  type RestoreListResult,
-  type RestoreRunResult,
-  type SkillRecord,
-  type StatsReport,
-  type SyncRunResult,
+import type { TFunction } from 'react-i18next';
+import type {
+  AuditReport,
+  AuditSeverity,
+  AuditVerdict,
+  DashboardData,
+  DoctorDeclaration,
+  RestoreListResult,
+  RestoreRunResult,
+  SkillRecord,
+  StatsReport,
+  SyncRunResult,
 } from '../data';
 import type {
   ConfirmationDialogRequest,

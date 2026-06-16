@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { type RestoreListResult } from '../data';
+import type { RestoreListResult } from '../data';
 import { describeSnapshotLabel } from '../lib/helpers';
 import { StatusPill } from './atoms';
 

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { type DashboardData } from '../data';
+import type { DashboardData } from '../data';
 import { auditCoverageSummary, cx, isBlockingAudit, severityLabel, verdictLabel } from '../lib/helpers';
 import type { SectionState } from '../lib/types';
 import { Metric, SectionStatusBar, StatusPill } from './atoms';

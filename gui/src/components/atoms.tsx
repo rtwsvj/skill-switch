@@ -1,6 +1,6 @@
 import { useEffect, useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type DashboardData, type DoctorReport } from '../data';
+import type { DashboardData, DoctorReport } from '../data';
 import { languageLabels, supportedLanguages, type SupportedLanguage } from '../i18n';
 import { cx, doctorHint, doctorKindLabel, driftTone } from '../lib/helpers';
 import type { ConfirmationDialogState, OperationNotice, SectionState } from '../lib/types';

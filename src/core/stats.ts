@@ -70,7 +70,7 @@ export async function buildStats(
       truncated = true;
       break;
     }
-    let info;
+    let info: Awaited<ReturnType<typeof stat>>;
     try {
       info = await stat(file);
     } catch {

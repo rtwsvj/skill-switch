@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { type DashboardData } from '../data';
+import type { DashboardData } from '../data';
 import { actionSkillName, cx, isNameMismatch, isSkillEnabled, isWriteBusy } from '../lib/helpers';
 import type { SkillActionsProps } from '../lib/types';
 import { StatusPill } from './atoms';

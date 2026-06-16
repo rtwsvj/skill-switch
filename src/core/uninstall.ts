@@ -68,7 +68,7 @@ async function resolveAppTarget(appPath: string | null): Promise<string | null> 
 /** 软链只有在「是 symlink + 指向 skill-switch-cli / skill-switch.mjs」时才算可删目标。 */
 async function resolveBinTarget(binLinkPath: string | null): Promise<string | null> {
   if (!binLinkPath) return null;
-  let stat;
+  let stat: Awaited<ReturnType<typeof lstat>>;
   try {
     stat = await lstat(binLinkPath);
   } catch {

@@ -424,7 +424,7 @@ export function DashboardShell({
       <Header data={mergedData} advanced={advanced} onAdvancedChange={setAdvancedPreference} />
       <nav className="screen-tabs" aria-label={t('screens.ariaLabel')}>
         {screens.map((screen) => (
-          <button className={cx(active === screen.id && 'active')} key={screen.id} onClick={() => setActive(screen.id)}>
+          <button type="button" className={cx(active === screen.id && 'active')} key={screen.id} onClick={() => setActive(screen.id)}>
             {t(screen.labelKey)}
           </button>
         ))}
