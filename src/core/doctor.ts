@@ -8,6 +8,12 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
+import {
+  readDoctorHashCache,
+  resolveFolderHash,
+  writeDoctorHashCache,
+  type DoctorHashCacheFile,
+} from './doctor-hash-cache.ts';
 import { readBypassLedger, type BypassRecord } from './bypass-ledger.ts';
 import { getSkillsLockPath, readSkillsLock } from './lock.ts';
 import { isCanonicalSkillName } from './skill-name.ts';
@@ -75,6 +81,12 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
   let declaredPairs = 0;
   const declaredKeys = new Set<string>();
 
+  // P2-1:文件夹哈希缓存(纯优化)。读缓存失败 → 当空,绝不阻断 doctor。
+  // cacheUsable 标记本次是否还应继续走/落盘缓存:任一 stat-签名计算或缓存命中逻辑出意外,
+  // 立即整体退回"现算 computeSkillFolderHash",并放弃落盘(避免写入半残/可疑缓存)。
+  const hashCache: DoctorHashCacheFile = await readDoctorHashCache(home);
+  let cacheUsable = true;
+
   for (const skill of declaration.skills) {
     for (const agent of skill.agents) {
       declaredKeys.add(`${agent}|${skill.name}`);
@@ -102,7 +114,19 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
         continue;
       }
 
-      const actual = await computeSkillFolderHash(target);
+      // 哈希经缓存解析:stat 签名命中则复用旧 sha256,否则现算并记入缓存。
+      // 任一环节出错 → 退回直接现算,并禁用缓存落盘(纯优化,正确性不变)。
+      let actual: string;
+      if (cacheUsable) {
+        try {
+          actual = await resolveFolderHash(hashCache, target);
+        } catch {
+          cacheUsable = false;
+          actual = await computeSkillFolderHash(target);
+        }
+      } else {
+        actual = await computeSkillFolderHash(target);
+      }
       if (actual !== entry.sha256) {
         findings.push({
           kind: 'content-drift', agent, name: skill.name, target,
@@ -125,6 +149,15 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
   const legacyNames = declaration.skills
     .map((s) => s.name)
     .filter((name) => !isCanonicalSkillName(name));
+
+  // P2-1:单次原子落盘更新后的缓存。写失败一律吞掉 —— 纯优化,绝不影响 doctor 结果。
+  if (cacheUsable) {
+    try {
+      await writeDoctorHashCache(home, hashCache);
+    } catch {
+      // 缓存落盘失败:下次重算即可,不报错、不改变本次结论。
+    }
+  }
 
   return {
     findings,
