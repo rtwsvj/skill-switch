@@ -1,13 +1,14 @@
 // S7.1:drift 三方 diff — 上游 HEAD(ls-remote)vs lock.commit vs 本地 sha256。
 // 三态各一用例 + 双向漂移(diverged);上游用本地 file:// git 仓模拟,离线。
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { checkDrift } from '../src/core/drift.ts';
 import { installFromSource } from '../src/core/install.ts';
+import { getSkillsLockPath } from '../src/core/lock.ts';
 
 let work: string;
 let home: string;
@@ -87,5 +88,25 @@ describe('core/drift 三态', () => {
   it('空锁 home 返回空列表', async () => {
     const empty = mkdtempSync(join(tmpdir(), 'skill-switch-drift-empty-'));
     expect(await checkDrift(empty)).toEqual([]);
+  });
+
+  it('拒绝 lock 中危险 git transport source,不执行 remote helper', async () => {
+    const marker = join(work, 'PWNED');
+    const lockPath = getSkillsLockPath(home);
+    const lock = JSON.parse(await readFile(lockPath, 'utf8')) as {
+      skills: Array<{ source: string }>;
+    };
+    lock.skills[0]!.source = `ext::touch ${marker}`;
+    await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+
+    const previous = process.env.GIT_ALLOW_PROTOCOL;
+    process.env.GIT_ALLOW_PROTOCOL = 'ext';
+    try {
+      await expect(checkDrift(home)).rejects.toThrow(/传输形式|transport/i);
+      expect(existsSync(marker)).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.GIT_ALLOW_PROTOCOL;
+      else process.env.GIT_ALLOW_PROTOCOL = previous;
+    }
   });
 });
