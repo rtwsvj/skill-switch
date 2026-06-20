@@ -1,17 +1,18 @@
 // P2-1:doctor 文件夹哈希缓存。doctor 在每次运行(GUI 仪表盘热加载路径)对每个
 // enabled skill×agent 都重算一次 computeSkillFolderHash(target)——递归读全部文件 + sha256,
 // 在热加载路径上偏贵。本缓存用一个"廉价的 stat 签名"做命中判定:
-//   键   = 目标目录的廉价 stat 签名(对每个文件取 relativePath+size+mtimeMs,排序后串成一行;只 stat,不读内容)
+//   键   = 目标目录的廉价 stat 签名(对每个文件取 relativePath+size+mtimeMs+ctimeMs,排序后串成一行;只 stat,不读内容)
 //   值   = 上次对该签名算出的文件夹 sha256
 // 命中(签名一致)即复用缓存里的 sha256,跳过昂贵的"读全部内容 + 哈希"。
 //
 // 安全约束:doctor 是完整性/安全校验,缓存绝不能造成假"无漂移"。签名涵盖任一文件的
-// size 或 mtime 变化(编辑、重装、git checkout 都会改 mtime),变了就重算真哈希。
+// size / mtime / ctime 变化(编辑、重装、git checkout 都会改 mtime 与 ctime),变了就重算真哈希。
 // drift 判定结果与不开缓存逐字节一致 —— 缓存只改变"怎么拿到哈希",不改变结论。
 //
-// 唯一残留的取舍(与 stats-cache 同源、同样接受):一次内容改动若同时保持 mtimeMs、size、
-// relativePath 三者完全不变,则签名识别不出来(极罕见且需刻意构造,如手动回填 mtime 的
-// 同长度替换)。这是用 stat 换内容读的固有边界,非本缓存独有。
+// 为什么也带 ctime:`touch -r`(或保留时间戳的 rsync)能回填 atime/mtime,却**改不了 ctime**——
+// 任何内容写入都会把 ctime 刷新到当前时刻。所以"同长度替换 + 回填 mtime"这种刻意篡改虽瞒过
+// size+mtime,仍会改变 ctime → 签名变 → 重算真哈希,漂移照样被发现。残留边界仅剩"连 ctime 也
+// 被伪造"(需改系统时钟/特权操作,普通 touch 达不到),实务上可忽略。
 //
 // 缓存是可丢弃的派生数据:读/写任何环节失败一律降级到现算(fresh compute),绝不让缓存
 // 错误打断 doctor / doctor --ci(纯优化,不影响正确性)。
@@ -61,7 +62,7 @@ export async function writeDoctorHashCache(home: string, cache: DoctorHashCacheF
 }
 
 /**
- * 计算目标目录的廉价 stat 签名:对目录内每个文件取 (relativePath, size, mtimeMs),
+ * 计算目标目录的廉价 stat 签名:对目录内每个文件取 (relativePath, size, mtimeMs, ctimeMs),
  * 按 relativePath 排序后串成确定性字符串。只 stat,不读任何文件内容。
  *
  * 目录遍历规则与 computeSkillFolderHash 对齐(同样跳过 .git / node_modules),
@@ -85,7 +86,7 @@ async function collectStats(baseDir: string, currentDir: string, results: string
       } else if (entry.isFile()) {
         const st = await stat(fullPath);
         const relativePath = relative(baseDir, fullPath).split('\\').join('/');
-        results.push(`${relativePath}\u0000${st.size}\u0000${st.mtimeMs}`);
+        results.push(`${relativePath}\u0000${st.size}\u0000${st.mtimeMs}\u0000${st.ctimeMs}`);
       }
     }),
   );
