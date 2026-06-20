@@ -1,56 +1,177 @@
-<svg width="1280" height="640" viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">skill-switch social preview</title>
+  <desc id="desc">Governance and a security gate for AI agent skills across Claude Code, Codex, Gemini CLI, Cursor, and Copilot.</desc>
+
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#0d1117"/>
-      <stop offset="1" stop-color="#161b22"/>
+      <stop offset="0.58" stop-color="#101722"/>
+      <stop offset="1" stop-color="#080c12"/>
     </linearGradient>
+
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#2dd4bf"/>
       <stop offset="1" stop-color="#3fb950"/>
     </linearGradient>
+
+    <linearGradient id="accentVertical" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#3fb950"/>
+    </linearGradient>
+
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#161f2b"/>
+      <stop offset="1" stop-color="#0b1119"/>
+    </linearGradient>
+
+    <linearGradient id="chip" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#171f2a"/>
+      <stop offset="1" stop-color="#0f151d"/>
+    </linearGradient>
+
+    <radialGradient id="haloLeft" cx="0.2" cy="0.18" r="0.75">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.2"/>
+      <stop offset="0.36" stop-color="#2dd4bf" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="haloRight" cx="0.73" cy="0.36" r="0.44">
+      <stop offset="0" stop-color="#3fb950" stop-opacity="0.22"/>
+      <stop offset="0.36" stop-color="#2dd4bf" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#8b949e" stroke-width="1" opacity="0.09"/>
+    </pattern>
+
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#010409" flood-opacity="0.58"/>
+    </filter>
+
+    <filter id="blur4" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4"/>
+    </filter>
+
+    <filter id="blur10" x="-90%" y="-90%" width="280%" height="280%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="10"/>
+    </filter>
+
+    <clipPath id="visualClip">
+      <rect x="0" y="0" width="376" height="356" rx="34"/>
+    </clipPath>
   </defs>
 
   <rect width="1280" height="640" fill="url(#bg)"/>
-  <rect x="0" y="0" width="10" height="640" fill="url(#accent)"/>
+  <rect width="1280" height="640" fill="url(#haloLeft)"/>
+  <rect width="1280" height="640" fill="url(#haloRight)"/>
+  <rect width="1280" height="640" fill="url(#grid)"/>
 
-  <!-- shield mark -->
-  <g transform="translate(96,150)">
-    <path d="M60 0 L116 22 V70 C116 116 92 150 60 168 C28 150 4 116 4 70 V22 Z" fill="none" stroke="url(#accent)" stroke-width="6"/>
-    <path d="M36 84 L54 104 L88 58" fill="none" stroke="url(#accent)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <g opacity="0.5">
+    <path d="M-12 96C210 38 421 50 621 130C753 183 862 185 952 138C1052 87 1164 86 1298 132" fill="none" stroke="url(#accent)" stroke-width="1.2" opacity="0.22"/>
+    <path d="M-20 545C156 500 348 497 555 536C785 579 980 563 1302 480" fill="none" stroke="#2dd4bf" stroke-width="1" opacity="0.12"/>
   </g>
 
-  <!-- wordmark + tagline -->
-  <text x="260" y="200" fill="#e6edf3" font-size="92" font-weight="800" letter-spacing="-2">skill-switch</text>
-  <text x="262" y="262" fill="#8b949e" font-size="33" font-weight="500">Governance + a security gate for your AI agent skills</text>
+  <rect x="64" y="56" width="1152" height="528" rx="30" fill="#0d1117" opacity="0.22" stroke="#30363d" stroke-width="1"/>
+  <path d="M88 89H314" stroke="url(#accent)" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="336" cy="89" r="8" fill="#3fb950" opacity="0.34" filter="url(#blur4)"/>
+  <circle cx="336" cy="89" r="4" fill="#3fb950"/>
+  <circle cx="354" cy="89" r="4" fill="#2dd4bf" opacity="0.82"/>
 
-  <!-- cross-tool line -->
-  <text x="262" y="332" fill="#7d8590" font-size="27" font-weight="600" letter-spacing="1">
-    Claude Code · Codex · Gemini CLI · Cursor · Copilot
-  </text>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif">
+    <text x="86" y="141" fill="#7d8590" font-size="15" font-weight="700" letter-spacing="3.1">AI SKILL GOVERNANCE</text>
+    <text x="83" y="223" fill="#f0f6fc" font-size="88" font-weight="850" letter-spacing="-4.6">skill-switch</text>
+    <text x="88" y="274" fill="#b1bac4" font-size="28" font-weight="500" letter-spacing="-0.2">Governance + a security gate for your AI agent skills</text>
 
-  <!-- feature chips -->
-  <g font-size="26" font-weight="600">
-    <g transform="translate(96,400)">
-      <rect width="318" height="64" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-      <text x="28" y="41" fill="#e6edf3">🛡️  Pre-install audit gate</text>
+    <g transform="translate(88 315)">
+      <rect x="0" y="-27" width="646" height="46" rx="23" fill="#111821" stroke="#30363d" stroke-width="1"/>
+      <text x="22" y="4" fill="#8b949e" font-size="21" font-weight="650" letter-spacing="0.45">Claude Code · Codex · Gemini CLI · Cursor · Copilot</text>
     </g>
-    <g transform="translate(438,400)">
-      <rect width="300" height="64" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-      <text x="28" y="41" fill="#e6edf3">↩️  One-click rollback</text>
-    </g>
-    <g transform="translate(762,400)">
-      <rect width="300" height="64" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-      <text x="28" y="41" fill="#e6edf3">🔍  Drift detection</text>
-    </g>
-    <g transform="translate(96,484)">
-      <rect width="318" height="64" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-      <text x="28" y="41" fill="#e6edf3">🔒  Zero telemetry · local</text>
-    </g>
-    <g transform="translate(438,484)">
-      <rect width="624" height="64" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-      <text x="28" y="41" fill="#e6edf3">⌘  CLI + signed &amp; notarized macOS app · MIT</text>
+
+    <g transform="translate(86 378)" font-size="21" font-weight="720">
+      <g transform="translate(0 0)">
+        <rect width="334" height="70" rx="15" fill="url(#chip)" stroke="#30363d" stroke-width="1.15"/>
+        <rect x="1" y="1" width="332" height="68" rx="14" fill="none" stroke="#2dd4bf" stroke-opacity="0.1"/>
+        <circle cx="34" cy="35" r="13" fill="#132923" stroke="#2dd4bf" stroke-width="1.2"/>
+        <path d="M28 35.5L33 40.5L42 29.5" fill="none" stroke="#3fb950" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="60" y="43" fill="#e6edf3">Pre-install audit gate</text>
+      </g>
+
+      <g transform="translate(354 0)">
+        <rect width="304" height="70" rx="15" fill="url(#chip)" stroke="#30363d" stroke-width="1.15"/>
+        <rect x="1" y="1" width="302" height="68" rx="14" fill="none" stroke="#2dd4bf" stroke-opacity="0.1"/>
+        <circle cx="34" cy="35" r="13" fill="#111f2a" stroke="#2dd4bf" stroke-width="1.2"/>
+        <path d="M42 29H33C28.6 29 25 32.6 25 37S28.6 45 33 45H39" fill="none" stroke="#2dd4bf" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M33 24L42 29L33 34" fill="none" stroke="#3fb950" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="60" y="43" fill="#e6edf3">One-click rollback</text>
+      </g>
+
+      <g transform="translate(0 88)">
+        <rect width="334" height="70" rx="15" fill="url(#chip)" stroke="#30363d" stroke-width="1.15"/>
+        <rect x="1" y="1" width="332" height="68" rx="14" fill="none" stroke="#2dd4bf" stroke-opacity="0.1"/>
+        <circle cx="34" cy="35" r="13" fill="#111f2a" stroke="#2dd4bf" stroke-width="1.2"/>
+        <path d="M27 33C31.7 28.6 36.4 28.5 42 33" fill="none" stroke="#2dd4bf" stroke-width="2.3" stroke-linecap="round"/>
+        <path d="M27 37C31.7 41.4 36.4 41.5 42 37" fill="none" stroke="#3fb950" stroke-width="2.3" stroke-linecap="round"/>
+        <circle cx="34.5" cy="35" r="2.8" fill="#e6edf3"/>
+        <text x="60" y="43" fill="#e6edf3">Drift detection</text>
+      </g>
+
+      <g transform="translate(354 88)">
+        <rect width="304" height="70" rx="15" fill="url(#chip)" stroke="#30363d" stroke-width="1.15"/>
+        <rect x="1" y="1" width="302" height="68" rx="14" fill="none" stroke="#2dd4bf" stroke-opacity="0.1"/>
+        <circle cx="34" cy="35" r="13" fill="#132923" stroke="#2dd4bf" stroke-width="1.2"/>
+        <path d="M29 35H41" stroke="#2dd4bf" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M34 29V41" stroke="#3fb950" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="34" cy="35" r="4.2" fill="#0d1117" stroke="#e6edf3" stroke-width="1.6"/>
+        <text x="60" y="43" fill="#e6edf3">Zero telemetry · local</text>
+      </g>
     </g>
   </g>
 
-  <text x="1184" y="600" text-anchor="end" fill="#484f58" font-size="22" font-weight="600">github.com/rtwsvj/skill-switch</text>
+  <g transform="translate(808 132)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="376" height="356" rx="34" fill="url(#panel)" stroke="#30363d" stroke-width="1.2"/>
+    <rect x="1" y="1" width="374" height="354" rx="33" fill="none" stroke="#2dd4bf" stroke-opacity="0.16"/>
+
+    <g clip-path="url(#visualClip)">
+      <rect width="376" height="356" fill="url(#grid)" opacity="0.55"/>
+      <circle cx="252" cy="90" r="150" fill="#2dd4bf" opacity="0.08"/>
+      <circle cx="188" cy="185" r="170" fill="#3fb950" opacity="0.07"/>
+
+      <g opacity="0.46" stroke="#8b949e" stroke-width="1.2">
+        <path d="M54 72H142"/>
+        <path d="M54 102H118"/>
+        <path d="M54 132H150"/>
+        <path d="M226 72H322"/>
+        <path d="M258 102H322"/>
+        <path d="M230 132H322"/>
+      </g>
+
+      <g transform="translate(54 166)">
+        <path d="M0 22H86" stroke="#2dd4bf" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+        <path d="M236 22H268" stroke="#3fb950" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+        <rect x="66" y="-21" width="162" height="86" rx="43" fill="#090f16" stroke="#30363d" stroke-width="1.2"/>
+        <rect x="76" y="-11" width="142" height="66" rx="33" fill="#111821" stroke="#2dd4bf" stroke-opacity="0.38" stroke-width="1.2"/>
+        <path d="M116 -40V84" stroke="url(#accentVertical)" stroke-width="3.2" stroke-linecap="round" opacity="0.78"/>
+        <path d="M144 -40V84" stroke="url(#accentVertical)" stroke-width="3.2" stroke-linecap="round" opacity="0.78"/>
+        <path d="M130 -34V78" stroke="#e6edf3" stroke-width="1" stroke-linecap="round" opacity="0.1"/>
+        <circle cx="184" cy="22" r="47" fill="none" stroke="#2dd4bf" stroke-opacity="0.52" stroke-width="8" filter="url(#blur10)"/>
+        <circle cx="184" cy="22" r="42" fill="#0d1117" stroke="url(#accent)" stroke-width="3.5"/>
+        <circle cx="184" cy="22" r="29" fill="url(#accent)" opacity="0.96"/>
+        <path d="M171 22.5L181 32.5L199 11.5" fill="none" stroke="#06120f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+
+      <g transform="translate(64 268)" font-family="SFMono-Regular, Consolas, 'Roboto Mono', monospace" font-size="15" font-weight="700">
+        <rect x="0" y="0" width="248" height="44" rx="13" fill="#080d13" stroke="#30363d" stroke-width="1"/>
+        <circle cx="20" cy="22" r="3.5" fill="#2dd4bf"/>
+        <text x="35" y="27" fill="#8b949e">gate</text>
+        <text x="80" y="27" fill="#e6edf3">audit</text>
+        <text x="132" y="27" fill="#3fb950">passed</text>
+        <path d="M212 17L222 27L238 11" fill="none" stroke="#3fb950" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </g>
+  </g>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif">
+    <text x="1195" y="594" text-anchor="end" fill="#6e7681" font-size="17" font-weight="650" letter-spacing="0.15">github.com/rtwsvj/skill-switch · MIT</text>
+  </g>
 </svg>
