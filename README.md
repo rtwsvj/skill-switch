@@ -123,7 +123,7 @@ pnpm release                             # 一键产出 .app / .dmg(不签名)
 
 `pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.1.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
 
-签名 + 公证(需 Developer ID,见 [docs/launch-checklist.md](docs/launch-checklist.md)):
+签名 + 公证(需 Developer ID,见 [docs/release/signing.md](docs/release/signing.md)):
 
 ```bash
 APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui sign
@@ -131,6 +131,7 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui
 
 ## 更多文档
 
-- [AGENTS.md](./AGENTS.md):协作规则与安全边界。
-- [docs/ROADMAP.md](./docs/ROADMAP.md):已交付与待办。
+- [CHANGELOG.md](./CHANGELOG.md):版本变更。
+- [docs/release/signing.md](./docs/release/signing.md):macOS 签名与公证。
+- [docs/known-limitations.md](./docs/known-limitations.md):已知限制。
 - [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md):第三方快照与移植规则署名。
