@@ -11,6 +11,8 @@
 
 It doesn't manage skills *for* those tools — it sits *above* them and answers three questions: **what's installed, is it safe, and is it still consistent with your declaration / lock / upstream?** Ships as a **desktop app (GUI)** and a **command-line tool (CLI)** with equivalent power. Every change is **snapshotted first and one-click reversible**; dangerous skills are caught by a security audit before they install.
 
+![demo](assets/demo.svg)
+
 ## Why
 
 AI coding agents increasingly run on *skills* — reusable bundles of instructions and tools. As you accumulate them across several agents, you lose the thread: which are installed where, did that one quietly ask for your `.env`, is the copy on disk still the one you vetted? A skill is just files an agent will execute — so a bad one can open a reverse shell, exfiltrate secrets, or smuggle in hidden prompt-injection. skill-switch is the governance + safety layer that keeps all of that under control, locally, with no telemetry.

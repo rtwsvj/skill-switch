@@ -13,6 +13,8 @@
 
 > 状态:**v0.1.0 early release**。macOS 安装包已用 Developer ID 签名 + Apple 公证,双击即可打开;源码 clone + run 亦可。
 
+![demo](assets/demo.svg)
+
 ## Screenshots
 
 ![总览](gui/docs/g1-overview.png)
