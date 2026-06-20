@@ -1,11 +1,12 @@
 // S4.1:声明驱动 sync 引擎 — 终态一致 + 幂等(二跑零变更)+ 不动未声明目录。
-import { mkdtempSync } from 'node:fs';
+import { chmodSync, mkdtempSync } from 'node:fs';
 import { lstat, mkdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   applySync,
+  planSync,
   readDeclaration,
   type SkillsDeclarationFile,
 } from '../src/core/sync.ts';
@@ -182,5 +183,44 @@ describe('core/sync', () => {
 
   it('readDeclaration returns an empty declaration for a missing file', async () => {
     expect(await readDeclaration(join(home, 'nope.json'))).toEqual({ version: 1, skills: [] });
+  });
+
+  // AUDIT-SYNC1:inspectTarget 用 catch {} 吞掉 lstat 的所有异常(含 EACCES),
+  // 一律返回 {state:'missing'} → planOne 对 enabled 声明返回 create → applySync 先
+  // rm -rf + 重拷,把"读不了"误判成"不存在",在 agent 目录权限异常时破坏既有内容。
+  // 修复后:只有 ENOENT 算 missing,其余错误(EACCES 等)必须 fail-loud。
+  it('AUDIT-SYNC1: planSync fails loud when target parent is unreadable (EACCES)', async () => {
+    const d = decl([
+      { name: 'beta', source: join(store, 'beta'), agents: ['claude-code'], enabled: true, mode: 'copy' },
+    ]);
+    await applySync(home, d); // 先正常落地
+    const target = join(home, '.claude', 'skills', 'beta');
+    await lstat(target); // 落地确认
+
+    // 让目标的父目录(.claude/skills)失去 x 权限 → lstat(target) 抛 EACCES。
+    // 旧行为:inspectTarget 吞掉 EACCES,planSync 返回 [{kind:'create',...}] 误判目标缺失。
+    // 新行为:planSync 必须把 EACCES 透传(fail-loud),不能返回误导性的 plan。
+    const skillsDir = join(home, '.claude', 'skills');
+    chmodSync(skillsDir, 0o000);
+    try {
+      await expect(planSync(home, d)).rejects.toThrow();
+    } finally {
+      chmodSync(skillsDir, 0o755);
+    }
+  });
+
+  it('AUDIT-SYNC1: throws when an enabled declaration points at a missing source', async () => {
+    const d = decl([
+      {
+        name: 'ghost',
+        source: join(store, 'does-not-exist'),
+        agents: ['claude-code'],
+        enabled: true,
+        mode: 'copy',
+      },
+    ]);
+    // planSync 与 applySync 都应在写动作前拒绝,且不创建任何 agent 目录。
+    await expect(planSync(home, d)).rejects.toThrow(/声明的 skill 源不存在/);
+    await expect(applySync(home, d)).rejects.toThrow(/声明的 skill 源不存在/);
   });
 });

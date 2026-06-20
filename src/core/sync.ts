@@ -193,14 +193,22 @@ type TargetState =
   | { state: 'symlink'; linkTarget: string }
   | { state: 'dir' };
 
+// AUDIT-SYNC1:只有 ENOENT 代表"目标确实不存在"。其余错误(EACCES/EPERM/ENOTDIR …)
+// 必须透传:把"读不了"误判成"不存在"会让 planOne 返回 create,applySync 随即 rm -rf +
+// 重拷,破坏既有内容。参考 state-io 的处理思路(只吞 ENOENT)。
 async function inspectTarget(target: string): Promise<TargetState> {
   try {
     const st = await lstat(target);
     if (st.isSymbolicLink()) return { state: 'symlink', linkTarget: await readlink(target) };
     return { state: 'dir' };
-  } catch {
-    return { state: 'missing' };
+  } catch (err) {
+    if (errIsEnoent(err)) return { state: 'missing' };
+    throw err;
   }
+}
+
+function errIsEnoent(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'ENOENT';
 }
 
 /** 期望状态 vs 实际状态 → 单个目标的对账动作(不执行)。 */
