@@ -1,5 +1,12 @@
 # skill-switch
 
+<p align="center"><b>简体中文</b> · <a href="./README.en.md">English</a></p>
+
+[![Release](https://img.shields.io/github/v/release/rtwsvj/skill-switch?sort=semver)](https://github.com/rtwsvj/skill-switch/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/rtwsvj/skill-switch/releases/latest)
+[![CI](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml/badge.svg)](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml)
+
 跨 AI 编程工具的「技能(skill)治理台」——在 Claude Code、Codex、Gemini CLI、Cursor、Copilot 等之间**盘点、体检、开关、安装、同步、回滚**你装过的 skill。
 
 它是一个**跨 agent 的 skill 治理层**:不替这些工具管 skill,而是站在它们之上做 `install/toggle/sync/remove/restore` 等治理动作,回答三个问题——**现在装了什么、安不安全、和声明/锁/上游还一致吗。** 提供**桌面 App(GUI)** 和**命令行(CLI)** 两种用法,能力对等;所有改动都**先自动备份、可一键回滚**,危险 skill 在安装前会被安全体检拦下。
