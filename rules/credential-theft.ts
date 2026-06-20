@@ -5,7 +5,7 @@ import type { AuditRule } from '../src/core/audit/types.ts';
 const SECTION = 'ags SECURITY.md › Credential Theft';
 const EXTERNAL_ENDPOINT =
   String.raw`(?:webhook\.site|requestbin\.com|pipedream\.net|ngrok\.io|burpcollaborator\.net|interact\.sh)`;
-const AUTH_TOKEN = String.raw`(?:GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN|API_TOKEN|AUTH_TOKEN|auth[_-]?token)`;
+const AUTH_TOKEN = `(?:GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN|API_TOKEN|AUTH_TOKEN|auth[_-]?token)`;
 const SAME_LINE_GAP = String.raw`[^\n]{0,2048}`;
 
 export const credentialTheftRules: AuditRule[] = [

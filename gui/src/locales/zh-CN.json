@@ -13,6 +13,7 @@
     "overview": "总览",
     "skills": "技能",
     "audit": "安全",
+    "history": "历史",
     "stats": "使用"
   },
   "status": {
@@ -29,7 +30,8 @@
     "parseError": "读取失败",
     "pass": "通过",
     "used": "用过",
-    "zombie": "从未用过"
+    "zombie": "从未用过",
+    "disabledKept": "已停用 · 未删除"
   },
   "overview": {
     "metrics": {
@@ -63,6 +65,18 @@
       "stale-lock": "锁已过期",
       "extra-locked": "多余锁定",
       "unknown": "未知问题"
+    },
+    "hint": {
+      "missing": "声明里要装,但磁盘上没有。跑「同步」补装。",
+      "content-drift": "磁盘内容和锁记录对不上(被改动或上游覆盖)。确认是你改的,否则可从「历史」还原。",
+      "stale-lock": "磁盘上在、但锁里没有(锁过期或绕过安装装的)。跑「同步」对齐。",
+      "extra-locked": "锁里有、但声明里不认识它(孤儿锁)。"
+    },
+    "kindCount": "{{count}} 个",
+    "allGood": "一切一致,没有发现漂移。",
+    "legacy": {
+      "title": "命名需迁移",
+      "hint": "这些技能名不符合新命名规范(仍可用,建议改名)。"
     }
   },
   "skills": {
@@ -80,8 +94,15 @@
     "actions": {
       "enable": "启用",
       "disable": "停用",
-      "delete": "删除"
-    }
+      "delete": "删除",
+      "disableHint": "停用只是关掉它,技能文件保留在磁盘,随时可再启用,不会删除。",
+      "deleteHint": "从磁盘删除该技能(改动前会先自动备份,可从备份还原)。"
+    },
+    "import": {
+      "found": "发现 {{count}} 个还没纳入管理的技能",
+      "action": "一键导入"
+    },
+    "empty": "还没有任何技能。点上方「导入已有」,或去「总览 → 安装」添加第一个。"
   },
   "operations": {
     "title": "安装与维护",
@@ -102,7 +123,12 @@
       "force": "遇到安全拦截也继续",
       "submit": "安装",
       "blocked": "安全检查拦住了",
-      "blockedDetail": "{{count}} 个技能需要先处理"
+      "blockedDetail": "{{count}} 个技能需要先处理",
+      "blockedWhy": "下面这些技能没通过安全检查,被拦下了。看清原因后,如果你确认来源可信,可以填写理由后强行安装(会记录留痕)。",
+      "blockedScore": "评分 {{score}}",
+      "forceReasonLabel": "仍要安装的理由(必填)",
+      "forceReasonPlaceholder": "例如:来自我自己的私有仓库,已人工核对",
+      "forceAnyway": "我已了解风险,仍要安装"
     },
     "sync": {
       "title": "同步",
@@ -131,7 +157,13 @@
       "toggleOff": "停用 {{name}} 吗？会先自动备份。",
       "remove": "删除 {{name}} 吗？会先自动备份。",
       "sync": "应用 {{count}} 项同步变更吗？",
-      "restore": "恢复这个备份吗？"
+      "restore": "恢复这个备份吗？",
+      "consequence": {
+        "backup": "✅ 改动前会自动备份，出问题可随时从备份一键还原。",
+        "disableKept": "ℹ️ 只是停用，技能文件仍保留在磁盘，随时可以再启用，不会删除。",
+        "restoreOverwrite": "✅ 会用所选备份覆盖当前技能；覆盖前会再自动备份当前状态，仍可还原回来。",
+        "forceRisk": "⚠️ 你正在跳过安全检查。只有在确认来源可信时才继续，风险自负。"
+      }
     },
     "notice": {
       "failed": "操作失败",
@@ -145,6 +177,18 @@
       "toggledOn": "已启用",
       "toggledOff": "已停用",
       "exitCode": "退出码 {{code}}"
+    },
+    "preview": {
+      "create": "新建 {{target}}",
+      "replace": "更新 {{target}}",
+      "remove": "移除 {{target}}",
+      "disable": "停用 {{target}}",
+      "enable": "启用 {{target}}",
+      "other": "调整 {{target}}"
+    },
+    "import": {
+      "confirm": "把这 {{count}} 个已有技能纳入管理吗?",
+      "done": "已导入 {{count}} 个技能"
     }
   },
   "audit": {
@@ -162,6 +206,41 @@
       "low": "低"
     }
   },
+  "safety": {
+    "summary": {
+      "safe": "安全",
+      "review": "建议看看",
+      "blocked": "被拦下"
+    },
+    "bypass": {
+      "title": "已绕过安全检查的技能",
+      "badge": "已绕过审计",
+      "subtitle": "这些技能在安装时跳过了安全拦截。请确认它们的来源可信。",
+      "reason": "原因:{{reason}}",
+      "noReason": "(安装时未填写原因)",
+      "score": "评分 {{score}}",
+      "findings": "跳过了 {{count}} 项发现"
+    },
+    "coverage": {
+      "scanned": "本次安全检查共扫描 {{count}} 个文件",
+      "skipped": "跳过 {{count}} 个(太大/二进制)",
+      "readErrors": "{{count}} 个读取失败",
+      "truncated": "文件较多,已截断部分"
+    }
+  },
+  "history": {
+    "guide": "这里是你的「后悔药」:每次改动前都会自动备份,随时可以一键还原回某个时间点。",
+    "count": "{{count}} 个备份",
+    "empty": "还没有备份记录。做过改动后,这里会自动出现可还原的时间点。",
+    "restoreHere": "还原到此",
+    "op": {
+      "install": "安装前的备份({{detail}})",
+      "toggle": "开关「{{detail}}」前的备份",
+      "remove": "删除「{{detail}}」前的备份",
+      "sync": "同步前的备份",
+      "restore": "还原前的备份"
+    }
+  },
   "stats": {
     "metrics": {
       "transcripts": "已扫描记录",
@@ -177,7 +256,43 @@
       "agents": "工具",
       "location": "位置",
       "state": "状态"
+    },
+    "coverage": {
+      "scanned": "扫描了 {{count}} 个聊天记录文件",
+      "skipped": "跳过 {{count}} 个(太大/二进制)",
+      "parseErrors": "{{count}} 条无法解析",
+      "truncated": "数据较多,已截断部分"
     }
   },
-  "loading": "正在加载技能..."
+  "section": {
+    "loading": "加载中…",
+    "refresh": "刷新",
+    "retry": "重试",
+    "failed": "加载失败",
+    "lastRefreshed": "上次刷新 {{time}}",
+    "notLoaded": "未加载",
+    "auditPending": "正在加载审计…",
+    "statsPending": "正在加载使用统计…"
+  },
+  "loading": "正在加载技能...",
+  "dashboard": {
+    "partialLoad": "部分数据未能加载,其余照常显示。未加载的区块:",
+    "fixtureMode": "演示模式:当前为样例数据,写操作仅为模拟,不会改动你的真实配置。"
+  },
+  "errorBoundary": {
+    "message": "skill-switch 出错了(把下面的信息发给开发者):"
+  },
+  "about": {
+    "privacy": "🔒 零遥测 · 所有操作都在你本机完成 · 配置不上传,可离线使用"
+  },
+  "onboarding": {
+    "title": "欢迎使用 skill-switch",
+    "intro": "它帮你管理各个 AI 工具里的「技能」——看清、安全开关、出问题能一键还原。",
+    "dismiss": "知道了",
+    "points": [
+      "「技能」页:看你有哪些,随时停用或删除(都会先备份)",
+      "「安全」页:看哪些技能有风险、谁绕过了检查",
+      "「历史」页:误删误改了,一键还原到之前"
+    ]
+  }
 }

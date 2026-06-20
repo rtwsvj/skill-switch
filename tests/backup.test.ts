@@ -1,5 +1,6 @@
 // S3.1:备份原语 — tar 快照 + restore 的 roundtrip 测试。
 // 全程在临时目录写入,不碰真实 agent 配置目录。
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -40,6 +41,24 @@ describe('core/backup', () => {
     expect(await readFile(join(target, 'top.txt'), 'utf8')).toBe('hello\n');
     const entries = await readdir(target);
     expect(entries).not.toContain('injected.sh');
+  });
+
+  it('M0-5.10: rejects a tar with a path-traversal (..) entry and leaves target intact', async () => {
+    const payload = join(work, 'payload');
+    await mkdir(payload, { recursive: true });
+    await writeFile(join(work, 'escape.txt'), 'pwned\n');
+    await mkdir(store, { recursive: true });
+    const mal = join(store, '9999999999999__evil.tar.gz');
+    execFileSync('tar', ['-czf', mal, '-C', payload, '../escape.txt']);
+
+    const listing = execFileSync('tar', ['-tzf', mal], { encoding: 'utf8' });
+    if (!listing.includes('..')) return; // 此平台 tar 打包时已规范化掉 ..,守卫不适用,跳过
+
+    await expect(restoreSnapshot(mal, target)).rejects.toThrow(/不安全|traversal/i);
+    // target 原内容未被触碰,父目录无残留 staging/backup
+    expect(await readFile(join(target, 'a', 'SKILL.md'), 'utf8')).toBe('original A\n');
+    const parentEntries = await readdir(work);
+    expect(parentEntries.some((e) => e.includes('.skill-switch-restore-') || e.includes('.restore-bak-'))).toBe(false);
   });
 
   it('records snapshots with timestamp + label and lists them newest-first', async () => {

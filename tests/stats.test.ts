@@ -44,11 +44,11 @@ beforeEach(async () => {
   await mkdir(proj, { recursive: true });
   await writeFile(
     join(proj, 'session.jsonl'),
-    [
+    `${[
       skillLine('used-skill', isoDaysAgo(1)),
       skillLine('used-skill', isoDaysAgo(40)),
       skillLine('uninstalled-skill', isoDaysAgo(2)),
-    ].join('\n') + '\n',
+    ].join('\n')}\n`,
   );
 });
 

@@ -114,5 +114,10 @@ describe('core/uninstall', () => {
     const unrelatedLink = join(home, 'sw-unrelated');
     await symlink(unrelatedTarget, unrelatedLink);
     expect((await planUninstall(input({ binLinkPath: unrelatedLink, dryRun: true }))).binLinkPath).toBeNull();
+
+    // M0-5.11:悬空软链(指向不存在的 skill-switch-cli)→ realpath 解析失败 → 不删(可疑)
+    const danglingLink = join(home, 'sw-dangling');
+    await symlink(join(home, 'does-not-exist', 'skill-switch-cli'), danglingLink);
+    expect((await planUninstall(input({ binLinkPath: danglingLink, dryRun: true }))).binLinkPath).toBeNull();
   });
 });

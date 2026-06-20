@@ -60,6 +60,7 @@ skill-switch --help
 | `restore` | 列出 / 还原备份(`--latest` 或 `--id`)。 | `skill-switch restore --latest` |
 | `lint` | 规范校验 + 跨工具移植告警 + 冲突 / 预算健康度。 | `skill-switch lint --target codex` |
 | `doctor` | 声明/锁/磁盘三方一致性(`--ci` 不一致即 exit 1)。 | `skill-switch doctor` |
+| `diff` | 内容漂移的「改了什么」:磁盘 vs store 副本,逐文件 added/removed/modified。 | `skill-switch diff my-skill` |
 | `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。 | `skill-switch drift` |
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
@@ -98,6 +99,7 @@ skill-switch uninstall
 - **写命令先做装前快照再动手**:`install`、`toggle`、`sync`、`remove`、`restore` 修改前在 `~/.skill-switch/backups/` 拍 tar.gz 快照,`restore` 还原前再拍一份;任何一步都能回滚。
 - **安装前安全体检**:任何 skill 装进来前先 audit,命中反弹 shell、外传敏感文件、钓鱼式索要凭据等会被拦,需 `--force` / 勾「遇到拦截也继续」才放行。
 - **加固边界**:拒绝路径穿越/绝对路径/隐藏名等不安全 skill 名;copy 模式不跟随软链;audit 不跟随软链且有大小/数量/深度/单行匹配上限。已知盲区见 [docs/known-limitations.md](docs/known-limitations.md)。
+- **零遥测 · 本地优先**:skill-switch 不收集、不上传任何数据,没有分析/遥测/账号。所有操作都在你本机完成,配置只写到 `~/.skill-switch/`,装好后**可完全离线使用**(只有显式从 git 来源 `install` 时才联网拉取那一个仓库)。
 
 ## 数据文件(都在 `~/.skill-switch/`)
 

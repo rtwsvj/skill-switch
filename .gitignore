@@ -4,5 +4,8 @@ gui/src-tauri/bin/
 *.log
 .DS_Store
 
-# 运行时锁(scheduled_tasks/loop 机制生成,不应入库)
-.claude/*.lock
+# Claude Code 本地工作目录(运行时锁、dev-server 预览配置 launch.json 等),本机用,不入库
+.claude/
+
+# fixture home 跑命令时生成的运行时目录(stats 缓存等);非 fixture 定义的一部分,不入库。
+tests/fixtures/**/.skill-switch/

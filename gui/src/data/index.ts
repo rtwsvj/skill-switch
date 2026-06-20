@@ -36,6 +36,10 @@ export async function loadDashboardData(): Promise<DashboardData> {
   return (await activeAdapter()).loadDashboardData();
 }
 
+export async function loadCoreDashboard(): Promise<DashboardData> {
+  return (await activeAdapter()).loadCoreDashboard();
+}
+
 export async function runInstall(...args: Parameters<typeof fixtures.runInstall>) {
   return (await activeAdapter()).runInstall(...args);
 }
@@ -57,10 +61,12 @@ export async function runRestore(...args: Parameters<typeof fixtures.runRestore>
 }
 
 export type {
+  AuditCoverage,
   AuditFinding,
   AuditReport,
   AuditSeverity,
   AuditVerdict,
+  BypassRecord,
   CliJsonResult,
   DashboardData,
   DoctorDeclaration,

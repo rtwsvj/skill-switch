@@ -4,7 +4,7 @@
 //   enabled=false 移除,未声明的目录一律不碰(用户手装的东西不是 sync 的管辖)。
 // 幂等:对账式 plan→apply,二跑全 noop。Codex config.toml 原生开关在 S4.2 特例接入。
 import { existsSync } from 'node:fs';
-import { lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readlink, rm, symlink } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
@@ -16,6 +16,7 @@ import {
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { copyDirWithoutSymlinks } from './safe-copy.ts';
 import { assertSafeSkillName } from './skill-name.ts';
+import { readJsonState, StateFileError, writeJsonState } from './state-io.ts';
 
 export interface SkillDeclaration {
   name: string;
@@ -52,11 +53,11 @@ export function getSkillsJsonPath(home: string): string {
 }
 
 export async function readDeclaration(path: string): Promise<SkillsDeclarationFile> {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as SkillsDeclarationFile;
-  } catch {
-    return { version: 1, skills: [] };
+  const data = await readJsonState<SkillsDeclarationFile>(path, { version: 1, skills: [] });
+  if (typeof data !== 'object' || data === null || !Array.isArray((data as SkillsDeclarationFile).skills)) {
+    throw new StateFileError(`声明文件结构非法(期望 { version, skills: [...] }): ${path}`, path);
   }
+  return data;
 }
 
 export async function upsertSkillDeclarations(
@@ -103,8 +104,7 @@ export async function upsertSkillDeclarations(
     version: 1,
     skills: [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)),
   };
-  await mkdir(dirname(skillsJsonPath), { recursive: true });
-  await writeFile(skillsJsonPath, `${JSON.stringify(next, null, 2)}\n`);
+  await writeJsonState(skillsJsonPath, next);
   return next;
 }
 
@@ -148,8 +148,7 @@ export async function removeFromDeclaration(
     version: 1,
     skills: skills.sort((a, b) => a.name.localeCompare(b.name)),
   };
-  await mkdir(dirname(skillsJsonPath), { recursive: true });
-  await writeFile(skillsJsonPath, `${JSON.stringify(next, null, 2)}\n`);
+  await writeJsonState(skillsJsonPath, next);
   return next;
 }
 
@@ -224,8 +223,14 @@ async function planOne(
   if (actual.state === 'missing') return { ...base, kind: 'create' };
 
   if (mode === 'symlink') {
-    if (actual.state === 'symlink' && resolve(actual.linkTarget) === resolve(sourceAbs)) {
-      return { ...base, kind: 'noop' };
+    if (actual.state === 'symlink') {
+      // readlink 可能返回相对目标:必须相对 symlink 所在目录解析,而非 process.cwd()。
+      const actualAbs = isAbsolute(actual.linkTarget)
+        ? actual.linkTarget
+        : resolve(dirname(target), actual.linkTarget);
+      if (resolve(actualAbs) === resolve(sourceAbs)) {
+        return { ...base, kind: 'noop' };
+      }
     }
     return { ...base, kind: 'replace', reason: 'symlink 指向不符或被实体目录占位' };
   }

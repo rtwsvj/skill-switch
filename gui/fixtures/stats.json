@@ -1,38 +1,63 @@
 {
   "since": "2026-05-13T16:47:42.895Z",
-  "scannedFiles": 0,
+  "scannedFiles": 128,
   "invocations": 0,
   "usage": [],
   "zombies": [
     {
       "name": "deploy-checklist",
-      "agents": ["cline", "dexto", "kimi-code-cli", "loaf", "warp", "zed"],
+      "agents": [
+        "cline",
+        "dexto",
+        "kimi-code-cli",
+        "loaf",
+        "warp",
+        "zed"
+      ],
       "relSkillsDir": ".agents/skills"
     },
     {
       "name": "release-runbook",
-      "agents": ["cline", "dexto", "kimi-code-cli", "loaf", "warp", "zed"],
+      "agents": [
+        "cline",
+        "dexto",
+        "kimi-code-cli",
+        "loaf",
+        "warp",
+        "zed"
+      ],
       "relSkillsDir": ".agents/skills"
     },
     {
       "name": "broken-frontmatter",
-      "agents": ["claude-code"],
+      "agents": [
+        "claude-code"
+      ],
       "relSkillsDir": ".claude/skills"
     },
     {
       "name": "commit-style",
-      "agents": ["claude-code"],
+      "agents": [
+        "claude-code"
+      ],
       "relSkillsDir": ".claude/skills"
     },
     {
       "name": "git-helper",
-      "agents": ["claude-code"],
+      "agents": [
+        "claude-code"
+      ],
       "relSkillsDir": ".claude/skills"
     },
     {
       "name": "code-review-helper",
-      "agents": ["gemini-cli"],
+      "agents": [
+        "gemini-cli"
+      ],
       "relSkillsDir": ".gemini/skills"
     }
-  ]
+  ],
+  "skippedFiles": 3,
+  "parseErrors": 1,
+  "truncated": false
 }

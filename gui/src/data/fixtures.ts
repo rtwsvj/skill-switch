@@ -3,6 +3,7 @@ import audit from '../../fixtures/audit.json';
 import doctor from '../../fixtures/doctor.json';
 import stats from '../../fixtures/stats.json';
 import lockVerify from '../../fixtures/lock-verify.json';
+import { assembleDashboard, emptyStats } from './dashboard';
 import type {
   AuditReport,
   CliJsonResult,
@@ -54,7 +55,7 @@ export async function loadLockVerify(): Promise<LockVerifyReport> {
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [scanReport, auditReport, doctorReport, statsReport, lockReport] = await Promise.all([
+  const [scan, audit, doctor, stats, lockVerify] = await Promise.allSettled([
     loadScan(),
     loadAudit(),
     loadDoctor(),
@@ -62,15 +63,27 @@ export async function loadDashboardData(): Promise<DashboardData> {
     loadLockVerify(),
   ]);
 
-  return {
-    scan: scanReport,
-    audit: auditReport,
-    doctor: doctorReport,
-    stats: statsReport,
-    lockVerify: lockReport,
-    source: 'fixtures',
-    loadedAt: new Date().toISOString(),
-  };
+  return assembleDashboard({ scan, audit, doctor, stats, lockVerify }, 'fixtures');
+}
+
+export async function loadCoreDashboard(): Promise<DashboardData> {
+  // M0-5.6 懒加载:与 tauri 适配器一致 —— 首屏只 scan/doctor/lock,audit/stats 后台懒加载。
+  const [scanResult, doctorResult, lockResult] = await Promise.allSettled([
+    loadScan(),
+    loadDoctor(),
+    loadLockVerify(),
+  ]);
+
+  return assembleDashboard(
+    {
+      scan: scanResult,
+      doctor: doctorResult,
+      lockVerify: lockResult,
+      audit: { status: 'fulfilled', value: [] },
+      stats: { status: 'fulfilled', value: emptyStats },
+    },
+    'fixtures',
+  );
 }
 
 export async function runInstall(request: InstallRequest): Promise<CliJsonResult<InstallRunResult>> {

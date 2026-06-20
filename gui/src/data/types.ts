@@ -28,6 +28,15 @@ export interface AuditFinding {
   message: string;
 }
 
+/** M0-5.7 审计覆盖透明度(用户关心的子集;可选——旧 CLI 输出可能没有)。 */
+export interface AuditCoverage {
+  scannedFiles: number;
+  skippedFiles: number;
+  tooLargeFiles: number;
+  readErrors: number;
+  truncated: boolean;
+}
+
 export interface AuditReport {
   path: string;
   findings: AuditFinding[];
@@ -37,6 +46,7 @@ export interface AuditReport {
   agents?: string[];
   relSkillsDir?: string;
   blocked?: boolean;
+  coverage?: AuditCoverage;
 }
 
 export interface DoctorFinding {
@@ -56,6 +66,17 @@ export interface DoctorDeclaration {
   agentSources?: Record<string, { source: string; mode: 'copy' | 'symlink' }>;
 }
 
+export interface BypassRecord {
+  name: string;
+  agent: string;
+  auditBypassed: true;
+  bypassedAt: string;
+  bypassReason?: string;
+  score: number;
+  bypassedFindings: Array<{ ruleId: string; severity: string }>;
+  cliVersion: string;
+}
+
 export interface DoctorReport {
   findings: DoctorFinding[];
   clean: boolean;
@@ -64,6 +85,10 @@ export interface DoctorReport {
     locked: number;
   };
   declarations: DoctorDeclaration[];
+  /** M0-5.8:force 越过 audit 的留痕(可选——旧 CLI 输出可能没有)。 */
+  bypasses?: BypassRecord[];
+  /** M0-5.9:不符合规范命名的 legacy skill 名(迁移告警)。 */
+  legacyNames?: string[];
 }
 
 export interface StatsUsage {
@@ -84,6 +109,10 @@ export interface StatsReport {
   invocations: number;
   usage: StatsUsage[];
   zombies: StatsZombie[];
+  /** M0-5.12 覆盖透明度(可选——旧 CLI 输出可能没有)。 */
+  skippedFiles?: number;
+  parseErrors?: number;
+  truncated?: boolean;
 }
 
 export type LockVerifyStatus = 'ok' | 'missing' | 'mismatch' | 'unknown-agent';
@@ -135,6 +164,8 @@ export interface InstallRequest {
   skill?: string;
   ref?: string;
   force?: boolean;
+  /** M0-5.8 / F-C2:force 越过审计时记录原因,经 `--force-reason` 写入 bypass-ledger。 */
+  forceReason?: string;
 }
 
 export interface InstallRunResult {
@@ -208,4 +239,6 @@ export interface DashboardData {
   lockVerify: LockVerifyReport;
   source: 'fixtures' | 'tauri';
   loadedAt: string;
+  /** 某些区块加载失败时记录(section → 错误信息);整体仍可用安全默认值渲染,不白屏。 */
+  loadErrors?: Record<string, string>;
 }

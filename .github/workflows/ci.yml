@@ -28,5 +28,12 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Lint
+        run: pnpm lint
+
       - name: Test
         run: pnpm test
+
+      # 抓 GUI 生产构建回归(import/JSX/语法级);Tauri 原生构建仍属本地/macOS。
+      - name: Build GUI
+        run: pnpm --dir gui build

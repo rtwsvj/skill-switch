@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import i18n from './i18n';
 
 interface Props {
   children: ReactNode;
@@ -31,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
             font: '13px ui-monospace, monospace',
           }}
         >
-          {`skill-switch GUI 出错(请把下面信息反馈给开发者):\n\n${this.state.error.message}\n\n${this.state.error.stack ?? ''}`}
+          {`${i18n.t('errorBoundary.message')}\n\n${this.state.error.message}\n\n${this.state.error.stack ?? ''}`}
         </pre>
       );
     }

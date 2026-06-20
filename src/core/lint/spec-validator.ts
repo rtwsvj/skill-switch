@@ -132,7 +132,7 @@ export function validateMetadata(
 }
 
 export async function validateSkillDir(skillDir: string): Promise<string[]> {
-  let info;
+  let info: Awaited<ReturnType<typeof stat>>;
   try {
     info = await stat(skillDir);
   } catch {

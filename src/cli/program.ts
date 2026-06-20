@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { registerAuditCommand } from './commands/audit.ts';
+import { registerDiffCommand } from './commands/diff.ts';
 import { registerDoctorCommand } from './commands/doctor.ts';
 import { registerDriftCommand } from './commands/drift.ts';
 import { registerInstallCommand } from './commands/install.ts';
@@ -28,6 +29,7 @@ export function buildProgram(): Command {
   registerRestoreCommand(program);
   registerLintCommand(program);
   registerDoctorCommand(program);
+  registerDiffCommand(program);
   registerDriftCommand(program);
   registerStatsCommand(program);
   registerLockCommand(program);

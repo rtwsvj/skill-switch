@@ -13,6 +13,7 @@ interface InstallCliOptions {
   skill?: string;
   ref?: string;
   force?: boolean;
+  forceReason?: string;
   json?: boolean;
 }
 
@@ -27,6 +28,7 @@ export function registerInstallCommand(program: Command): void {
     .option('--skill <name>', '只装来源中指定目录名的 skill')
     .option('--ref <ref>', 'git 来源的分支/tag(写入 skills.lock)')
     .option('--force', '越过 audit 拦截(自担风险)')
+    .option('--force-reason <reason>', 'force 时记入 bypass 留痕账本的理由')
     .option('--json', '机器可读 JSON 输出')
     .action(async (source: string, options: InstallCliOptions, command: Command) => {
       const home = resolveHomeRoot(options.home ?? command.parent?.opts<{ home?: string }>().home);
@@ -40,6 +42,7 @@ export function registerInstallCommand(program: Command): void {
         skill: options.skill,
         ref: options.ref,
         force: options.force,
+        forceReason: options.forceReason,
       });
 
       if (options.json) {

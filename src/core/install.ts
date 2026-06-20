@@ -17,10 +17,12 @@ import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
 import { auditSkillDir, shouldBlock } from '../cli/commands/audit.ts';
 import type { AuditReport } from './audit/engine.ts';
 import { snapshot } from './backup.ts';
+import { getCliVersion, recordBypasses } from './bypass-ledger.ts';
+import { assertSafeGitSource } from './git-safe.ts';
 import { getSkillsLockPath, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { copyDirWithoutSymlinks } from './safe-copy.ts';
-import { assertSafeSkillName, isSafeSkillName } from './skill-name.ts';
+import { assertSafeSkillName, isCanonicalSkillName, isSafeSkillName } from './skill-name.ts';
 import { getSkillsJsonPath, upsertSkillDeclarations } from './sync.ts';
 
 const execFileAsync = promisify(execFile);
@@ -35,6 +37,8 @@ export interface InstallOptions {
   skill?: string;
   /** 越过 audit 拦截 */
   force?: boolean;
+  /** force 时记入 bypass-ledger 的理由 */
+  forceReason?: string;
   /** git 来源的 ref(分支/tag),透传给 clone 并写入 lock */
   ref?: string;
   /** 写进 lock 的来源标签(缺省用原始 source 字符串) */
@@ -100,6 +104,10 @@ async function localSourceKind(source: string): Promise<'directory' | 'non-direc
   }
 }
 
+export function assertSafeCloneSource(source: string): void {
+  assertSafeGitSource(source);
+}
+
 export async function installFromSource(
   source: string,
   options: InstallOptions,
@@ -119,6 +127,7 @@ export async function installFromSource(
     throw new Error('symlink 模式仅支持本地目录源:克隆的临时目录会被清理,symlink 会悬空');
   }
 
+  if (!local) assertSafeCloneSource(source); // P1-1:clone 前拦下危险传输形式
   const sourceRoot = local ? resolve(source) : await cloneRepo(source, options.ref);
   try {
     let skillDirs = await discoverSkillDirs(sourceRoot);
@@ -129,17 +138,28 @@ export async function installFromSource(
       throw new Error(`来源中未发现 skill(含 SKILL.md 的目录): ${source}`);
     }
 
-    // audit 拦截:all-or-nothing,任何写动作之前
+    // audit 拦截:all-or-nothing,任何写动作之前。force 时仍审计,以便记录"被越过了什么"。
     const blocked: BlockedSkill[] = [];
-    if (!options.force) {
-      for (const dir of skillDirs) {
-        const report = await auditSkillDir(dir);
-        if (shouldBlock(report)) {
-          blocked.push({ name: basename(dir), score: report.score, report });
-        }
-      }
-      if (blocked.length > 0) {
-        return { installed: [], blocked };
+    const bypassed: BlockedSkill[] = [];
+    for (const dir of skillDirs) {
+      const report = await auditSkillDir(dir);
+      if (!shouldBlock(report)) continue;
+      const entry = { name: basename(dir), score: report.score, report };
+      if (options.force) bypassed.push(entry);
+      else blocked.push(entry);
+    }
+    if (!options.force && blocked.length > 0) {
+      return { installed: [], blocked };
+    }
+
+    // 新安装的 skill 名必须符合规范命名(在任何写动作前,保证 all-or-nothing)。
+    // 既有 legacy 名不在此硬拒——由 doctor 给迁移告警(remove/toggle/sync 仍可操作)。
+    for (const dir of skillDirs) {
+      const name = basename(dir);
+      if (!isCanonicalSkillName(name)) {
+        throw new Error(
+          `skill 名不符合规范命名(仅字母数字与 . _ -,首字符字母数字,长度≤80): ${name}`,
+        );
       }
     }
 
@@ -205,6 +225,26 @@ export async function installFromSource(
     await upsertLockEntries(lockPath, lockEntries);
     const declarationPath = getSkillsJsonPath(options.home);
     await upsertSkillDeclarations(declarationPath, declarationAdditions);
+
+    // force 越过 audit 的留痕:记录被越过的 skill + 命中的 findings + 理由 + 版本。
+    if (options.force && bypassed.length > 0) {
+      const bypassedAt = new Date().toISOString();
+      const cliVersion = await getCliVersion();
+      await recordBypasses(
+        options.home,
+        bypassed.map((b) => ({
+          name: b.name,
+          agent: options.agent,
+          auditBypassed: true as const,
+          bypassedAt,
+          ...(options.forceReason ? { bypassReason: options.forceReason } : {}),
+          score: b.score,
+          bypassedFindings: b.report.findings.map((f) => ({ ruleId: f.ruleId, severity: f.severity })),
+          cliVersion,
+        })),
+      );
+    }
+
     return { installed, blocked: [], snapshotPath, lockPath, declarationPath };
   } finally {
     if (!local) await cleanupTempDir(sourceRoot).catch(() => {});

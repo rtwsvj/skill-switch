@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
+import { assertSafeGitSource } from './git-safe.ts';
 import { getSkillsLockPath, readSkillsLock } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 
@@ -32,6 +33,7 @@ export interface DriftEntry {
 }
 
 async function lsRemoteHead(source: string): Promise<string | undefined> {
+  assertSafeGitSource(source);
   try {
     const { stdout } = await execFileAsync('git', ['ls-remote', source, 'HEAD'], {
       env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },

@@ -13,6 +13,7 @@
     "overview": "Resumen",
     "skills": "Skills",
     "audit": "Seguridad",
+    "history": "Historial",
     "stats": "Uso"
   },
   "status": {
@@ -29,7 +30,8 @@
     "parseError": "no se pudo leer",
     "pass": "pasó",
     "used": "usado",
-    "zombie": "nunca usado"
+    "zombie": "nunca usado",
+    "disabledKept": "Desactivada · sin eliminar"
   },
   "overview": {
     "metrics": {
@@ -63,6 +65,18 @@
       "stale-lock": "lock obsoleto",
       "extra-locked": "lock sobrante",
       "unknown": "problema desconocido"
+    },
+    "hint": {
+      "missing": "Declarada pero ausente en el disco. Ejecuta Sincronizar para instalarla.",
+      "content-drift": "El contenido en disco ya no coincide con el lock (editado o sobrescrito). Si no fuiste tú, restaura desde Historial.",
+      "stale-lock": "En el disco pero ausente del lock (lock obsoleto o instalado fuera de la herramienta). Ejecuta Sincronizar para realinear.",
+      "extra-locked": "En el lock pero sin declarar (lock huérfano)."
+    },
+    "kindCount": "{{count}}",
+    "allGood": "Todo coherente: sin desviaciones.",
+    "legacy": {
+      "title": "Nombres por migrar",
+      "hint": "Estos nombres de skills no cumplen las nuevas reglas (siguen funcionando; se recomienda renombrar)."
     }
   },
   "skills": {
@@ -80,8 +94,15 @@
     "actions": {
       "enable": "Activar",
       "disable": "Desactivar",
-      "delete": "Eliminar"
-    }
+      "delete": "Eliminar",
+      "disableHint": "Desactivar solo la apaga: los archivos permanecen en el disco y puedes reactivarla cuando quieras. No se elimina nada.",
+      "deleteHint": "Elimina la skill del disco (se hace una copia de seguridad antes, por lo que es restaurable)."
+    },
+    "import": {
+      "found": "Se encontraron {{count}} skills aún sin gestionar",
+      "action": "Importar todas"
+    },
+    "empty": "Aún no hay skills. Usa “Importar todas” arriba, o ve a Resumen → Instalar para añadir la primera."
   },
   "operations": {
     "title": "Instalar y mantener",
@@ -102,7 +123,12 @@
       "force": "Continuar aunque seguridad lo bloquee",
       "submit": "Instalar",
       "blocked": "La revisión de seguridad lo bloqueó",
-      "blockedDetail": "{{count}} skills requieren atención primero"
+      "blockedDetail": "{{count}} skills requieren atención primero",
+      "blockedWhy": "Estas skills no pasaron la comprobación de seguridad y fueron bloqueadas. Si confías en el origen tras revisar los motivos, puedes forzar la instalación con una justificación (quedará registrada).",
+      "blockedScore": "Puntuación {{score}}",
+      "forceReasonLabel": "Motivo para instalar de todos modos (obligatorio)",
+      "forceReasonPlaceholder": "p. ej.: de mi propio repo privado, revisado manualmente",
+      "forceAnyway": "Entiendo el riesgo: instalar igualmente"
     },
     "sync": {
       "title": "Sincronizar",
@@ -131,7 +157,13 @@
       "toggleOff": "¿Desactivar {{name}}? Primero se hará una copia.",
       "remove": "¿Eliminar {{name}}? Primero se hará una copia.",
       "sync": "¿Aplicar {{count}} cambios de sincronización?",
-      "restore": "¿Restaurar esta copia?"
+      "restore": "¿Restaurar esta copia?",
+      "consequence": {
+        "backup": "✅ Se hace una copia de seguridad antes de cualquier cambio: puedes restaurarla cuando quieras si algo sale mal.",
+        "disableKept": "ℹ️ Esto solo desactiva la skill. Sus archivos permanecen en el disco y puedes reactivarla cuando quieras (no se elimina nada).",
+        "restoreOverwrite": "✅ Esto sobrescribe las skills actuales con la copia elegida; el estado actual se respalda primero, así que sigue siendo reversible.",
+        "forceRisk": "⚠️ Estás omitiendo la comprobación de seguridad. Continúa solo si confías en el origen, bajo tu propia responsabilidad."
+      }
     },
     "notice": {
       "failed": "La operación falló",
@@ -145,6 +177,18 @@
       "toggledOn": "Activado",
       "toggledOff": "Desactivado",
       "exitCode": "Código de salida {{code}}"
+    },
+    "preview": {
+      "create": "Añadir {{target}}",
+      "replace": "Actualizar {{target}}",
+      "remove": "Quitar {{target}}",
+      "disable": "Desactivar {{target}}",
+      "enable": "Activar {{target}}",
+      "other": "Cambiar {{target}}"
+    },
+    "import": {
+      "confirm": "¿Poner estas {{count}} skills existentes bajo gestión?",
+      "done": "Se importaron {{count}} skills"
     }
   },
   "audit": {
@@ -162,6 +206,41 @@
       "low": "baja"
     }
   },
+  "safety": {
+    "summary": {
+      "safe": "Seguras",
+      "review": "Revisar",
+      "blocked": "Bloqueadas"
+    },
+    "bypass": {
+      "title": "Skills que omitieron la comprobación de seguridad",
+      "badge": "Auditoría omitida",
+      "subtitle": "Estas skills se instalaron saltándose el bloqueo de seguridad. Asegúrate de confiar en su origen.",
+      "reason": "Motivo: {{reason}}",
+      "noReason": "(sin motivo en la instalación)",
+      "score": "Puntuación {{score}}",
+      "findings": "{{count}} hallazgos omitidos"
+    },
+    "coverage": {
+      "scanned": "Esta comprobación analizó {{count}} archivos",
+      "skipped": "se omitieron {{count}} (demasiado grandes / binarios)",
+      "readErrors": "{{count}} no se pudieron leer",
+      "truncated": "muchos archivos: se truncó una parte"
+    }
+  },
+  "history": {
+    "guide": "Tu botón de deshacer: cada cambio se respalda aquí, para que puedas volver a cualquier momento.",
+    "count": "{{count}} copias",
+    "empty": "Aún no hay copias. Después de hacer cambios, aquí aparecen puntos restaurables.",
+    "restoreHere": "Restaurar a este",
+    "op": {
+      "install": "Copia antes de instalar ({{detail}})",
+      "toggle": "Copia antes de cambiar «{{detail}}»",
+      "remove": "Copia antes de eliminar «{{detail}}»",
+      "sync": "Copia antes de sincronizar",
+      "restore": "Copia antes de restaurar"
+    }
+  },
   "stats": {
     "metrics": {
       "transcripts": "Registros leídos",
@@ -177,7 +256,43 @@
       "agents": "Herramientas",
       "location": "Ubicación",
       "state": "Estado"
+    },
+    "coverage": {
+      "scanned": "Se analizaron {{count}} archivos de registro",
+      "skipped": "se omitieron {{count}} (demasiado grandes / binarios)",
+      "parseErrors": "{{count}} no se pudieron analizar",
+      "truncated": "muchos datos: se truncó una parte"
     }
   },
-  "loading": "Cargando skills..."
+  "section": {
+    "loading": "Cargando…",
+    "refresh": "Actualizar",
+    "retry": "Reintentar",
+    "failed": "Error al cargar",
+    "lastRefreshed": "Actualizado {{time}}",
+    "notLoaded": "Sin cargar",
+    "auditPending": "Cargando auditoría…",
+    "statsPending": "Cargando estadísticas…"
+  },
+  "loading": "Cargando skills...",
+  "dashboard": {
+    "partialLoad": "No se pudieron cargar algunas secciones; el resto se muestra con normalidad. Afectadas:",
+    "fixtureMode": "Modo demo: datos de muestra; las acciones de escritura son simuladas y no tocan tu configuración real."
+  },
+  "errorBoundary": {
+    "message": "skill-switch tuvo un error (envía los detalles de abajo al desarrollador):"
+  },
+  "about": {
+    "privacy": "🔒 Sin telemetría · todo se ejecuta en tu equipo · nada se sube, funciona sin conexión"
+  },
+  "onboarding": {
+    "title": "Bienvenido a skill-switch",
+    "intro": "Te ayuda a gestionar las skills de tus herramientas de IA: verlas, cambiarlas con seguridad y deshacer con un clic.",
+    "dismiss": "Entendido",
+    "points": [
+      "Skills: mira lo que tienes, desactiva o elimina cuando quieras (siempre con copia previa)",
+      "Seguridad: mira qué skills son riesgosas y qué omitió la comprobación",
+      "Historial: deshaz un cambio erróneo con un clic"
+    ]
+  }
 }

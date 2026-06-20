@@ -140,7 +140,7 @@ describe('GUI Tauri sidecar wiring', () => {
   });
 
   it('GUI write UI wires install, toggle, sync, remove, restore behind the app confirmation dialog and refresh', () => {
-    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const app = readFileSync(join(ROOT, 'gui/src/components/DashboardShell.tsx'), 'utf8');
     for (const method of ['runInstall', 'runToggle', 'runSync', 'runRemove', 'runRestore']) {
       expect(app.includes(method), `App should call ${method}`).toBe(true);
     }
@@ -156,7 +156,7 @@ describe('GUI Tauri sidecar wiring', () => {
   });
 
   it('GUI disables an undeclared skill by first declaring from the scanned directory, then toggling off', () => {
-    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const app = readFileSync(join(ROOT, 'gui/src/components/DashboardShell.tsx'), 'utf8');
     const toggleStart = app.indexOf('const handleToggle');
     const toggleEnd = app.indexOf('const handleRemove');
     const toggleBody = app.slice(toggleStart, toggleEnd);
@@ -174,9 +174,9 @@ describe('GUI Tauri sidecar wiring', () => {
   });
 
   it('skill rows always expose one enable/disable action and one delete action without a governance/adopt gate', () => {
-    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const app = readFileSync(join(ROOT, 'gui/src/components/Skills.tsx'), 'utf8');
     const skillsStart = app.indexOf('function Skills');
-    const skillsEnd = app.indexOf('function Audit');
+    const skillsEnd = app.length;
     const skillsBody = app.slice(skillsStart, skillsEnd);
 
     expect(skillsStart).toBeGreaterThanOrEqual(0);
@@ -191,7 +191,7 @@ describe('GUI Tauri sidecar wiring', () => {
   });
 
   it('GUI write safety UX keeps app confirmations, audit blocking, snapshots, and refresh visible', () => {
-    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const app = readFileSync(join(ROOT, 'gui/src/components/DashboardShell.tsx'), 'utf8');
     const confirmationCount = app.match(/requestConfirmation/g)?.length ?? 0;
     expect(confirmationCount).toBeGreaterThanOrEqual(5);
     for (const key of [
@@ -212,7 +212,7 @@ describe('GUI Tauri sidecar wiring', () => {
   });
 
   it('GUI derives declared state from skills.json data instead of lock-only data', () => {
-    const app = readFileSync(join(ROOT, 'gui/src/App.tsx'), 'utf8');
+    const app = readFileSync(join(ROOT, 'gui/src/components/DashboardShell.tsx'), 'utf8');
     const shellStart = app.indexOf('export function DashboardShell');
     const shellEnd = app.indexOf('const setAdvancedPreference');
     const shellBody = app.slice(shellStart, shellEnd);

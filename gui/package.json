@@ -10,6 +10,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "tauri": "PATH=$HOME/.cargo/bin:$PATH tauri",
     "tui": "node scripts/tui.mjs",
+    "check:entitlements": "node scripts/check-entitlements.mjs",
     "sign": "bash scripts/sign-notarize.sh"
   },
   "dependencies": {
