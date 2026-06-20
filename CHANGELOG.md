@@ -5,7 +5,7 @@
 
 ## [Unreleased]
 
-两个批次:**v0.2「安全网」**(让普通人也能安全、可回滚地管理技能)+ **v0.3「秩序」**(跨 agent 一致性与更深的安全)。本仓 `feat/m0-hardening` 分支;发布需 Developer ID 签名(见 [docs/release/verification-report.md](docs/release/verification-report.md))。
+两个批次:**v0.2「安全网」**(让普通人也能安全、可回滚地管理技能)+ **v0.3「秩序」**(跨 agent 一致性与更深的安全)。macOS 分发需 Developer ID 签名(见 [docs/release/signing.md](docs/release/signing.md))。
 
 ### 新增 Added
 - **「历史」页**:把每次改动前的自动备份做成时间线,一键还原到任意时间点——误删误改的「后悔药」。
