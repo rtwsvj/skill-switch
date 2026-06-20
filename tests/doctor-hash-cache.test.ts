@@ -3,7 +3,7 @@
 //       且昂贵的 computeSkillFolderHash 第二次不再被调用)。
 //   (b) 改动 skill 目录里的文件 → 该条目签名失效,下次仍能正确检出 content-drift。
 //   (c) 缓存文件损坏 / 缺失都不会打断 doctor(报告依旧正确)。
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, statSync, chmodSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -98,6 +98,27 @@ describe('P2-1 doctor folder-hash cache', () => {
     expect(second.clean).toBe(false);
     const drift = second.findings.find((f) => f.kind === 'content-drift');
     expect(drift).toMatchObject({ name: 'beta', agent: 'claude-code' });
+  });
+
+  it('(d) hardened: the stat signature is ctime-sensitive (a ctime-only change is caught)', async () => {
+    // 确定性地证明签名含 ctime:chmod 只刷新 ctime(inode 元数据变更),size/mtime/内容都不动。
+    // 这模拟"瞒过 size+mtime 的刻意篡改痕迹"——修复前签名不变(漏判),修复后签名变(检出)。
+    const dir = join(home, 'sigdir');
+    await mkdir(dir, { recursive: true });
+    const f = join(dir, 'a.txt');
+    await writeFile(f, 'identical-bytes');
+
+    const before = statSync(f);
+    const sig1 = await computeStatSignature(dir);
+
+    chmodSync(f, before.mode ^ 0o100); // 翻转 owner-execute 位 → 只动 ctime
+    const after = statSync(f);
+    expect(after.size).toBe(before.size); // size 未变
+    expect(after.mtimeMs).toBe(before.mtimeMs); // mtime 未变
+    expect(after.ctimeMs).not.toBe(before.ctimeMs); // 仅 ctime 变
+
+    const sig2 = await computeStatSignature(dir);
+    expect(sig2).not.toBe(sig1); // 签名含 ctime → 变(若仅 size+mtime,签名不变 → 会漏判)
   });
 
   it('(c) a malformed cache file does not break doctor and the report stays correct', async () => {
