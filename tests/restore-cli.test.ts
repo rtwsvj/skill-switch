@@ -90,4 +90,79 @@ describe('restore CLI', () => {
     expect(snapshots[0]!.label).toBe('pre-restore');
     expect(snapshots[0]!.sourceDir).toBe(target);
   });
+
+  // AUDIT-SEC2:snapshot sidecar 的 sourceDir 是可被篡改的 JSON 字段(backup.ts 的
+  // readSnapshotSourceDir 直接 JSON.parse 取值,无范围校验)。restore 把它原样当还原目标
+  // 传给 snapshot + restoreSnapshot,攻击者改 backups/*.tar.gz.json 的 sourceDir 成任意
+  // 目录(如 ~/.ssh),用户跑 restore --latest 时会先快照该目录再铺攻击者控制的 tar →
+  // 任意目录写入。修复后:sourceDir 经 path.resolve 归一化后必须落在受管 agent 快照根内
+  // (codex 的 .codex 或其余 agent 的 skills 目录),否则拒绝。
+  it('AUDIT-SEC2: rejects restore when sidecar sourceDir is outside governed roots', async () => {
+    const target = join(home, '.claude', 'skills');
+    const store = join(home, '.skill-switch', 'backups');
+    await mkdir(target, { recursive: true });
+    await writeFile(join(target, 'note.txt'), 'original\n');
+    const snap = await snapshot(target, { store, label: 'pre-install' });
+    const sidecar = `${snap.path}.json`;
+
+    // 篡改 sourceDir 指向受管范围外(用 .. 越界到 home/.ssh)
+    const evilTarget = `${target}/../../.ssh`;
+    const evilActual = join(home, '.ssh');
+    await mkdir(evilActual, { recursive: true });
+    await writeFile(join(evilActual, 'id_rsa'), 'SECRET\n');
+    await writeFile(
+      sidecar,
+      `${JSON.stringify({ sourceDir: evilTarget, label: snap.label, createdAt: snap.createdAt.toISOString() }, null, 2)}\n`,
+    );
+
+    const { status, stdout } = runCli(['restore', '--home', home, '--latest', '--json']);
+    expect(status).toBe(1);
+    expect(stdout).not.toContain('"restored": true');
+    // evilActual 的既有内容未被触碰(没有先快照再铺 tar)
+    expect(await readFile(join(evilActual, 'id_rsa'), 'utf8')).toBe('SECRET\n');
+  });
+
+  it('AUDIT-SEC2: accepts a normalized spelling of a governed restore root', async () => {
+    const target = join(home, '.claude', 'skills');
+    const store = join(home, '.skill-switch', 'backups');
+    await mkdir(target, { recursive: true });
+    await writeFile(join(target, 'note.txt'), 'v1\n');
+    const snap = await snapshot(target, { store, label: 'normalized' });
+    const sidecar = `${snap.path}.json`;
+
+    // sidecar 写等价的归一化拼写(含 ./../skills),合法还原应被允许
+    const normalizedSpelling = `${target}/../skills/`;
+    await writeFile(
+      sidecar,
+      `${JSON.stringify({ sourceDir: normalizedSpelling, label: snap.label, createdAt: snap.createdAt.toISOString() }, null, 2)}\n`,
+    );
+
+    const { status } = runCli(['restore', '--home', home, '--latest', '--json']);
+    expect(status).toBe(0);
+    void snap;
+  });
+
+  it('AUDIT-SEC2: --id restores the matching snapshot by epochMs', async () => {
+    const target = join(home, '.claude', 'skills');
+    const store = join(home, '.skill-switch', 'backups');
+    await mkdir(target, { recursive: true });
+    await writeFile(join(target, 'note.txt'), 'v1\n');
+    const snap = await snapshot(target, { store, label: 'by-id' });
+    const id = String(snap.createdAt.getTime());
+
+    const { status, stdout } = runCli(['restore', '--home', home, '--id', id, '--json']);
+    expect(status).toBe(0);
+    const parsed = JSON.parse(stdout) as { restored: true };
+    expect(parsed.restored).toBe(true);
+  });
+
+  it('AUDIT-SEC2: --id with unknown epochMs exits 1 with a clean error', async () => {
+    const { status } = runCli(['restore', '--home', home, '--id', '99999999999999']);
+    expect(status).toBe(1);
+  });
+
+  it('AUDIT-SEC2: --id and --latest are mutually exclusive', async () => {
+    const { status } = runCli(['restore', '--home', home, '--id', '1', '--latest']);
+    expect(status).toBe(1);
+  });
 });

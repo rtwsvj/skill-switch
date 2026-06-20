@@ -1,8 +1,9 @@
 // F14 restore 子命令:列出快照,或按 id/latest 还原到 manifest 记录的 sourceDir。
 // 写入前总是先对当前态再拍 pre-restore 快照,保证可逆。
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { listSnapshots, restoreSnapshot, snapshot, type SnapshotInfo } from '../../core/backup.ts';
+import { isAllowedRestoreTarget } from '../../core/agent-snapshots.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 
 interface RestoreCliOptions {
@@ -75,13 +76,21 @@ export function registerRestoreCommand(program: Command): void {
       const selected = findSnapshot(snapshots, options);
       if (!selected) throw new Error(options.latest ? '没有可还原的快照' : `找不到快照 id: ${options.id}`);
       if (!selected.sourceDir) throw new Error(`快照缺少 sourceDir manifest,无法自动还原: ${selected.path}`);
+      // AUDIT-SEC2:sourceDir 来自可篡改的 sidecar JSON,必须在动 target 前断言它落在
+      // 受管 agent 快照根内,否则越界目标(如 ~/.ssh)会被先快照再铺 tar,造成任意目录写入。
+      if (!isAllowedRestoreTarget(home, selected.sourceDir)) {
+        throw new Error(`快照 sourceDir 不在受管 agent 目录内,拒绝还原: ${selected.sourceDir}`);
+      }
+      // 校验通过后统一用归一化路径:消除 `.`/`..`/尾随分隔符写法差异,避免含 `..` 的
+      // 合法等价拼写在下游 fs rename 时 EINVAL,同时保证日志/返回值里是干净的绝对路径。
+      const target = resolve(selected.sourceDir);
 
-      const safetySnapshot = await snapshot(selected.sourceDir, { store, label: 'pre-restore' });
-      await restoreSnapshot(selected.path, selected.sourceDir);
+      const safetySnapshot = await snapshot(target, { store, label: 'pre-restore' });
+      await restoreSnapshot(selected.path, target);
 
       const result = {
         restored: true,
-        target: selected.sourceDir,
+        target,
         snapshot: viewOf(selected),
         safetySnapshot: viewOf(safetySnapshot),
       };
