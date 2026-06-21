@@ -135,8 +135,14 @@ export function auditMcpConfig(content: string): AuditFinding[] {
     ];
   }
 
+  // Guard: JSON.parse can return null or a primitive (e.g. JSON.parse("null") === null).
+  // Treat any non-object root as an empty config so we never throw.
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    return [];
+  }
+
   const findings: AuditFinding[] = [];
-  const servers = config.mcpServers ?? {};
+  const servers = (config as McpConfig).mcpServers ?? {};
 
   // ── 2. Per-server checks ──────────────────────────────────────────────────
   for (const [serverName, server] of Object.entries(servers)) {
