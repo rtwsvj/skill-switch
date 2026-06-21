@@ -68,8 +68,50 @@ const BIDI_OVERRIDE_ISOLATE = /[‪-‮⁦-⁩]/;
  * 这些字符能以人眼不可见的方式编码完整的 ASCII 文本,已被用于向 LLM 注入隐藏指令。
  * 在 skill 文件等任何非专用 Unicode 语言标记应用中没有合法用途。
  * 需要 /u 标志以访问补充多语言平面(SMP)码位。
+ *
+ * 例外:RGI emoji 细分国旗(如 🏴󠁧󠁢󠁳󠁣󠁴󠁿 苏格兰 / 🏴󠁧󠁢󠁥󠁮󠁧󠁿 英格兰 / 🏴󠁧󠁢󠁷󠁬󠁳󠁿 威尔士)
+ * 由 U+1F3F4(黑旗基础字符) + Tag 字母(U+E0061–U+E007A) + U+E007F(取消标记) 构成,
+ * 是 Unicode 标准合法用途。若整段 Tag 字符紧跟在 U+1F3F4 之后并以 U+E007F 结尾,
+ * 视为合法旗帜序列,不触发本规则。
  */
 const UNICODE_TAG_CHARS = /[\u{E0000}-\u{E007F}]/u;
+
+/** 黑旗基础字符(U+1F3F4),合法 RGI emoji 细分旗帜序列的起始符 */
+const BLACK_FLAG = '\u{1F3F4}';
+
+/** 取消标记(U+E007F),合法旗帜序列的终止符 */
+const CANCEL_TAG = '\u{E007F}';
+
+/** Tag 字母范围 U+E0061–U+E007A(对应 ASCII a–z) */
+const TAG_LETTER = /[\u{E0061}-\u{E007A}]/u;
+
+/**
+ * 判断给定位置的字符是否处于合法 RGI emoji 细分旗帜序列内。
+ * 合法序列:U+1F3F4 + (一个或多个 Tag 字母 U+E0061–U+E007A) + U+E007F(cancel tag)
+ *
+ * 算法:向左扫描,经过零个或多个 Tag 字母/U+E007F,直到遇见 U+1F3F4 则认为
+ * 当前字符在旗帜序列内;遇到任何其他字符则认为不在序列内。
+ * 同时向右验证该序列以 U+E007F 结尾。
+ */
+function isInsideValidFlagSequence(chars: string[], idx: number): boolean {
+  // ── 向左扫描:找到序列起始 U+1F3F4 ──────────────────────────────────────
+  let k = idx - 1;
+  // 允许向左越过 Tag 字母和 CANCEL_TAG(U+E007F 必须是序列末尾字符)
+  while (k >= 0 && (TAG_LETTER.test(chars[k]!) || chars[k] === CANCEL_TAG)) {
+    k--;
+  }
+  // k 现在指向序列正前方的字符;必须是 BLACK_FLAG
+  if (k < 0 || chars[k] !== BLACK_FLAG) return false;
+
+  // ── 向右验证:序列必须以 CANCEL_TAG 结尾,且中间全为 Tag 字母 ────────────
+  // 序列起点 = k+1,向右扫描
+  let j = k + 1;
+  while (j < chars.length && TAG_LETTER.test(chars[j]!)) {
+    j++;
+  }
+  // 紧随 Tag 字母之后必须是 CANCEL_TAG(U+E007F)
+  return j < chars.length && chars[j] === CANCEL_TAG;
+}
 
 /**
  * 不可见数学运算符 (U+2061–U+2064)。
@@ -118,8 +160,12 @@ function evaluateTagChars(target: AuditFileTarget): { line: number; excerpt: str
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx]!;
     // 用迭代器遍历以正确处理补充平面字符(每个字符占 2 个 UTF-16 代码单元)
-    for (const ch of line) {
+    const chars = [...line];
+    for (let i = 0; i < chars.length; i++) {
+      const ch = chars[i]!;
       if (UNICODE_TAG_CHARS.test(ch)) {
+        // 跳过合法的 RGI emoji 细分旗帜序列(如苏格兰/英格兰/威尔士国旗)
+        if (isInsideValidFlagSequence(chars, i)) continue;
         return {
           line: lineIdx + 1,
           excerpt: `发现 Unicode Tag 字符 ${codepointLabel(ch)}(U+E0000–U+E007F)— 可编码隐藏 ASCII 指令 — "${line.trim().slice(0, 100)}"`,
@@ -187,9 +233,9 @@ export const invisibleCharRules: AuditFileRule[] = [
   },
   {
     id: 'obfuscation/invisible-math-operators',
-    severity: 'high',
+    severity: 'medium',
     message:
-      '内容包含不可见数学运算符(U+2061–U+2064),在非 MathML 上下文中可疑——可用于隐藏文本片段',
+      '内容包含不可见数学运算符(U+2061–U+2064),在非 MathML 上下文中可疑——可用于隐藏文本片段(MathML/LaTeX/科学内容中有合法用途,故降级为 medium)',
     source: SECTION,
     evaluate: evaluateInvisibleMath,
   },
