@@ -55,6 +55,7 @@ skill-switch --help
 | Command | Purpose |
 |---|---|
 | `scan` | Inventory installed skills per tool (read-only). |
+| `init` | Scan installed skills and draft an initial `skills.json` (skips if one exists; `--force` to overwrite, `--dry-run` to preview). |
 | `audit` | Security audit; any critical/high or score < 70 → exit 1. |
 | `install` | Install from a local or git source (audits + snapshots first). |
 | `toggle` | Enable/disable a single skill per the declaration. |
@@ -67,6 +68,8 @@ skill-switch --help
 | `drift` | Upstream HEAD / locked commit / local content three-way drift. |
 | `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). |
 | `lock` | Inspect the lock; `--verify` re-hashes disk to compare. |
+| `export` | Bundle skills.json + skills.lock.json into a portable .ssp archive (read-only). |
+| `import` | Restore skills.json + skills.lock.json from a .ssp archive (does not sync to disk). |
 | `uninstall` | One-command uninstall of skill-switch itself. |
 
 Common options: `--json`, `--home <dir>`, `--agent <tool>` (claude-code / codex / gemini-cli / cursor / copilot …). Run any command with `--help` for the rest.
@@ -91,6 +94,12 @@ pnpm release                             # build .app / .dmg (unsigned)
 ```
 
 The bundled CLI is a **Node SEA sidecar**, so the app runs CLI calls without a system `node`. Signing + notarization (Developer ID required) is documented in [docs/release/signing.md](docs/release/signing.md).
+
+## More docs
+
+- [docs/roadmap.md](./docs/roadmap.md) — near-term hardening, medium-term features, long-term directions.
+- [docs/known-limitations.md](./docs/known-limitations.md) — documented audit blind spots.
+- [CHANGELOG.md](./CHANGELOG.md) — release history.
 
 ## License
 

@@ -5,7 +5,7 @@
 
 ## [Unreleased]
 
-两个批次:**v0.2「安全网」**(让普通人也能安全、可回滚地管理技能)+ **v0.3「秩序」**(跨 agent 一致性与更深的安全)。macOS 分发需 Developer ID 签名(见 [docs/release/signing.md](docs/release/signing.md))。
+三个批次:**v0.2「安全网」**(让普通人也能安全、可回滚地管理技能)+ **v0.3「秩序」**(跨 agent 一致性与更深的安全)+ **v0.4「命令与深度审计」**(新命令 + 把审计扩展到混淆载荷与 agent 配置)。macOS 分发需 Developer ID 签名(见 [docs/release/signing.md](docs/release/signing.md))。
 
 ### 新增 Added
 - **「历史」页**:把每次改动前的自动备份做成时间线,一键还原到任意时间点——误删误改的「后悔药」。
@@ -15,6 +15,10 @@
 - **健康中心(高级视图)**:跨 agent 的「声明 × 锁 × 磁盘」一致性可视化,按漂移类型分组、高亮、给出该怎么办。
 - **操作历史**:备份记录读成大白话操作日志(「停用『X』前的备份」等)。
 - **隐私页脚**:常驻「零遥测 · 本机运行 · 不上传 · 可离线」承诺。
+- **(v0.4)`init` 命令**:扫描各工具已装的 skill,一键草拟初始 `skills.json`(已存在则不覆盖,`--force` 覆盖、`--dry-run` 只看草稿)。
+- **(v0.4)`export` / `import` 命令**:把声明 + 锁打包成可携带的 `.ssp` 档案,跨机迁移你的技能配置(`import` 不覆盖现有、需 `--force`,且只写声明、提示你再 `sync`)。
+- **(v0.4)`skills.json` JSON Schema**:发布 `docs/schema/` 下的正式 schema,`lint` 现在会校验声明文件结构并报出具体错误(缺字段 / 类型错 / 未知 mode 等)。
+- **(v0.4)`lint` 规范检查**:对 SKILL.md frontmatter 的可选字段(version / tags / triggers)做温和的规范提示。
 
 ### 改进 Changed
 - **所有危险操作先确认**,并用大白话说明「这一步会改什么」「能不能撤」(改动前自动备份)。
@@ -28,6 +32,9 @@
 - `restore` / `uninstall` 路径穿越加固;skill 命名策略加固(控制字符、Windows 保留名等)。
 - 强制越过安全检查的安装会**留痕**(可在安全中心查看)。
 - GUI 收紧 CSP,阻断远程内容。
+- **(v0.4)识破 base64 编码载荷**:`base64 -d | sh` 形态会解码后再扫,揪出藏在编码里的反弹 shell / 外传。
+- **(v0.4)识破 Trojan-Source 伪装**:检测用于隐藏指令的双向控制字符(U+202A–202E / U+2066–2069,CVE-2021-42574);对中文/阿拉伯语/希伯来语/emoji 等正常内容不误报。
+- **(v0.4)审计扩展到 agent 配置**:`audit --configs` 体检 `.claude/settings.json` 与 MCP 配置,揪出恶意 hook、过宽权限、明文密钥(默认不开,需显式 `--configs`)。
 
 ### 修复 Fixed
 - 状态文件解析错误不再被静默当空;关键写入改为**原子写**(临时文件→rename)。

@@ -10,9 +10,11 @@ import { basename, dirname } from 'node:path';
 import matter from 'gray-matter';
 import { detectConflicts, type ConflictResult } from '../../vendor/agent-skills-cli/conflict-detector.ts';
 import { buildContextPlan } from '../../vendor/agent-skills-cli/context-budget.ts';
+import { getSkillsJsonPath } from '../sync.ts';
 import { scanHome } from '../scan.ts';
-import { ALLOWED_FIELDS, validateMetadata } from './spec-validator.ts';
+import { ALLOWED_FIELDS, validateMetadata, checkFrontmatterConventions } from './spec-validator.ts';
 import { CLAUDE_ONLY_FIELDS, checkPortability, type LintIssue, type LintTarget } from './portability.ts';
+import { validateSkillsJson, type SkillsJsonFinding } from './skills-json-validator.ts';
 
 export interface SkillLintResult {
   dir: string;
@@ -35,6 +37,8 @@ export interface HomeLintReport {
     perAgent: AgentBudgetRow[];
     plan?: { totalTokens: number; budget: number; loaded: number; skipped: number };
   };
+  /** Structural findings from validating skills.json (empty when file absent or valid) */
+  skillsJsonFindings: SkillsJsonFinding[];
   hasErrors: boolean;
 }
 
@@ -59,7 +63,10 @@ export async function lintSkillDir(dir: string, target: LintTarget): Promise<Ski
     const { data, content } = matter(raw, {}); // 空 options 防缓存污染(S1.3 教训)
     const metadata = data as Record<string, unknown>;
     const specErrors = filterSpecErrors(validateMetadata(metadata, name), metadata);
-    return { dir, name, specErrors, issues: checkPortability(metadata, content, target) };
+    const hasPlatformExtensions = Object.keys(metadata).some((k) => KNOWN_PLATFORM_FIELDS.has(k));
+    const conventionIssues = checkFrontmatterConventions(metadata, hasPlatformExtensions);
+    const portabilityIssues = checkPortability(metadata, content, target);
+    return { dir, name, specErrors, issues: [...conventionIssues, ...portabilityIssues] };
   } catch (cause) {
     return {
       dir,
@@ -112,9 +119,37 @@ export async function lintHome(
     plan = undefined; // 预算估算失败不阻断 lint
   }
 
+  // skills.json 结构校验(文件不存在时静默跳过,不阻断 lint)
+  const skillsJsonFindings = await lintSkillsJson(home);
+
   const hasErrors =
     skills.some((s) => s.specErrors.length > 0 || s.issues.some((i) => i.severity === 'error')) ||
-    conflicts.summary.critical > 0;
+    conflicts.summary.critical > 0 ||
+    skillsJsonFindings.some((f) => f.severity === 'error');
 
-  return { skills, conflicts, budget: { perAgent, plan }, hasErrors };
+  return { skills, conflicts, budget: { perAgent, plan }, skillsJsonFindings, hasErrors };
+}
+
+async function lintSkillsJson(home: string): Promise<SkillsJsonFinding[]> {
+  const skillsJsonPath = getSkillsJsonPath(home);
+  let raw: string;
+  try {
+    raw = await readFile(skillsJsonPath, 'utf8');
+  } catch {
+    // File absent is fine — skills.json is optional until first install
+    return [];
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (cause) {
+    return [
+      {
+        severity: 'error',
+        rule: 'skills-json/parse-error',
+        message: `skills.json JSON parse error: ${cause instanceof Error ? cause.message : String(cause)}`,
+      },
+    ];
+  }
+  return validateSkillsJson(parsed);
 }

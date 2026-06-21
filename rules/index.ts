@@ -3,11 +3,13 @@
 //   S2.4 持久化 + 全局文件篡改(自写);F6 Credential Theft + Supply Chain。
 // 每条规则的 source 字段必须注明 ags SECURITY.md 章节或自写依据。
 import type { AuditFileRule, AuditRule } from '../src/core/audit/types.ts';
+import { base64PayloadRules } from './base64-payload.ts';
 import { clickfixRules } from './clickfix.ts';
 import { credentialTheftRules } from './credential-theft.ts';
 import { destructiveRules } from './destructive.ts';
 import { exfiltrationRules } from './exfiltration.ts';
 import { globalTamperRules } from './global-tamper.ts';
+import { invisibleCharRules } from './invisible-chars.ts';
 import { persistenceRules } from './persistence.ts';
 import { promptInjectionRules } from './prompt-injection.ts';
 import { reverseShellRules } from './reverse-shell.ts';
@@ -30,4 +32,6 @@ export const allRules: AuditRule[] = [
 
 export const allFileRules: AuditFileRule[] = [
   ...stagedExfilRules,
+  ...base64PayloadRules, // A5:base64 编码 payload 解码检测
+  ...invisibleCharRules, // Trojan-Source bidi/控制字符(CVE-2021-42574)
 ];

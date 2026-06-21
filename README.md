@@ -61,6 +61,7 @@ skill-switch --help
 | Command | Purpose | Example |
 |---|---|---|
 | `scan` | 盘点各工具已装的 skill(只读;坏样本以 `error` 字段呈现)。 | `skill-switch scan` |
+| `init` | 扫描已安装 skill,草拟 `skills.json` 初始声明(已存在则跳过,`--force` 覆盖,`--dry-run` 只看草稿)。 | `skill-switch init --dry-run` |
 | `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。 | `skill-switch audit ./my-skill` |
 | `install` | 安装本地或 git 来源:装前 audit + 装前快照,写 lock 与声明。 | `skill-switch install ./my-skills --agent claude-code` |
 | `toggle` | 按声明开关单个 skill(同步前自动快照)。 | `skill-switch toggle tidy-notes --off` |
@@ -73,6 +74,8 @@ skill-switch --help
 | `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。 | `skill-switch drift` |
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
+| `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
+| `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |
 | `uninstall` | 一键卸载本软件(见下节)。 | `skill-switch uninstall` |
 
 公共选项:`--json`、`--home <dir>`、`--agent <工具>`(claude-code / codex / gemini-cli / cursor / copilot …)。每个命令 `--help` 看全部。
@@ -141,6 +144,7 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui
 ## 更多文档
 
 - [CHANGELOG.md](./CHANGELOG.md):版本变更。
+- [docs/roadmap.md](./docs/roadmap.md):路线图——近期加固、中期功能、远期探索。
 - [docs/release/signing.md](./docs/release/signing.md):macOS 签名与公证。
 - [docs/known-limitations.md](./docs/known-limitations.md):已知限制。
 - [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md):第三方快照与移植规则署名。

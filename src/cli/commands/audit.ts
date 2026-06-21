@@ -9,7 +9,9 @@ import { dirname, extname, join, relative } from 'node:path';
 import type { Command } from 'commander';
 import { allFileRules, allRules } from '../../../rules/index.ts';
 import { auditContents, type AuditReport, type AuditTarget } from '../../core/audit/engine.ts';
+import { auditConfigFiles, flattenConfigFindings, type ConfigFileResult } from '../../core/audit/config-discovery.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
+import type { AuditFinding } from '../../core/audit/types.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import { scanHome, type SkillRecord } from '../../core/scan.ts';
 
@@ -172,9 +174,13 @@ export interface AuditHomeReport {
   home: string;
   total: number;
   skills: AuditHomeSkillReport[];
+  /** Config file findings; populated when `includeConfigs` is true. */
+  configs?: ConfigFileResult[];
+  /** Whether any config finding has blocking severity. */
+  configsBlocked?: boolean;
 }
 
-export async function auditHome(home: string): Promise<AuditHomeReport> {
+export async function auditHome(home: string, options: { includeConfigs?: boolean } = {}): Promise<AuditHomeReport> {
   const records = await scanHome(home);
   const uniqueRecords = new Map<string, SkillRecord>();
   for (const record of records) {
@@ -197,23 +203,61 @@ export async function auditHome(home: string): Promise<AuditHomeReport> {
   }
 
   skills.sort((a, b) => `${a.relSkillsDir}|${a.dirName}`.localeCompare(`${b.relSkillsDir}|${b.dirName}`));
-  return { home, total: skills.length, skills };
+
+  if (!options.includeConfigs) {
+    return { home, total: skills.length, skills };
+  }
+
+  const configs = await auditConfigFiles(home);
+  const allConfigFindings: AuditFinding[] = flattenConfigFindings(configs);
+  const configsBlocked = allConfigFindings.some((f) => BLOCKING_SEVERITIES.has(f.severity));
+
+  return { home, total: skills.length, skills, configs, configsBlocked };
 }
 
 function formatAuditHomeTable(report: AuditHomeReport): string {
-  if (report.skills.length === 0) return `audit home: ${report.home}\n未发现任何 skill。`;
+  const parts: string[] = [`audit home: ${report.home}`];
 
-  const header = ['NAME', 'DIR', 'SCORE', 'VERDICT', 'BLOCK'];
-  const rows = report.skills.map((skill) => [
-    skill.name,
-    skill.dir,
-    String(skill.score),
-    skill.verdict,
-    skill.blocked ? 'yes' : 'no',
-  ]);
-  const widths = header.map((h, col) => Math.max(h.length, ...rows.map((row) => row[col]!.length)));
-  const renderRow = (row: string[]) => row.map((cell, col) => cell.padEnd(widths[col]!)).join('  ').trimEnd();
-  return [`audit home: ${report.home}`, renderRow(header), ...rows.map(renderRow)].join('\n');
+  if (report.skills.length === 0) {
+    parts.push('未发现任何 skill。');
+  } else {
+    const header = ['NAME', 'DIR', 'SCORE', 'VERDICT', 'BLOCK'];
+    const rows = report.skills.map((skill) => [
+      skill.name,
+      skill.dir,
+      String(skill.score),
+      skill.verdict,
+      skill.blocked ? 'yes' : 'no',
+    ]);
+    const widths = header.map((h, col) => Math.max(h.length, ...rows.map((row) => row[col]!.length)));
+    const renderRow = (row: string[]) => row.map((cell, col) => cell.padEnd(widths[col]!)).join('  ').trimEnd();
+    parts.push(renderRow(header), ...rows.map(renderRow));
+  }
+
+  if (report.configs !== undefined) {
+    parts.push('', '--- config files ---');
+    if (report.configs.length === 0) {
+      parts.push('no agent config files found');
+    } else {
+      for (const cfg of report.configs) {
+        if (cfg.findings.length === 0) {
+          parts.push(`${cfg.relPath}: ok`);
+        } else {
+          parts.push(`${cfg.relPath}: ${cfg.findings.length} finding(s)`);
+          const sorted = [...cfg.findings].sort(
+            (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity),
+          );
+          for (const f of sorted) {
+            parts.push(`  [${f.severity.toUpperCase()}] ${f.ruleId}  ${f.file}:${f.line}`);
+            parts.push(`    ${f.message}`);
+            parts.push(`    > ${f.excerpt.trim()}`);
+          }
+        }
+      }
+    }
+  }
+
+  return parts.join('\n');
 }
 
 export function registerAuditCommand(program: Command): void {
@@ -223,7 +267,8 @@ export function registerAuditCommand(program: Command): void {
     .argument('[path]', 'skill 目录或 SKILL.md 路径;省略时扫描 --home 下全部已装 skill')
     .option('--home [dir]', '启用 home 全量模式;可选覆盖 home 根目录(默认取系统 home)')
     .option('--json', '机器可读 JSON 输出')
-    .action(async (path: string | undefined, options: { home?: string | boolean; json?: boolean }, command: Command) => {
+    .option('--configs', '同时审查 home 下的 agent 配置文件(settings.json / MCP 等)')
+    .action(async (path: string | undefined, options: { home?: string | boolean; json?: boolean; configs?: boolean }, command: Command) => {
       if (path) {
         const report = await auditSkillDir(path);
         if (options.json) {
@@ -237,12 +282,14 @@ export function registerAuditCommand(program: Command): void {
 
       const optionHome = typeof options.home === 'string' ? options.home : undefined;
       const home = resolveHomeRoot(optionHome ?? command.parent?.opts<{ home?: string }>().home);
-      const report = await auditHome(home);
+      const report = await auditHome(home, { includeConfigs: options.configs === true });
       if (options.json) {
         console.log(JSON.stringify(report, null, 2));
       } else {
         console.log(formatAuditHomeTable(report));
       }
-      if (report.skills.some((skill) => skill.blocked)) process.exitCode = 1;
+      const skillsBlocked = report.skills.some((skill) => skill.blocked);
+      const configBlocked = report.configsBlocked === true;
+      if (skillsBlocked || configBlocked) process.exitCode = 1;
     });
 }

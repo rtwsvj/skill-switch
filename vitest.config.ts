@@ -6,5 +6,18 @@ export default defineConfig({
     // 被 CI 静默跳过。统一覆盖,避免「写了测试却没跑」。
     include: ['tests/**/*.test.ts', 'gui/tests/**/*.test.{ts,tsx}'],
     setupFiles: ['tests/setup.ts'],
+    // 覆盖率配置:需要 @vitest/coverage-v8 devDependency。
+    // 运行: pnpm test:coverage
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      include: ['src/**/*.ts', 'gui/src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/vendor/**',
+        'tests/**',
+        'gui/tests/**',
+        '**/*.d.ts',
+      ],
+    },
   },
 });

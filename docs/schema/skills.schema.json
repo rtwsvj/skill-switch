@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-switch/schemas/skills.json",
+  "title": "SkillsDeclarationFile",
+  "description": "skill-switch skills.json declaration file schema",
+  "type": "object",
+  "required": ["version", "skills"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "description": "Schema version — must be 1",
+      "type": "integer",
+      "const": 1
+    },
+    "skills": {
+      "description": "List of skill declarations",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SkillDeclaration"
+      }
+    }
+  },
+  "$defs": {
+    "AgentType": {
+      "description": "Supported agent identifier",
+      "type": "string",
+      "enum": [
+        "aider-desk", "amp", "antigravity", "antigravity-cli", "astrbot",
+        "autohand-code", "augment", "bob", "claude-code", "openclaw", "cline",
+        "codearts-agent", "codebuddy", "codemaker", "codestudio", "codex",
+        "command-code", "continue", "cortex", "crush", "cursor", "deepagents",
+        "devin", "dexto", "droid", "firebender", "forgecode", "gemini-cli",
+        "github-copilot", "goose", "hermes-agent", "inference-sh", "iflow-cli",
+        "jazz", "junie", "kilo", "kimi-code-cli", "kiro-cli", "kode", "lingma",
+        "loaf", "mcpjam", "mistral-vibe", "moxby", "mux", "neovate", "opencode",
+        "openhands", "ona", "pi", "qoder", "qoder-cn", "qwen-code", "replit",
+        "reasonix", "roo", "rovodev", "tabnine-cli", "terramind", "tinycloud",
+        "trae", "trae-cn", "warp", "windsurf", "zed", "zencoder", "zenflow",
+        "pochi", "promptscript", "adal", "universal"
+      ]
+    },
+    "Mode": {
+      "description": "Installation mode — symlink or copy",
+      "type": "string",
+      "enum": ["symlink", "copy"]
+    },
+    "SkillAgentSource": {
+      "description": "Per-agent source and mode override",
+      "type": "object",
+      "required": ["source", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "description": "Absolute path or path relative to home",
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode"
+        }
+      }
+    },
+    "SkillDeclaration": {
+      "description": "A single skill entry in skills.json",
+      "type": "object",
+      "required": ["name", "source", "agents", "enabled", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Skill name (must be a safe, non-empty string)",
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "description": "Path to the skill content directory (absolute or relative to home)",
+          "type": "string",
+          "minLength": 1
+        },
+        "agents": {
+          "description": "List of agents this skill is installed for",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentType"
+          },
+          "minItems": 1
+        },
+        "enabled": {
+          "description": "Whether this skill is currently active",
+          "type": "boolean"
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode"
+        },
+        "agentSources": {
+          "description": "Per-agent source/mode overrides (optional)",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/SkillAgentSource"
+          }
+        }
+      }
+    }
+  }
+}

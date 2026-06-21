@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-switch/schemas/skills.lock.json",
+  "title": "SkillsLockFile",
+  "description": "skill-switch skills.lock.json lock file schema",
+  "type": "object",
+  "required": ["version", "skills"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "description": "Schema version — must be 1",
+      "type": "integer",
+      "const": 1
+    },
+    "skills": {
+      "description": "Installed skill records, sorted by (agent, name)",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SkillsLockEntry"
+      }
+    }
+  },
+  "$defs": {
+    "AgentType": {
+      "description": "Supported agent identifier",
+      "type": "string",
+      "enum": [
+        "aider-desk", "amp", "antigravity", "antigravity-cli", "astrbot",
+        "autohand-code", "augment", "bob", "claude-code", "openclaw", "cline",
+        "codearts-agent", "codebuddy", "codemaker", "codestudio", "codex",
+        "command-code", "continue", "cortex", "crush", "cursor", "deepagents",
+        "devin", "dexto", "droid", "firebender", "forgecode", "gemini-cli",
+        "github-copilot", "goose", "hermes-agent", "inference-sh", "iflow-cli",
+        "jazz", "junie", "kilo", "kimi-code-cli", "kiro-cli", "kode", "lingma",
+        "loaf", "mcpjam", "mistral-vibe", "moxby", "mux", "neovate", "opencode",
+        "openhands", "ona", "pi", "qoder", "qoder-cn", "qwen-code", "replit",
+        "reasonix", "roo", "rovodev", "tabnine-cli", "terramind", "tinycloud",
+        "trae", "trae-cn", "warp", "windsurf", "zed", "zencoder", "zenflow",
+        "pochi", "promptscript", "adal", "universal"
+      ]
+    },
+    "SkillsLockEntry": {
+      "description": "An installed skill record in the lock file",
+      "type": "object",
+      "required": ["name", "agent", "source", "sourceType", "sha256", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Skill name",
+          "type": "string",
+          "minLength": 1
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentType"
+        },
+        "source": {
+          "description": "Original source (git URL or local path)",
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceType": {
+          "description": "Whether the source is a git URL or local path",
+          "type": "string",
+          "enum": ["git", "local"]
+        },
+        "ref": {
+          "description": "Requested git ref (branch/tag) — git sources only",
+          "type": "string"
+        },
+        "commit": {
+          "description": "Resolved HEAD commit SHA after clone — git sources only",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Content hash of the installed skill folder (computeSkillFolderHash)",
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "description": "Installation mode",
+          "type": "string",
+          "enum": ["copy", "symlink"]
+        }
+      }
+    }
+  }
+}

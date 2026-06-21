@@ -3,6 +3,9 @@ import { registerAuditCommand } from './commands/audit.ts';
 import { registerDiffCommand } from './commands/diff.ts';
 import { registerDoctorCommand } from './commands/doctor.ts';
 import { registerDriftCommand } from './commands/drift.ts';
+import { registerExportCommand } from './commands/export.ts';
+import { registerImportCommand } from './commands/import.ts';
+import { registerInitCommand } from './commands/init.ts';
 import { registerInstallCommand } from './commands/install.ts';
 import { registerLintCommand } from './commands/lint.ts';
 import { registerLockCommand } from './commands/lock.ts';
@@ -21,6 +24,7 @@ export function buildProgram(): Command {
     .option('--home <dir>', '覆盖 home 根目录(默认取系统 home;测试与演练请指向假目录)');
 
   registerScanCommand(program);
+  registerInitCommand(program);
   registerAuditCommand(program);
   registerInstallCommand(program);
   registerToggleCommand(program);
@@ -33,6 +37,8 @@ export function buildProgram(): Command {
   registerDriftCommand(program);
   registerStatsCommand(program);
   registerLockCommand(program);
+  registerExportCommand(program);
+  registerImportCommand(program);
   registerUninstallCommand(program);
 
   return program;

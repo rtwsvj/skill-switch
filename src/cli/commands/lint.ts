@@ -17,6 +17,13 @@ function printSkill(result: SkillLintResult): void {
 
 function printHomeReport(report: HomeLintReport): void {
   for (const s of report.skills) printSkill(s);
+  if (report.skillsJsonFindings.length > 0) {
+    console.log('skills.json');
+    for (const f of report.skillsJsonFindings) {
+      const where = f.path ? ` (${f.path})` : '';
+      console.log(`  [${f.severity.toUpperCase()}] ${f.rule}: ${f.message}${where}`);
+    }
+  }
   const { summary } = report.conflicts;
   console.log(`冲突: critical=${summary.critical} warning=${summary.warnings} overlap=${summary.overlapCount}`);
   for (const row of report.budget.perAgent) {
