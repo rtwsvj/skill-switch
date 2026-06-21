@@ -146,6 +146,8 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui
 
 - [CHANGELOG.md](./CHANGELOG.md):版本变更。
 - [docs/roadmap.md](./docs/roadmap.md):路线图——近期加固、中期功能、远期探索。
+- [docs/troubleshooting.md](./docs/troubleshooting.md):常见问题与解决方法（Gatekeeper、CLI 路径、audit 拦截、doctor 漂移、备份还原、卸载）。
+- [docs/architecture.md](./docs/architecture.md):贡献者架构概述——核心模块、CLI 层、GUI、vendored 快照与数据模型。
 - [docs/release/signing.md](./docs/release/signing.md):macOS 签名与公证。
 - [docs/known-limitations.md](./docs/known-limitations.md):已知限制。
 - [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md):第三方快照与移植规则署名。
