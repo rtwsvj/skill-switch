@@ -294,6 +294,23 @@ export async function planSync(
   return actions;
 }
 
+/** Place (or re-place) a skill at its target path for create/replace actions. */
+async function materializeSkill(
+  home: string,
+  action: SyncAction,
+  declaration: SkillsDeclarationFile,
+): Promise<void> {
+  const declared = declaration.skills.find((s) => s.name === action.name)!;
+  const expected = sourceForAgent(declared, action.agent);
+  const sourceAbs = sourceAbsFor(home, expected.source);
+  await mkdir(join(action.target, '..'), { recursive: true });
+  if (expected.mode === 'symlink') {
+    await symlink(sourceAbs, action.target, 'dir');
+  } else {
+    await copyDirWithoutSymlinks(sourceAbs, action.target);
+  }
+}
+
 export async function applySync(
   home: string,
   declaration: SkillsDeclarationFile,
@@ -314,15 +331,7 @@ export async function applySync(
     await rm(action.target, { recursive: true, force: true });
     if (action.kind === 'remove') continue;
 
-    const declared = declaration.skills.find((s) => s.name === action.name)!;
-    const expected = sourceForAgent(declared, action.agent);
-    const sourceAbs = sourceAbsFor(home, expected.source);
-    await mkdir(join(action.target, '..'), { recursive: true });
-    if (expected.mode === 'symlink') {
-      await symlink(sourceAbs, action.target, 'dir');
-    } else {
-      await copyDirWithoutSymlinks(sourceAbs, action.target);
-    }
+    await materializeSkill(home, action, declaration);
   }
   return { actions };
 }
