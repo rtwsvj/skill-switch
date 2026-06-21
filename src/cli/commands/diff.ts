@@ -39,8 +39,7 @@ export function registerDiffCommand(program: Command): void {
       ) => {
         const format = options.format ?? 'text';
         if (format !== 'text' && format !== 'unified') {
-          console.error(`错误: --format 只接受 "text" 或 "unified",收到: "${format}"`);
-          process.exit(1);
+          throw new Error(`--format 只接受 "text" 或 "unified",收到: "${format}"`);
         }
 
         const home = resolveHomeRoot(options.home ?? command.parent?.opts<{ home?: string }>().home);
