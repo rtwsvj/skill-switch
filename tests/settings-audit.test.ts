@@ -243,6 +243,34 @@ describe('literal secrets → high', () => {
     expect(findings.length).toBeGreaterThan(0);
     expect(hasSeverity(findings, 'high')).toBe(true);
   });
+
+  it('dedup: secret value matching both key-name AND pattern rules yields exactly one finding', () => {
+    // OPENAI_KEY ends with _KEY (triggers settings/env-secret-literal) AND
+    // the value starts with sk- (triggers settings/literal-openai-key).
+    // Only ONE finding should be emitted for this single value.
+    const settings = JSON.stringify({
+      env: { OPENAI_KEY: 'sk-XXXX12345678901234567890abcdefghijkl' },
+    });
+    const findings = auditSettingsJson(settings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.ruleId).toBe('settings/literal-openai-key');
+    expect(hasSeverity(findings, 'high')).toBe(true);
+  });
+
+  it('dedup: two different secret values each produce their own (separate) finding', () => {
+    // Two distinct secrets — each must still be flagged once.
+    const settings = JSON.stringify({
+      env: {
+        OPENAI_KEY: 'sk-XXXX12345678901234567890abcdefghijkl',
+        MY_SERVICE_TOKEN: 'some-raw-token-not-an-env-ref-abcdef12345',
+      },
+    });
+    const findings = auditSettingsJson(settings);
+    expect(findings).toHaveLength(2);
+    const ids = ruleIds(findings);
+    expect(ids).toContain('settings/literal-openai-key');
+    expect(ids).toContain('settings/env-secret-literal');
+  });
 });
 
 // ─── UNPARSEABLE JSON ─────────────────────────────────────────────────────────

@@ -191,28 +191,36 @@ function auditSecretsInObject(obj: unknown, findings: AuditFinding[]): void {
   }
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
     if (typeof value === 'string' && value.length > 0) {
-      // 1. Key-based detection: key ends with a secret-looking suffix
-      const upperKey = key.toUpperCase();
-      const keyLooksLikeSecret = SECRET_KEY_SUFFIXES.some((s) => upperKey.endsWith(s));
-      if (keyLooksLikeSecret && !isEnvReference(value)) {
-        findings.push(
-          finding(
-            'settings/env-secret-literal',
-            'high',
-            `Config key "${key}" contains what appears to be a literal secret (not an env reference)`,
-            0,
-            makeExcerpt(value),
-          ),
-        );
+      // 1. Pattern-based detection: value looks like a known token format (most specific).
+      //    Run this first so we can suppress the generic key-based finding when it matches,
+      //    preventing duplicate findings for the same value+location.
+      let patternMatched = false;
+      if (!isEnvReference(value)) {
+        for (const rule of SECRET_PATTERNS) {
+          if (rule.pattern.test(value)) {
+            findings.push(
+              finding(rule.id, 'high', rule.message, 0, makeExcerpt(value)),
+            );
+            patternMatched = true;
+          }
+        }
       }
 
-      // 2. Pattern-based detection: value looks like a known token format
-      for (const rule of SECRET_PATTERNS) {
-        // Skip the generic 40-char AWS secret pattern if the value is an env reference
-        if (isEnvReference(value)) continue;
-        if (rule.pattern.test(value)) {
+      // 2. Key-based detection: key ends with a secret-looking suffix.
+      //    Only emit if no pattern-based rule already matched this value — deduplicates
+      //    cases like OPENAI_KEY: "sk-XXXX" that would otherwise produce two findings.
+      if (!patternMatched) {
+        const upperKey = key.toUpperCase();
+        const keyLooksLikeSecret = SECRET_KEY_SUFFIXES.some((s) => upperKey.endsWith(s));
+        if (keyLooksLikeSecret && !isEnvReference(value)) {
           findings.push(
-            finding(rule.id, 'high', rule.message, 0, makeExcerpt(value)),
+            finding(
+              'settings/env-secret-literal',
+              'high',
+              `Config key "${key}" contains what appears to be a literal secret (not an env reference)`,
+              0,
+              makeExcerpt(value),
+            ),
           );
         }
       }
