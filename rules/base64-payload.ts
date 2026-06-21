@@ -47,6 +47,8 @@ function tryDecode(blob: string): string | null {
     const buf = Buffer.from(blob, 'base64');
     // 解码结果必须是可读文本(UTF-8 且不含太多不可打印字符)
     const text = buf.toString('utf8');
+    // Guard: empty decode yields NaN from the ratio below — bail out early.
+    if (text.length === 0) return null;
     const printable = [...text].filter((c) => c.codePointAt(0)! >= 0x20 || c === '\n' || c === '\t').length;
     if (printable / text.length < 0.8) return null; // 非文本 blob,跳过
     return text;
