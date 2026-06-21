@@ -7,5 +7,8 @@ gui/src-tauri/bin/
 # Claude Code 本地工作目录(运行时锁、dev-server 预览配置 launch.json 等),本机用,不入库
 .claude/
 
+# 自治维护团队的本地状态文件(PROJECT_STATE / STABILITY_REPORT 等),本机用,不入公开仓
+.autonomy/
+
 # fixture home 跑命令时生成的运行时目录(stats 缓存等);非 fixture 定义的一部分,不入库。
 tests/fixtures/**/.skill-switch/
