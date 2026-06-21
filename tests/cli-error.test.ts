@@ -41,4 +41,28 @@ describe('CLI global error handling', () => {
     expect(result.stdout).toContain('Usage:');
     expect(result.stderr).toBe('');
   });
+
+  // Regression: diff --format bad value must go through the top-level catch
+  // (not a bare process.exit bypass) so the contract is always uniform.
+  it('diff --format bad value: stderr has 错误:, exit 1, no stack trace', () => {
+    const home = mkdtempSync(join(tmpdir(), 'skill-switch-clierr-'));
+    const result = runCli(['diff', 'some-skill', '--format', 'json', '--home', home]);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('错误:');
+    expect(result.stderr).toContain('unified');
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/\n\s+at\s/);
+  });
+
+  // Regression: any synchronous throw inside a command action must also be caught cleanly.
+  it('toggle with neither --on nor --off: stderr has 错误:, exit 1, no stack trace', () => {
+    const home = mkdtempSync(join(tmpdir(), 'skill-switch-clierr-'));
+    const result = runCli(['toggle', 'my-skill', '--home', home]);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('错误:');
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/\n\s+at\s/);
+  });
 });
