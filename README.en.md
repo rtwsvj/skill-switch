@@ -99,6 +99,8 @@ The bundled CLI is a **Node SEA sidecar**, so the app runs CLI calls without a s
 ## More docs
 
 - [docs/roadmap.md](./docs/roadmap.md) — near-term hardening, medium-term features, long-term directions.
+- [docs/troubleshooting.md](./docs/troubleshooting.md) — common problems and fixes (Gatekeeper, CLI PATH, audit blocks, doctor drift kinds, backups, uninstall).
+- [docs/architecture.md](./docs/architecture.md) — contributor architecture overview: core modules, CLI layer, GUI, vendored snapshots, data model.
 - [docs/known-limitations.md](./docs/known-limitations.md) — documented audit blind spots.
 - [CHANGELOG.md](./CHANGELOG.md) — release history.
 
