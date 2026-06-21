@@ -3,6 +3,7 @@
 //   S2.4 持久化 + 全局文件篡改(自写);F6 Credential Theft + Supply Chain。
 // 每条规则的 source 字段必须注明 ags SECURITY.md 章节或自写依据。
 import type { AuditFileRule, AuditRule } from '../src/core/audit/types.ts';
+import { ansiInjectionRules } from './ansi-injection.ts';
 import { base64PayloadRules } from './base64-payload.ts';
 import { clickfixRules } from './clickfix.ts';
 import { credentialTheftRules } from './credential-theft.ts';
@@ -32,6 +33,7 @@ export const allRules: AuditRule[] = [
 
 export const allFileRules: AuditFileRule[] = [
   ...stagedExfilRules,
-  ...base64PayloadRules, // A5:base64 编码 payload 解码检测
-  ...invisibleCharRules, // Trojan-Source bidi/控制字符(CVE-2021-42574)
+  ...base64PayloadRules,    // A5:base64 编码 payload 解码检测
+  ...invisibleCharRules,    // Trojan-Source bidi/控制字符(CVE-2021-42574)
+  ...ansiInjectionRules,    // R2-b:ANSI 转义序列/终端控制序列注入
 ];
