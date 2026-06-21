@@ -375,13 +375,13 @@ describe('stats: windowed filtering and lastUsed tracking', () => {
     const ts = new Date().toISOString();
     await writeFile(
       join(transcriptsDir, 'session.jsonl'),
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         message: {
           content: [{ type: 'tool_use', name: 'mcp__myskill__action' }],
         },
         timestamp: ts,
-      }) + '\n',
+      })}\n`,
     );
 
     // scanHome needs at least one installed skill to produce a zombie
@@ -396,13 +396,13 @@ describe('stats: windowed filtering and lastUsed tracking', () => {
     // Write a JSONL with a tool use but NO timestamp — should be excluded by windowed filter
     await writeFile(
       join(transcriptsDir, 'notimestamp.jsonl'),
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         message: {
           content: [{ type: 'tool_use', name: 'mcp__someskill__action' }],
         },
         // no timestamp field
-      }) + '\n',
+      })}\n`,
     );
 
     const report = await buildStats(home, 7, { HOME: home }); // 7-day window
@@ -413,12 +413,12 @@ describe('stats: windowed filtering and lastUsed tracking', () => {
   it('includes all invocations (including timestampless) when no window is set', async () => {
     await writeFile(
       join(transcriptsDir, 'notimestamp2.jsonl'),
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         message: {
           content: [{ type: 'tool_use', name: 'mcp__otherskill__action' }],
         },
-      }) + '\n',
+      })}\n`,
     );
 
     const report = await buildStats(home, undefined, { HOME: home }); // no window
