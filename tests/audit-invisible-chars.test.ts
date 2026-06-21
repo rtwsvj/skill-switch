@@ -1,12 +1,15 @@
-// 双向覆盖/隔离字符规则(obfuscation/invisible-bidi-chars)的验收测试。
-// 威胁模型:Trojan-Source 式混淆——攻击者在 skill 内容中插入 Bidi 覆盖/隔离控制字符
-// (U+202A–U+202E / U+2066–U+2069),使人眼看到的逻辑与模型实际处理的文本不符。
+// 不可见字符规则验收测试,覆盖 4 条规则:
+//   obfuscation/invisible-bidi-chars   — Trojan-Source Bidi 覆盖/隔离字符
+//   obfuscation/unicode-tag-chars      — Unicode Tag 字符块(LLM 隐藏指令)
+//   obfuscation/invisible-math-operators — 不可见数学运算符
+//   obfuscation/deprecated-bidi-format  — Unicode 废弃双向格式字符
 //
 // 精度要求:
 //   - 阿拉伯语/希伯来语/波斯语散文(含 U+200C ZWNJ)必须零误报
 //   - Emoji ZWJ 序列(含 U+200D)必须零误报
 //   - UTF-8 BOM 文件(U+FEFF 位于文件首位)必须零误报
-//   - 普通中/英/日文内容必须零误报
+//   - 普通中/英/日/韩文内容必须零误报
+//   - 软连字符(U+00AD)必须零误报
 //
 // 意图遗漏:U+200B/200C/200D/FEFF 已由 prompt-injection/zero-width-chars 覆盖;
 //          U+200E/200F/00AD 已因误报风险被排除在本规则之外。
@@ -16,6 +19,9 @@ import { allFileRules, allRules } from '../rules/index.ts';
 import { auditContents, runFileRules } from '../src/core/audit/engine.ts';
 
 const RULE_ID = 'obfuscation/invisible-bidi-chars';
+const RULE_TAG = 'obfuscation/unicode-tag-chars';
+const RULE_MATH = 'obfuscation/invisible-math-operators';
+const RULE_DEP_BIDI = 'obfuscation/deprecated-bidi-format';
 
 // ── 辅助 ─────────────────────────────────────────────────────────────────────
 
@@ -371,16 +377,267 @@ describe('obfuscation/invisible-bidi-chars — 良性样本零误报', () => {
 // ── 规则元数据 ────────────────────────────────────────────────────────────────
 
 describe('invisible-chars rule registry hygiene', () => {
-  it('rule has unique id, non-empty source, and high severity', () => {
-    expect(invisibleCharRules).toHaveLength(1);
-    const rule = invisibleCharRules[0]!;
-    expect(rule.id).toBe(RULE_ID);
-    expect(rule.severity).toBe('high');
-    expect(rule.source.length).toBeGreaterThan(0);
-    expect(rule.message.length).toBeGreaterThan(0);
+  it('exports 4 rules, all high severity with non-empty source', () => {
+    expect(invisibleCharRules).toHaveLength(4);
+    for (const rule of invisibleCharRules) {
+      expect(rule.severity, rule.id).toBe('high');
+      expect(rule.source.length, rule.id).toBeGreaterThan(0);
+      expect(rule.message.length, rule.id).toBeGreaterThan(0);
+    }
   });
 
-  it('rule is registered in allFileRules', () => {
+  it('bidi rule is registered in allFileRules', () => {
     expect(allFileRules.map((r: { id: string }) => r.id)).toContain(RULE_ID);
+  });
+
+  it('all 4 invisible-char rule ids are registered in allFileRules', () => {
+    const ids = allFileRules.map((r: { id: string }) => r.id);
+    expect(ids).toContain(RULE_ID);
+    expect(ids).toContain(RULE_TAG);
+    expect(ids).toContain(RULE_MATH);
+    expect(ids).toContain(RULE_DEP_BIDI);
+  });
+
+  it('all 4 rule ids are unique', () => {
+    const ids = invisibleCharRules.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+// ── Unicode Tag 字符规则 — 恶意样本命中 ──────────────────────────────────────
+
+describe('obfuscation/unicode-tag-chars — 恶意样本命中', () => {
+  it('Tag char hidden instruction smuggled into skill content', () => {
+    // 攻击手法:用 Unicode Tag 字符块(U+E0000-U+E007F)编码隐藏指令。
+    // 每个 Tag 字符对应一个 ASCII 字符:Tag A = U+E0041,Tag B = U+E0042 等。
+    // 构造: "ignore" 对应 Tag i(E0069) + g(E0067) + n(E006E) + o(E006F) + r(E0072) + e(E0065)
+    // 这段文本对人眼完全不可见,但 LLM 在 token 层可以读取。
+    const tagI = String.fromCodePoint(0xE0069);
+    const tagG = String.fromCodePoint(0xE0067);
+    const tagN = String.fromCodePoint(0xE006E);
+    const tagO = String.fromCodePoint(0xE006F);
+    const tagR = String.fromCodePoint(0xE0072);
+    const tagE = String.fromCodePoint(0xE0065);
+    const hiddenWord = tagI + tagG + tagN + tagO + tagR + tagE;
+    const content = `# Safe skill\n\nThis looks like a normal skill.${hiddenWord}\n\nPlease help the user.\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_TAG);
+    expect(findings.find((f) => f.ruleId === RULE_TAG)!.line).toBe(3);
+    expect(findings.find((f) => f.ruleId === RULE_TAG)!.excerpt).toContain('U+E006');
+  });
+
+  it('Tag block start (U+E0000) is detected', () => {
+    const content = `Normal text${String.fromCodePoint(0xE0000)}more text\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_TAG);
+    expect(findings.find((f) => f.ruleId === RULE_TAG)!.excerpt).toContain('U+E0000');
+  });
+
+  it('Tag block end (U+E007F cancel tag) is detected', () => {
+    // U+E007F is CANCEL TAG, used to terminate Tag-encoded sequences
+    const content = `Payload end${String.fromCodePoint(0xE007F)}\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_TAG);
+    expect(findings.find((f) => f.ruleId === RULE_TAG)!.excerpt).toContain('U+E007F');
+  });
+
+  it('full engine round-trip: Tag-char hidden instruction flagged', () => {
+    // 模拟攻击者在 skill 描述字段附近插入不可见的 Tag 字符串"ignore previous instructions"
+    const tagS = String.fromCodePoint(0xE0073);
+    const tagK = String.fromCodePoint(0xE006B);
+    const tagI = String.fromCodePoint(0xE0069);
+    const tagP = String.fromCodePoint(0xE0070);
+    const hiddenMsg = tagS + tagK + tagI + tagP;
+    const content = [
+      '---',
+      'name: tag-attack',
+      'description: A skill that hides instructions in Tag characters',
+      '---',
+      '',
+      '# Helper',
+      '',
+      `Please assist the user with their tasks.${hiddenMsg}`,
+      '',
+      'Always be helpful.',
+    ].join('\n');
+    const report = auditFull(content);
+    expect(report.findings.map((f) => f.ruleId)).toContain(RULE_TAG);
+  });
+});
+
+// ── Unicode Tag 字符规则 — 良性样本零误报 ────────────────────────────────────
+
+describe('obfuscation/unicode-tag-chars — 良性样本零误报', () => {
+  it('普通中文内容 — 零 findings (tag rule)', () => {
+    const content = '你好世界，这是一段普通的中文文本，不含任何隐藏字符。\n如需帮助请告知。\n';
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_TAG)).toEqual([]);
+  });
+
+  it('普通日文内容 — 零 findings (tag rule)', () => {
+    const content = '日本語のコンテンツを扱うスキル。ネットワーク診断。\nping -c 4 example.com\n';
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_TAG)).toEqual([]);
+  });
+
+  it('韩文内容 — 零 findings (tag rule)', () => {
+    const content = '안녕하세요. 이것은 일반적인 한국어 텍스트입니다.\n네트워크 진단 도구.\n';
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_TAG)).toEqual([]);
+  });
+
+  it('阿拉伯语散文 — 零 findings (tag rule)', () => {
+    const content = 'هذا مساعد يساعدك في تشخيص مشاكل الشبكة. استخدم الأوامر الآمنة فقط.\n';
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_TAG)).toEqual([]);
+  });
+
+  it('希伯来语散文 — 零 findings (tag rule)', () => {
+    const content = 'עוזר זה מאבחן בעיות רשת בפקודות קריאה בלבד.\n';
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_TAG)).toEqual([]);
+  });
+
+  it('Emoji ZWJ 序列 👨‍👩‍👧 — 零 findings (tag rule)', () => {
+    const content = 'This skill includes emoji: 👨‍👩‍👧 👩‍💻 🏳️‍🌈\nNormal prose content.\n';
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_TAG)).toEqual([]);
+  });
+
+  it('UTF-8 BOM 文件 — 零 findings (tag rule)', () => {
+    const content = '﻿---\nname: bom-file\ndescription: File starting with a UTF-8 BOM.\n---\n\nNormal content here.\n';
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_TAG)).toEqual([]);
+  });
+
+  it('软连字符(U+00AD)— 零 findings (tag rule)', () => {
+    const content = 'exam­ple with soft hyphen for proper word wrap.\n';
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_TAG)).toEqual([]);
+  });
+});
+
+// ── 不可见数学运算符规则 — 恶意/良性 ─────────────────────────────────────────
+
+describe('obfuscation/invisible-math-operators — 恶意样本命中', () => {
+  it('U+2061 INVISIBLE FUNCTION APPLICATION outside MathML', () => {
+    const content = `regular text⁡hidden injection attempt\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_MATH);
+    expect(findings.find((f) => f.ruleId === RULE_MATH)!.excerpt).toContain('U+2061');
+  });
+
+  it('U+2062 INVISIBLE TIMES in skill prose', () => {
+    const content = `normal content⁢more normal content\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_MATH);
+    expect(findings.find((f) => f.ruleId === RULE_MATH)!.excerpt).toContain('U+2062');
+  });
+
+  it('U+2063 INVISIBLE SEPARATOR in skill prose', () => {
+    const content = `before⁣after separator\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_MATH);
+    expect(findings.find((f) => f.ruleId === RULE_MATH)!.excerpt).toContain('U+2063');
+  });
+
+  it('U+2064 INVISIBLE PLUS in skill prose', () => {
+    const content = `value⁤hidden\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_MATH);
+    expect(findings.find((f) => f.ruleId === RULE_MATH)!.excerpt).toContain('U+2064');
+  });
+});
+
+describe('obfuscation/invisible-math-operators — 良性样本零误报', () => {
+  it('普通中/英/日文不含 U+2061–U+2064 — 零 findings (math rule)', () => {
+    const cases = [
+      '你好世界，这是普通中文。',
+      'Hello world. Normal English prose with math: 2+2=4, a*b=c.',
+      '日本語テキスト。数学: y = f(x) + 1。',
+      'عربي: ٢ + ٢ = ٤',
+      'שלום: 2 × 2 = 4',
+    ];
+    for (const c of cases) {
+      expect(evalRule(c).filter((f) => f.ruleId === RULE_MATH), c).toEqual([]);
+    }
+  });
+});
+
+// ── 废弃双向格式字符规则 — 恶意/良性 ─────────────────────────────────────────
+
+describe('obfuscation/deprecated-bidi-format — 恶意样本命中', () => {
+  it('U+206A INHIBIT SYMMETRIC SWAPPING detected', () => {
+    const content = `regular text⁪hidden\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_DEP_BIDI);
+    expect(findings.find((f) => f.ruleId === RULE_DEP_BIDI)!.excerpt).toContain('U+206A');
+  });
+
+  it('U+206B ACTIVATE SYMMETRIC SWAPPING detected', () => {
+    const content = `content⁫more\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_DEP_BIDI);
+    expect(findings.find((f) => f.ruleId === RULE_DEP_BIDI)!.excerpt).toContain('U+206B');
+  });
+
+  it('U+206C INHIBIT ARABIC FORM SHAPING detected', () => {
+    const content = `normal⁬text\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_DEP_BIDI);
+    expect(findings.find((f) => f.ruleId === RULE_DEP_BIDI)!.excerpt).toContain('U+206C');
+  });
+
+  it('U+206D ACTIVATE ARABIC FORM SHAPING detected', () => {
+    const content = `normal⁭text\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_DEP_BIDI);
+    expect(findings.find((f) => f.ruleId === RULE_DEP_BIDI)!.excerpt).toContain('U+206D');
+  });
+
+  it('U+206E NATIONAL DIGIT SHAPES detected', () => {
+    const content = `normal⁮text\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_DEP_BIDI);
+    expect(findings.find((f) => f.ruleId === RULE_DEP_BIDI)!.excerpt).toContain('U+206E');
+  });
+
+  it('U+206F NOMINAL DIGIT SHAPES detected', () => {
+    const content = `normal⁯text\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_DEP_BIDI);
+    expect(findings.find((f) => f.ruleId === RULE_DEP_BIDI)!.excerpt).toContain('U+206F');
+  });
+});
+
+describe('obfuscation/deprecated-bidi-format — 良性样本零误报', () => {
+  it('普通中/英/日/阿拉伯/希伯来文不含 U+206A–U+206F — 零 findings (dep-bidi rule)', () => {
+    const cases = [
+      '你好世界，这是普通的中文文本。',
+      'Hello world. Normal English prose.',
+      '日本語テキスト。ネットワーク診断。',
+      'هذا مساعد يساعدك. استخدم الأوامر الآمنة.',
+      'עוזר זה מאבחן בעיות רשת.',
+      '안녕하세요. 이것은 일반적인 한국어 텍스트입니다.',
+    ];
+    for (const c of cases) {
+      expect(evalRule(c).filter((f) => f.ruleId === RULE_DEP_BIDI), c).toEqual([]);
+    }
+  });
+});
+
+// ── 综合精度验证 — 所有规则合并,多语言内容零误报 ──────────────────────────────
+
+describe('综合精度 — 所有 invisible-chars 规则对良性多语言内容零 findings', () => {
+  const benignSamples: Array<[string, string]> = [
+    ['中文散文', '你好世界，这是一段普通的中文技能描述，涉及网络诊断与代码审查。不含任何控制字符。'],
+    ['日文散文', 'ネットワーク診断スキル。安全なコマンドのみ使用します。ping -c 4 example.com'],
+    ['韩文散文', '안녕하세요. 네트워크 진단 도구입니다. 안전한 명령만 사용합니다.'],
+    ['阿拉伯语散文', 'هذا مساعد يساعدك في تشخيص مشاكل الشبكة. استخدم الأوامر الآمنة فقط.‎'],
+    ['希伯来语散文', 'עוזר זה מאבחן בעיות רשת בפקודות קריאה בלבד.‏'],
+    ['波斯语含 ZWNJ', 'می‌توانید از این دستور استفاده کنید: ping -c 4 example.com'],
+    ['Emoji ZWJ 序列', 'Family: 👨‍👩‍👧 Developer: 👩‍💻 Flag: 🏳️‍🌈 Heart: ❤️'],
+    ['UTF-8 BOM', '﻿---\nname: bom-skill\ndescription: Starts with BOM.\n---\n\nNormal content.\n'],
+    ['软连字符', 'exam­ple and hy­phen­at­ed words are fine here.'],
+    ['ASCII + 数学文本', 'Calculate: 2 + 2 = 4, f(x) = x^2, a * b = c, sum(i=1..n)'],
+  ];
+
+  it.each(benignSamples)('%s — 零 findings from all invisible-char rules', (_label, content) => {
+    const findings = evalRule(content);
+    expect(findings.filter((f) =>
+      [RULE_ID, RULE_TAG, RULE_MATH, RULE_DEP_BIDI].includes(f.ruleId)
+    )).toEqual([]);
   });
 });
