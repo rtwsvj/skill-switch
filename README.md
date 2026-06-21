@@ -77,6 +77,7 @@ skill-switch --help
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
 | `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |
 | `uninstall` | 一键卸载本软件(见下节)。 | `skill-switch uninstall` |
+| `watch` | 检出磁盘上绕过治理层的 skill(不在声明中但在磁盘上);`--once` 单次扫盘,默认持续监视。 | `skill-switch watch --once` |
 
 公共选项:`--json`、`--home <dir>`、`--agent <工具>`(claude-code / codex / gemini-cli / cursor / copilot …)。每个命令 `--help` 看全部。
 
