@@ -85,19 +85,6 @@ describe('safe-copy: isFile() branch', () => {
     const linkOut = await readFile(join(dstDir, 'link_to_real'), 'utf8').catch(() => null);
     expect(linkOut).toBeNull();
   });
-
-  it('does nothing for a non-file non-dir non-symlink (line 14 — !isDirectory early return)', async () => {
-    // This is tested via the isFile() false path: if isSymbolicLink=false, isFile=false,
-    // isDirectory=false → the final !isDirectory() check returns early.
-    // On real filesystems this is hard to create, so we verify the two covered paths above
-    // cover the ternary. This test documents the expected behavior contractually.
-    const src = join(work, 'reg.txt');
-    await writeFile(src, 'regular file\n');
-    // A plain file IS a file, so line 8 (isFile) returns true — tested above.
-    // The line 14 branch (not a dir after not a symlink, not a file) is an unusual FS type.
-    // We skip attempting to manufacture one; the other tests exercise adjacent branches.
-    expect(true).toBe(true); // documenting the gap
-  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
