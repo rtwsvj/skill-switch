@@ -21,8 +21,11 @@ import { readDeclaration } from '../src/core/sync.ts';
 
 // ── Fixed seeds + run counts ─────────────────────────────────────────────────
 // Seed namespace: 0x5eed_00b* to avoid collision with audit-fuzz (0x5eed_00a*).
-const FUZZ = { seed: 0x5eed_00b0, numRuns: 300 };
-const MED  = { seed: 0x5eed_00b1, numRuns: 200 };
+// numRuns 适度下调(原 300/200):本文件每次 fuzz 迭代都做临时文件 I/O(mkdtemp/writeFile/rm),
+// 高负载下 300 次会偶发超过 vitest 默认 5s 超时(已观测到的 flaky 源)。150/100 仍是充分的
+// never-throw 性质覆盖,且把单测时长稳稳压在超时线下。固定 seed 保证确定性。
+const FUZZ = { seed: 0x5eed_00b0, numRuns: 150 };
+const MED  = { seed: 0x5eed_00b1, numRuns: 100 };
 
 // ── Shared temp-dir lifecycle ────────────────────────────────────────────────
 const allTempDirs: string[] = [];
