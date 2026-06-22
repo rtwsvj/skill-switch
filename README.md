@@ -11,7 +11,7 @@
 
 它是一个**跨 agent 的 skill 治理层**:不替这些工具管 skill,而是站在它们之上做 `install/toggle/sync/remove/restore` 等治理动作,回答三个问题——**现在装了什么、安不安全、和声明/锁/上游还一致吗。** 提供**桌面 App(GUI)** 和**命令行(CLI)** 两种用法,能力对等;所有改动都**先自动备份、可一键回滚**,危险 skill 在安装前会被安全体检拦下。
 
-> 状态:**v0.1.0 early release**。macOS 安装包已用 Developer ID 签名 + Apple 公证,双击即可打开;源码 clone + run 亦可。
+> 状态:**v0.4.0**。macOS 安装包已用 Developer ID 签名 + Apple 公证,双击即可打开;源码 clone + run 亦可。
 
 ![demo](assets/demo.svg)
 
@@ -25,7 +25,7 @@
 
 ## 安装(macOS,Apple Silicon)
 
-1. 双击 `skill-switch_0.1.0_aarch64.dmg`,把 **skill-switch** 拖进「应用程序」。
+1. 双击 `skill-switch_0.4.0_aarch64.dmg`,把 **skill-switch** 拖进「应用程序」。
 2. 首次打开:双击图标 → 出现「下载自互联网,确认打开吗」点**打开**(已签名公证,不会被 Gatekeeper 拦)。
 3. 默认中文界面,右上角可切语言(见下)。
 
@@ -135,7 +135,7 @@ pnpm --dir gui tauri dev                 # 本地起 GUI
 pnpm release                             # 一键产出 .app / .dmg(不签名)
 ```
 
-`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.1.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
+`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.4.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
 
 签名 + 公证(需 Developer ID,见 [docs/release/signing.md](docs/release/signing.md)):
 

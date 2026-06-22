@@ -49,11 +49,11 @@ describe('README', () => {
       '装前快照',
       '确认 + 快照 + audit',
       'install/toggle/sync/remove/restore',
-      'v0.1.0 early release',
+      'v0.4.0',
       'clone + run',
       'pnpm release',
       'Node SEA sidecar',
-      'skill-switch_0.1.0_aarch64.dmg',
+      'skill-switch_0.4.0_aarch64.dmg',
     ]) {
       expect(readme).toContain(required);
     }

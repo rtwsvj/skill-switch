@@ -1,6 +1,6 @@
 {
   "name": "skill-switch",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "跨 Agent skill 治理 CLI:盘点、安全体检、锁定、开关、lint、漂移与使用统计",

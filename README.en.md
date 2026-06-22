@@ -35,7 +35,7 @@ AI coding agents increasingly run on *skills* — reusable bundles of instructio
 
 ## Install (macOS, Apple Silicon)
 
-1. Download `skill-switch_0.1.0_aarch64.dmg` from the [latest release](https://github.com/rtwsvj/skill-switch/releases/latest).
+1. Download `skill-switch_0.4.0_aarch64.dmg` from the [latest release](https://github.com/rtwsvj/skill-switch/releases/latest).
 2. Open it and drag **skill-switch** into Applications.
 3. It's signed with a Developer ID and notarized by Apple, so it opens with a double-click — Gatekeeper won't block it.
 

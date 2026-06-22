@@ -40,7 +40,7 @@ run('Tauri app and dmg build', 'pnpm', ['--dir', 'gui', 'tauri', 'build']);
 const artifacts = [
   requireArtifact('gui/src-tauri/target/release/bundle/macos/skill-switch.app'),
   requireArtifact('gui/src-tauri/target/release/bundle/macos/skill-switch.app/Contents/MacOS/skill-switch-cli'),
-  requireArtifact('gui/src-tauri/target/release/bundle/dmg/skill-switch_0.1.0_aarch64.dmg'),
+  requireArtifact('gui/src-tauri/target/release/bundle/dmg/skill-switch_0.4.0_aarch64.dmg'),
 ];
 
 console.log('\nRelease build artifacts:');
