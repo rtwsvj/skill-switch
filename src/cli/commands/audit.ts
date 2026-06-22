@@ -4,16 +4,35 @@
 //   纯按 ags 分数带会把"单条 HIGH 的登录后门"判成 SAFE(90 分)。所以阻断判据是
 //   "任意 finding 严重度 ∈ {critical, high}  OR  score < 70" → exit 1。
 //   分数带(SAFE/REVIEW/DANGER)仅用于展示。
+//
+// v0.5-1:新增 --format sarif 输出 SARIF 2.1.0 文档(GitHub code-scanning 可用)。
+//   --json 旧标志保留,行为完全不变;--format json 与其等价。
+import { readFileSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Command } from 'commander';
 import { allFileRules, allRules } from '../../../rules/index.ts';
 import { auditContents, type AuditReport, type AuditTarget } from '../../core/audit/engine.ts';
 import { auditConfigFiles, flattenConfigFindings, type ConfigFileResult } from '../../core/audit/config-discovery.ts';
+import { toSarifDocument } from '../../core/audit/sarif.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
 import type { AuditFinding } from '../../core/audit/types.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import { scanHome, type SkillRecord } from '../../core/scan.ts';
+
+// 同步读取版本号;SARIF tool.driver.version 要用。失败时回退 'unknown'。
+function readVersion(): string {
+  try {
+    const here = fileURLToPath(new URL('.', import.meta.url));
+    const pkg = JSON.parse(readFileSync(join(here, '..', '..', '..', 'package.json'), 'utf8')) as {
+      version?: string;
+    };
+    return pkg.version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
 
 const BLOCKING_SEVERITIES = new Set(['critical', 'high']);
 
@@ -263,18 +282,38 @@ function formatAuditHomeTable(report: AuditHomeReport): string {
   return parts.join('\n');
 }
 
+// 解析最终输出格式:--format 优先;若无 --format 但有 --json 则等价于 json。
+type OutputFormat = 'human' | 'json' | 'sarif';
+
+function resolveFormat(options: { format?: string; json?: boolean }): OutputFormat {
+  if (options.format === 'sarif') return 'sarif';
+  if (options.format === 'json' || options.json === true) return 'json';
+  return 'human';
+}
+
 export function registerAuditCommand(program: Command): void {
   program
     .command('audit')
     .description('对 skill 目录或 home 内全部已装 skill 做安全体检(纯读;任意 critical/high 或评分<70 → exit 1)')
     .argument('[path]', 'skill 目录或 SKILL.md 路径;省略时扫描 --home 下全部已装 skill')
     .option('--home [dir]', '启用 home 全量模式;可选覆盖 home 根目录(默认取系统 home)')
-    .option('--json', '机器可读 JSON 输出')
+    .option('--json', '机器可读 JSON 输出(等价于 --format json;保留向后兼容)')
+    .option('--format <fmt>', '输出格式:human(默认)/ json / sarif', 'human')
     .option('--configs', '同时审查 home 下的 agent 配置文件(settings.json / MCP 等)')
-    .action(async (path: string | undefined, options: { home?: string | boolean; json?: boolean; configs?: boolean }, command: Command) => {
+    .action(async (
+      path: string | undefined,
+      options: { home?: string | boolean; json?: boolean; format?: string; configs?: boolean },
+      command: Command,
+    ) => {
+      const fmt = resolveFormat(options);
+
       if (path) {
         const report = await auditSkillDir(path);
-        if (options.json) {
+        if (fmt === 'sarif') {
+          // SARIF 模式:将单路径 findings 序列化为 SARIF 文档输出
+          const doc = toSarifDocument(report.findings, readVersion());
+          console.log(JSON.stringify(doc, null, 2));
+        } else if (fmt === 'json') {
           console.log(JSON.stringify({ path, ...report }, null, 2));
         } else {
           console.log(formatAuditReport(path, report));
@@ -286,11 +325,21 @@ export function registerAuditCommand(program: Command): void {
       const optionHome = typeof options.home === 'string' ? options.home : undefined;
       const home = resolveHomeRoot(optionHome ?? command.parent?.opts<{ home?: string }>().home);
       const report = await auditHome(home, { includeConfigs: options.configs === true });
-      if (options.json) {
+
+      if (fmt === 'sarif') {
+        // home 全量模式:合并所有 skill findings(+ configs findings)后序列化
+        const allFindings: AuditFinding[] = [
+          ...report.skills.flatMap((s) => s.findings),
+          ...(report.configs ? flattenConfigFindings(report.configs) : []),
+        ];
+        const doc = toSarifDocument(allFindings, readVersion());
+        console.log(JSON.stringify(doc, null, 2));
+      } else if (fmt === 'json') {
         console.log(JSON.stringify(report, null, 2));
       } else {
         console.log(formatAuditHomeTable(report));
       }
+
       const skillsBlocked = report.skills.some((skill) => skill.blocked);
       const configBlocked = report.configsBlocked === true;
       if (skillsBlocked || configBlocked) process.exitCode = 1;
