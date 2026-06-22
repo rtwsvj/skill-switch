@@ -233,6 +233,34 @@ function diskDirFor(home: string, agent: AgentType, name: string): string | unde
   return join(resolveGlobalSkillsDir(home, location), name);
 }
 
+/**
+ * Compare two file maps (disk vs store) and return a sorted list of per-file
+ * diffs. A file present only in `disk` is 'added'; present only in `store` is
+ * 'removed'; present in both but with differing content is 'modified'.
+ * Files with identical content are omitted.
+ */
+function compareFileMaps(
+  disk: Map<string, Buffer>,
+  store: Map<string, Buffer>,
+): SkillFileDiff[] {
+  const files: SkillFileDiff[] = [];
+
+  for (const [path, diskContent] of disk) {
+    const storeContent = store.get(path);
+    if (storeContent === undefined) {
+      files.push({ path, status: 'added' }); // 磁盘有、参照没有 = 新增
+    } else if (!diskContent.equals(storeContent)) {
+      files.push({ path, status: 'modified' });
+    }
+  }
+  for (const path of store.keys()) {
+    if (!disk.has(path)) files.push({ path, status: 'removed' }); // 参照有、磁盘没 = 删除
+  }
+
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  return files;
+}
+
 /** 递归列出目录下所有文件 → 相对路径 → 内容 Buffer。目录不存在则空。 */
 async function listFiles(dir: string): Promise<Map<string, Buffer>> {
   const out = new Map<string, Buffer>();
@@ -286,21 +314,7 @@ async function diffSkillCore(
 
   const disk = await listFiles(diskDir);
   const store = await listFiles(storeDir);
-  const files: SkillFileDiff[] = [];
-
-  for (const [path, diskContent] of disk) {
-    const storeContent = store.get(path);
-    if (storeContent === undefined) {
-      files.push({ path, status: 'added' }); // 磁盘有、参照没有 = 新增
-    } else if (!diskContent.equals(storeContent)) {
-      files.push({ path, status: 'modified' });
-    }
-  }
-  for (const path of store.keys()) {
-    if (!disk.has(path)) files.push({ path, status: 'removed' }); // 参照有、磁盘没 = 删除
-  }
-
-  files.sort((a, b) => a.path.localeCompare(b.path));
+  const files = compareFileMaps(disk, store);
   return {
     diff: { agent, name, comparable: true, diskDir, storeDir, files },
     diskFiles: disk,
