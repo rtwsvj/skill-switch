@@ -5,6 +5,9 @@
 
 ## [Unreleased]
 
+### 新增 Added
+- **`audit --format sarif`**:输出 SARIF 2.1.0,可直接接入 GitHub code-scanning(团队/CI 集成的地基)。`--format` 取 `human`(默认)/`json`/`sarif`;`--json` 保持原样作 `--format json` 的别名,行为与退出码不变。
+
 ## [0.4.0] — 2026-06-22
 
 自 v0.1.0 以来的全部成果一次发布。三个产品批次:**v0.2「安全网」**(让普通人也能安全、可回滚地管理技能)+ **v0.3「秩序」**(跨 agent 一致性与更深的安全)+ **v0.4「命令与深度审计」**(新命令 + 把审计扩展到混淆载荷与 agent 配置);外加一轮**自治维护强化**(更多检测精度、数据安全硬化、性能与稳定性、真 bug 修复——详见下方「自治维护强化」分组)。macOS 分发需 Developer ID 签名(见 [docs/release/signing.md](docs/release/signing.md))。
