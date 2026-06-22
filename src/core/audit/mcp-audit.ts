@@ -212,6 +212,229 @@ interface McpConfig {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Per-server audit helper
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Run all security checks for a single MCP server entry and append any
+ * findings to the supplied array.  Pure function: reads no external state,
+ * never throws, never returns early — always drains all checks.
+ */
+function auditServerEntry(
+  serverName: string,
+  server: McpServerEntry,
+  findings: AuditFinding[],
+): void {
+  const command = typeof server.command === 'string' ? server.command : '';
+  const args: string[] = Array.isArray(server.args)
+    ? server.args.filter((a): a is string => typeof a === 'string')
+    : [];
+  const env =
+    server.env && typeof server.env === 'object' && !Array.isArray(server.env)
+      ? (server.env as Record<string, unknown>)
+      : {};
+
+  // Context label for excerpts
+  const ctx = `[${serverName}]`;
+
+  // ── 2a. Shell-wrapper with risky inline command ──────────────────────────
+  if (SHELL_WRAPPER_CMD.test(command) && args.length >= 2 && args[0] === '-c') {
+    const inline = args.slice(1).join(' ');
+    for (const { re, ruleId, message } of RISKY_INLINE) {
+      if (re.test(inline)) {
+        findings.push(
+          finding(ruleId, 'critical', message, `${ctx} ${command} -c "${inline}"`, 1),
+        );
+      }
+    }
+  }
+
+  // ── 2b. curl | sh anywhere in the args (not just sh -c context) ─────────
+  const fullArgLine = args.join(' ');
+  if (!SHELL_WRAPPER_CMD.test(command) && CURL_PIPE_RE.test(fullArgLine)) {
+    findings.push(
+      finding(
+        'mcp/curl-pipe-sh',
+        'critical',
+        'MCP server args contain curl | sh — remote script execution',
+        `${ctx} ${command} ${fullArgLine}`,
+        1,
+      ),
+    );
+  }
+
+  // ── 2c. Unpinned npx/uvx/bunx (supply-chain risk) ────────────────────────
+  // The executable itself can be npx/uvx/bunx, or those can appear in args.
+  const commandLine = [command, ...args].join(' ').trim();
+  // Check if the primary command is npx/uvx/bunx with an unpinned package
+  const pkgMatch = UNPINNED_PKG_RE.exec(commandLine);
+  if (pkgMatch) {
+    findings.push(
+      finding(
+        'mcp/unpinned-package',
+        'medium',
+        `MCP server uses unpinned package manager command — supply-chain risk (${pkgMatch[1]})`,
+        `${ctx} ${commandLine}`,
+        1,
+      ),
+    );
+  }
+
+  // ── 2d. Literal secrets in env ────────────────────────────────────────────
+  for (const [key, val] of Object.entries(env)) {
+    if (typeof val !== 'string') continue;
+    // Skip variable references — not literal secrets
+    if (ENV_REF_RE.test(val)) continue;
+
+    // Check known secret patterns
+    for (const { re, ruleId, message } of SECRET_VALUE_PATTERNS) {
+      if (re.test(val)) {
+        findings.push(
+          finding(ruleId, 'high', message, `${ctx} env.${key}=<redacted>`, 1),
+        );
+      }
+    }
+
+    // Check key-name heuristic for non-empty, non-reference values
+    if (SECRET_KEY_SUFFIX_RE.test(key) && val.length > 0) {
+      findings.push(
+        finding(
+          'mcp/env-literal-secret-key',
+          'high',
+          `MCP env key "${key}" appears to hold a literal secret rather than a variable reference`,
+          `${ctx} env.${key}=<redacted>`,
+          1,
+        ),
+      );
+    }
+  }
+
+  // ── 2e. LD_PRELOAD / DYLD_INSERT_LIBRARIES hijack (R7-a) ─────────────────
+  // A non-empty literal value for these keys injects a shared library into
+  // every child process — unambiguous process-injection / RCE vector.
+  // We flag both literal values AND env-variable references because forwarding
+  // the host LD_PRELOAD into a sandboxed child is itself a security concern,
+  // but at a lower severity (medium) since it could be intentional.
+  for (const [key, val] of Object.entries(env)) {
+    if (typeof val !== 'string' || val.length === 0) continue;
+    if (!PRELOAD_ENV_KEYS_RE.test(key)) continue;
+
+    if (ENV_REF_RE.test(val)) {
+      // Forwarding host LD_PRELOAD into the child — unusual but sometimes
+      // intentional; flag at medium so it surfaces for review.
+      findings.push(
+        finding(
+          'mcp/env-preload-hijack',
+          'medium',
+          `MCP env forwards host "${key}" into the server process — injected libraries will run inside the MCP child`,
+          `${ctx} env.${key}=<ref>`,
+          1,
+        ),
+      );
+    } else {
+      // Literal shared-library path — high-confidence attack pattern.
+      findings.push(
+        finding(
+          'mcp/env-preload-hijack',
+          'critical',
+          `MCP env sets "${key}" to a literal value — shared library will be injected into every child process (process injection / RCE)`,
+          `${ctx} env.${key}=<redacted>`,
+          1,
+        ),
+      );
+    }
+  }
+
+  // ── 2f. Remote URL as command (R7-a) ──────────────────────────────────────
+  // A command field that starts with http:// or https:// means the runtime
+  // would try to execute a remote resource — unambiguous RCE.
+  if (COMMAND_REMOTE_URL_RE.test(command)) {
+    findings.push(
+      finding(
+        'mcp/command-remote-url',
+        'critical',
+        `MCP server command is a remote URL — executing remote resources is a critical RCE vector`,
+        `${ctx} command="${command}"`,
+        1,
+      ),
+    );
+  }
+
+  // ── 2g-pre. Command / script in a world-writable temp directory (R10-a) ───
+  // Flag when the primary command OR (for interpreter commands) the first
+  // positional arg lives under /tmp, /var/tmp, or /dev/shm.
+  {
+    const targetPaths: string[] = [];
+    if (TEMP_DIR_COMMAND_RE.test(command)) {
+      targetPaths.push(command);
+    } else if (INTERPRETER_CMD_RE.test(command) && args.length > 0) {
+      // Find first non-flag arg — interpreters pass the script as the first
+      // positional argument (not starting with '-').
+      const firstPositional = args.find((a) => !a.startsWith('-'));
+      if (firstPositional && TEMP_DIR_COMMAND_RE.test(firstPositional)) {
+        targetPaths.push(firstPositional);
+      }
+    }
+    for (const p of targetPaths) {
+      findings.push(
+        finding(
+          'mcp/command-temp-dir',
+          'medium',
+          `MCP server executable path is in a world-writable temp directory (${p}) — TOCTOU / binary-planting risk`,
+          `${ctx} command path "${p}"`,
+          1,
+        ),
+      );
+    }
+  }
+
+  // ── 2g. Prompt-injection in server metadata (R7-a) ───────────────────────
+  // Check server key name, description field, and (if present) any other
+  // string metadata for prompt-injection phrases or invisible Unicode.
+  // These fields are typically shown to the AI assistant as context about
+  // what the server does; adversarial content there can hijack its behaviour.
+  const metadataFields: Array<{ label: string; value: string }> = [
+    // The server's own key name (how it appears in the MCP config)
+    { label: 'server-name', value: serverName },
+  ];
+  const description = typeof server.description === 'string' ? server.description : '';
+  if (description) {
+    metadataFields.push({ label: 'description', value: description });
+  }
+
+  for (const { label, value } of metadataFields) {
+    // 2g-i. Invisible / confusable Unicode in metadata
+    if (INVISIBLE_UNICODE_RE.test(value)) {
+      findings.push(
+        finding(
+          'mcp/metadata-invisible-chars',
+          'high',
+          `MCP server ${label} contains invisible or confusable Unicode characters — possible hidden instruction injection`,
+          `${ctx} ${label}=${excerpt(value)}`,
+          1,
+        ),
+      );
+    }
+
+    // 2g-ii. Prompt-injection phrases in metadata
+    for (const phraseRe of PROMPT_INJECTION_PHRASES) {
+      if (phraseRe.test(value)) {
+        findings.push(
+          finding(
+            'mcp/metadata-prompt-injection',
+            'high',
+            `MCP server ${label} contains a prompt-injection phrase — may hijack AI assistant behaviour`,
+            `${ctx} ${label}=${excerpt(value)}`,
+            1,
+          ),
+        );
+        break; // One finding per field is enough; don't emit N findings for N patterns
+      }
+    }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Main export
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -248,214 +471,7 @@ export function auditMcpConfig(content: string): AuditFinding[] {
   // ── 2. Per-server checks ──────────────────────────────────────────────────
   for (const [serverName, server] of Object.entries(servers)) {
     if (!server || typeof server !== 'object') continue;
-
-    const command = typeof server.command === 'string' ? server.command : '';
-    const args: string[] = Array.isArray(server.args)
-      ? server.args.filter((a): a is string => typeof a === 'string')
-      : [];
-    const env =
-      server.env && typeof server.env === 'object' && !Array.isArray(server.env)
-        ? (server.env as Record<string, unknown>)
-        : {};
-
-    // Context label for excerpts
-    const ctx = `[${serverName}]`;
-
-    // ── 2a. Shell-wrapper with risky inline command ──────────────────────────
-    if (SHELL_WRAPPER_CMD.test(command) && args.length >= 2 && args[0] === '-c') {
-      const inline = args.slice(1).join(' ');
-      for (const { re, ruleId, message } of RISKY_INLINE) {
-        if (re.test(inline)) {
-          findings.push(
-            finding(ruleId, 'critical', message, `${ctx} ${command} -c "${inline}"`, 1),
-          );
-        }
-      }
-    }
-
-    // ── 2b. curl | sh anywhere in the args (not just sh -c context) ─────────
-    const fullArgLine = args.join(' ');
-    if (!SHELL_WRAPPER_CMD.test(command) && CURL_PIPE_RE.test(fullArgLine)) {
-      findings.push(
-        finding(
-          'mcp/curl-pipe-sh',
-          'critical',
-          'MCP server args contain curl | sh — remote script execution',
-          `${ctx} ${command} ${fullArgLine}`,
-          1,
-        ),
-      );
-    }
-
-    // ── 2c. Unpinned npx/uvx/bunx (supply-chain risk) ────────────────────────
-    // The executable itself can be npx/uvx/bunx, or those can appear in args.
-    const commandLine = [command, ...args].join(' ').trim();
-    // Check if the primary command is npx/uvx/bunx with an unpinned package
-    const pkgMatch = UNPINNED_PKG_RE.exec(commandLine);
-    if (pkgMatch) {
-      findings.push(
-        finding(
-          'mcp/unpinned-package',
-          'medium',
-          `MCP server uses unpinned package manager command — supply-chain risk (${pkgMatch[1]})`,
-          `${ctx} ${commandLine}`,
-          1,
-        ),
-      );
-    }
-
-    // ── 2d. Literal secrets in env ────────────────────────────────────────────
-    for (const [key, val] of Object.entries(env)) {
-      if (typeof val !== 'string') continue;
-      // Skip variable references — not literal secrets
-      if (ENV_REF_RE.test(val)) continue;
-
-      // Check known secret patterns
-      for (const { re, ruleId, message } of SECRET_VALUE_PATTERNS) {
-        if (re.test(val)) {
-          findings.push(
-            finding(ruleId, 'high', message, `${ctx} env.${key}=<redacted>`, 1),
-          );
-        }
-      }
-
-      // Check key-name heuristic for non-empty, non-reference values
-      if (SECRET_KEY_SUFFIX_RE.test(key) && val.length > 0) {
-        findings.push(
-          finding(
-            'mcp/env-literal-secret-key',
-            'high',
-            `MCP env key "${key}" appears to hold a literal secret rather than a variable reference`,
-            `${ctx} env.${key}=<redacted>`,
-            1,
-          ),
-        );
-      }
-    }
-
-    // ── 2e. LD_PRELOAD / DYLD_INSERT_LIBRARIES hijack (R7-a) ─────────────────
-    // A non-empty literal value for these keys injects a shared library into
-    // every child process — unambiguous process-injection / RCE vector.
-    // We flag both literal values AND env-variable references because forwarding
-    // the host LD_PRELOAD into a sandboxed child is itself a security concern,
-    // but at a lower severity (medium) since it could be intentional.
-    for (const [key, val] of Object.entries(env)) {
-      if (typeof val !== 'string' || val.length === 0) continue;
-      if (!PRELOAD_ENV_KEYS_RE.test(key)) continue;
-
-      if (ENV_REF_RE.test(val)) {
-        // Forwarding host LD_PRELOAD into the child — unusual but sometimes
-        // intentional; flag at medium so it surfaces for review.
-        findings.push(
-          finding(
-            'mcp/env-preload-hijack',
-            'medium',
-            `MCP env forwards host "${key}" into the server process — injected libraries will run inside the MCP child`,
-            `${ctx} env.${key}=<ref>`,
-            1,
-          ),
-        );
-      } else {
-        // Literal shared-library path — high-confidence attack pattern.
-        findings.push(
-          finding(
-            'mcp/env-preload-hijack',
-            'critical',
-            `MCP env sets "${key}" to a literal value — shared library will be injected into every child process (process injection / RCE)`,
-            `${ctx} env.${key}=<redacted>`,
-            1,
-          ),
-        );
-      }
-    }
-
-    // ── 2f. Remote URL as command (R7-a) ──────────────────────────────────────
-    // A command field that starts with http:// or https:// means the runtime
-    // would try to execute a remote resource — unambiguous RCE.
-    if (COMMAND_REMOTE_URL_RE.test(command)) {
-      findings.push(
-        finding(
-          'mcp/command-remote-url',
-          'critical',
-          `MCP server command is a remote URL — executing remote resources is a critical RCE vector`,
-          `${ctx} command="${command}"`,
-          1,
-        ),
-      );
-    }
-
-    // ── 2g-pre. Command / script in a world-writable temp directory (R10-a) ───
-    // Flag when the primary command OR (for interpreter commands) the first
-    // positional arg lives under /tmp, /var/tmp, or /dev/shm.
-    {
-      const targetPaths: string[] = [];
-      if (TEMP_DIR_COMMAND_RE.test(command)) {
-        targetPaths.push(command);
-      } else if (INTERPRETER_CMD_RE.test(command) && args.length > 0) {
-        // Find first non-flag arg — interpreters pass the script as the first
-        // positional argument (not starting with '-').
-        const firstPositional = args.find((a) => !a.startsWith('-'));
-        if (firstPositional && TEMP_DIR_COMMAND_RE.test(firstPositional)) {
-          targetPaths.push(firstPositional);
-        }
-      }
-      for (const p of targetPaths) {
-        findings.push(
-          finding(
-            'mcp/command-temp-dir',
-            'medium',
-            `MCP server executable path is in a world-writable temp directory (${p}) — TOCTOU / binary-planting risk`,
-            `${ctx} command path "${p}"`,
-            1,
-          ),
-        );
-      }
-    }
-
-    // ── 2g. Prompt-injection in server metadata (R7-a) ───────────────────────
-    // Check server key name, description field, and (if present) any other
-    // string metadata for prompt-injection phrases or invisible Unicode.
-    // These fields are typically shown to the AI assistant as context about
-    // what the server does; adversarial content there can hijack its behaviour.
-    const metadataFields: Array<{ label: string; value: string }> = [
-      // The server's own key name (how it appears in the MCP config)
-      { label: 'server-name', value: serverName },
-    ];
-    const description = typeof server.description === 'string' ? server.description : '';
-    if (description) {
-      metadataFields.push({ label: 'description', value: description });
-    }
-
-    for (const { label, value } of metadataFields) {
-      // 2g-i. Invisible / confusable Unicode in metadata
-      if (INVISIBLE_UNICODE_RE.test(value)) {
-        findings.push(
-          finding(
-            'mcp/metadata-invisible-chars',
-            'high',
-            `MCP server ${label} contains invisible or confusable Unicode characters — possible hidden instruction injection`,
-            `${ctx} ${label}=${excerpt(value)}`,
-            1,
-          ),
-        );
-      }
-
-      // 2g-ii. Prompt-injection phrases in metadata
-      for (const phraseRe of PROMPT_INJECTION_PHRASES) {
-        if (phraseRe.test(value)) {
-          findings.push(
-            finding(
-              'mcp/metadata-prompt-injection',
-              'high',
-              `MCP server ${label} contains a prompt-injection phrase — may hijack AI assistant behaviour`,
-              `${ctx} ${label}=${excerpt(value)}`,
-              1,
-            ),
-          );
-          break; // One finding per field is enough; don't emit N findings for N patterns
-        }
-      }
-    }
+    auditServerEntry(serverName, server, findings);
   }
 
   return findings;
