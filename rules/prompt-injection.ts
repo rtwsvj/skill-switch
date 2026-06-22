@@ -27,9 +27,12 @@ export const promptInjectionRules: AuditRule[] = [
   {
     id: 'prompt-injection/zero-width-chars',
     severity: 'medium',
-    // 零宽空格/连接符(U+200B–U+200D)、word joiner(U+2060)、BOM(U+FEFF)——常用于藏匿注入指令。
-    pattern: /[\u200B-\u200D\u2060\uFEFF]/,
-    message: '出现零宽/不可见 Unicode 字符(常用于隐藏注入指令)',
+    // 零宽空格 U+200B、word joiner U+2060、BOM U+FEFF——从不出现在合法 emoji/文字排版中,任意位置出现即报。
+    // ZWNJ U+200C / ZWJ U+200D 另有合法用途:emoji ZWJ 序列(家庭/职业/彩虹旗 emoji)与波斯语/印度系文字靠它们连接,
+    // 这些场景相邻码点为非 ASCII(emoji 为 astral 代理对,亦非 [A-Za-z]),不应误报;
+    // 仅当 ZWNJ/ZWJ 紧贴 ASCII 字母(把关键词如 IGNORE / system 拆开绕过扫描)才报——真实 evasion 签名。
+    pattern: /[\u200B\u2060\uFEFF]|(?<=[A-Za-z])[\u200C\u200D]|[\u200C\u200D](?=[A-Za-z])/,
+    message: '出现零宽/不可见 Unicode 字符(常用于隐藏注入指令或拆词绕过扫描)',
     source: SECTION,
   },
   {
