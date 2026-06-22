@@ -88,7 +88,7 @@ export function registerRestoreCommand(program: Command): void {
       // 合法等价拼写在下游 fs rename 时 EINVAL,同时保证日志/返回值里是干净的绝对路径。
       const target = resolve(selected.sourceDir);
 
-      // target が存在する場合のみ pre-restore 快照:不存在时无内容可备份,
+      // 仅当 target 存在时才拍 pre-restore 快照:不存在时无内容可备份,
       // 与 snapshotAgents 对不存在根目录的处理保持一致。
       const safetySnapshot = existsSync(target)
         ? await snapshot(target, { store, label: 'pre-restore' })
