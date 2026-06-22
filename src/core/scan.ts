@@ -84,14 +84,17 @@ export async function scanHome(home: string): Promise<SkillRecord[]> {
     const skillsDir = resolveGlobalSkillsDir(home, { agent: agents[0]!, relGlobalSkillsDir: relSkillsDir });
     if (!(await isDirectory(skillsDir))) continue;
 
-    // R29-a:withFileTypes 使 entry.isDirectory() 免费(无额外 stat),
-    // 取代原来的 isDirectory(skillDir) 调用。
-    // stat(SKILL.md) 检查也去掉:直接 readFile;ENOENT → null → 跳过,
-    // 与原 try/catch+continue 逻辑等价。
+    // R29-a:withFileTypes 使普通目录的 entry.isDirectory() 免费(无额外 stat),
+    // 取代原来对每个条目的 isDirectory(skillDir) 调用。
+    // 关键:Dirent.isDirectory() 不跟随符号链接,而旧代码的 stat() 跟随——
+    // 故对符号链接条目仍 stat 跟随判断,保留「符号链接指向的技能目录也被发现」的旧行为。
+    // stat(SKILL.md) 检查也去掉:直接 readFile;ENOENT/ENOTDIR → null → 跳过,与原 try/catch+continue 等价。
     const entries = await readdir(skillsDir, { withFileTypes: true });
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
       const skillDir = join(skillsDir, entry.name);
+      const isDir =
+        entry.isDirectory() || (entry.isSymbolicLink() && (await isDirectory(skillDir)));
+      if (!isDir) continue;
       const result = await readSkill(agents, relSkillsDir, entry.name, skillDir);
       if (result !== null) records.push(result);
     }
