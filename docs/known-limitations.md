@@ -31,6 +31,7 @@
 | `clickfix-error-fix-lure` | hit | R11-b 新增:ClickFix 诱导以"修复错误"为借口嵌入 `curl \| bash`;"修复"包装无法规避 `clickfix/curl-pipe-shell` 规则。 |
 | `staged-exfil-aws-nc` | hit | R11-b 新增:多步外渗,第一行读取 `~/.aws/credentials`,第二行通过 `nc` 外传;由 `exfiltration/staged-read-exfil` 跨行文件规则命中。 |
 | `homoglyph-nc-reverse-shell` | hit | R11-b 新增:nc 命令中用 Cyrillic 同形字('nс'=n+с→c, '-е'=е→e)伪装,引擎 NFKC+同形字映射后归一化为 `nc ... -e /bin/bash`,命中 `reverse-shell/netcat-exec`。 |
+| `supply-chain-unofficial-npm-registry` | hit | R12-a 修复(miss→hit):`supply-chain/unofficial-registry` 规则检测 `--registry/--index-url/--extra-index-url` 后跟保留 TLD(`.invalid`/`.test`/`.local`)、明文 HTTP、原始 IP 或已知短链域名的安装命令。企业内网 HTTPS registry(如 `https://npm.mycompany.com`)不命中。 |
 
 ### Documented Misses
 
@@ -38,6 +39,5 @@
 |---|---:|---|---|
 | `javascript-string-concat-endpoint` | miss | 外传 endpoint 被字符串拼接拆开;当前规则不做 JavaScript 常量折叠。 | 后续实现 JS 常量折叠或字符串拼接展开分析。 |
 | `cross-line-token-and-endpoint-split` | miss | token、host、TLD、fetch 调用跨多行拆分;当前规则不做跨行数据流分析。 | 后续实现跨行数据流分析或污点追踪。 |
-| `supply-chain-unofficial-npm-registry` | miss | R11-b 新增:`supply-chain/untrusted-install-source` 仅检查有限已知域名白名单(raw.githubusercontent/gist/pastebin/bit.ly/tinyurl/example.com),使用任意未知第三方 registry 域名的 `npm install --registry https://…` 不触发。 | 将规则策略从"已知恶意域名 allowlist"改为"非官方 registry 取反检测"——即检测任何非 registry.npmjs.org / pypi.org 等官方源的安装命令。需注意企业内网 registry 的误报风险。 |
 
 这些漏判是已知边界,不是安全保证。若后续实现常量折叠、跨行数据流分析或 supply-chain 规则升级,需要同步更新这里和 A5 语料测试。
