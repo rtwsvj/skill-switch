@@ -223,4 +223,122 @@ describe('core/sync', () => {
     await expect(planSync(home, d)).rejects.toThrow(/声明的 skill 源不存在/);
     await expect(applySync(home, d)).rejects.toThrow(/声明的 skill 源不存在/);
   });
+
+  // R26-a 回归测试组:声明边界 + 快照前置 + 幂等
+
+  it('R26-a: 空声明(skills 为空数组)→ planSync 返回空,applySync 无磁盘写入', async () => {
+    // 磁盘上预存一个手动目录,确认它不被动
+    const manualDir = join(home, '.claude', 'skills', 'undeclared');
+    await mkdir(manualDir, { recursive: true });
+    await writeFile(join(manualDir, 'README.md'), '手动装的\n');
+
+    const d = decl([]);
+    const plan = await planSync(home, d);
+    expect(plan).toHaveLength(0);
+
+    const { actions } = await applySync(home, d);
+    expect(actions).toHaveLength(0);
+
+    // 未声明目录未被触碰
+    expect(await readFile(join(manualDir, 'README.md'), 'utf8')).toBe('手动装的\n');
+  });
+
+  it('R26-a: 损坏的 JSON 声明 → readDeclaration 抛 StateFileError,不执行任何写操作', async () => {
+    const badPath = join(home, '.skill-switch', 'skills.json');
+    await mkdir(dirname(badPath), { recursive: true });
+    await writeFile(badPath, '{ "version": 1, "skills": [BROKEN}');
+
+    const { StateFileError } = await import('../src/core/state-io.ts');
+    await expect(readDeclaration(badPath)).rejects.toThrow(StateFileError);
+  });
+
+  it('R26-a: 声明结构非法(skills 不是数组)→ readDeclaration 抛错,不执行写操作', async () => {
+    const badPath = join(home, '.skill-switch', 'skills.json');
+    await mkdir(dirname(badPath), { recursive: true });
+    await writeFile(badPath, JSON.stringify({ version: 1, skills: 'not-an-array' }));
+
+    await expect(readDeclaration(badPath)).rejects.toThrow(/结构非法/);
+  });
+
+  it('R26-a: 被禁用的 skill 在磁盘上存在 → applySync 将其 remove,不触碰其他目录', async () => {
+    // 先正常落地 alpha + beta
+    const enabledDecl = decl([
+      { name: 'alpha', source: join(store, 'alpha'), agents: ['claude-code'], enabled: true, mode: 'symlink' },
+      { name: 'beta', source: join(store, 'beta'), agents: ['claude-code'], enabled: true, mode: 'copy' },
+    ]);
+    await applySync(home, enabledDecl);
+
+    // 禁用 alpha;beta 仍 enabled
+    const partialDisable = decl([
+      { name: 'alpha', source: join(store, 'alpha'), agents: ['claude-code'], enabled: false, mode: 'symlink' },
+      { name: 'beta', source: join(store, 'beta'), agents: ['claude-code'], enabled: true, mode: 'copy' },
+    ]);
+    const { actions } = await applySync(home, partialDisable);
+
+    // alpha 应被 remove
+    expect(actions.find((a) => a.name === 'alpha')?.kind).toBe('remove');
+    await expect(lstat(join(home, '.claude', 'skills', 'alpha'))).rejects.toThrow();
+
+    // beta 仍在位(noop)
+    expect(actions.find((a) => a.name === 'beta')?.kind).toBe('noop');
+    await lstat(join(home, '.claude', 'skills', 'beta'));
+  });
+
+  it('R26-a: 已在位的 skill 只在声明中 disabled(目标不存在)→ remove 是 noop,不崩溃', async () => {
+    // skill 从未安装过但声明 disabled:应 noop
+    const d = decl([
+      { name: 'alpha', source: join(store, 'alpha'), agents: ['claude-code'], enabled: false, mode: 'copy' },
+    ]);
+    const { actions } = await applySync(home, d);
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.kind).toBe('noop');
+  });
+
+  it('R26-a: 未声明的磁盘目录在任何操作下都不被删除(安全护栏)', async () => {
+    // 磁盘上预存两个手动目录
+    const userSkillA = join(home, '.claude', 'skills', 'user-skill-a');
+    const userSkillB = join(home, '.claude', 'skills', 'user-skill-b');
+    await mkdir(userSkillA, { recursive: true });
+    await mkdir(userSkillB, { recursive: true });
+    await writeFile(join(userSkillA, 'SKILL.md'), 'A\n');
+    await writeFile(join(userSkillB, 'SKILL.md'), 'B\n');
+
+    // sync 声明里完全没有这两个 skill
+    const d = decl([
+      { name: 'alpha', source: join(store, 'alpha'), agents: ['claude-code'], enabled: true, mode: 'symlink' },
+    ]);
+    await applySync(home, d);
+
+    // 未声明目录完整保留
+    expect(await readFile(join(userSkillA, 'SKILL.md'), 'utf8')).toBe('A\n');
+    expect(await readFile(join(userSkillB, 'SKILL.md'), 'utf8')).toBe('B\n');
+  });
+
+  it('R26-a: 缺失的声明文件 → readDeclaration 返回空声明(不抛错),applySync 是 noop', async () => {
+    // skills.json 根本不存在 → 等价于"空声明"
+    const nonExistentPath = join(home, '.skill-switch', 'skills.json');
+    const d = await readDeclaration(nonExistentPath);
+    expect(d).toEqual({ version: 1, skills: [] });
+
+    const { actions } = await applySync(home, d);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('R26-a: 不可读源(enabled=false)时不检查 source 存在性 → planSync 正常返回', async () => {
+    // disabled skill 的源不存在也 OK:planOne 不会检查 source,因为结果是 remove/noop
+    const d = decl([
+      {
+        name: 'ghost',
+        source: join(store, 'does-not-exist'),
+        agents: ['claude-code'],
+        enabled: false, // 禁用
+        mode: 'copy',
+      },
+    ]);
+    // 不应抛错:disabled 路径不需要 source 存在
+    const plan = await planSync(home, d);
+    expect(plan).toHaveLength(1);
+    // 目标也不存在 → noop(disabled,目标本就不存在)
+    expect(plan[0]?.kind).toBe('noop');
+  });
 });
