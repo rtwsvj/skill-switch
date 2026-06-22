@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { registerAuditCommand } from './commands/audit.ts';
 import { registerDiffCommand } from './commands/diff.ts';
@@ -18,10 +21,25 @@ import { registerToggleCommand } from './commands/toggle.ts';
 import { registerUninstallCommand } from './commands/uninstall.ts';
 import { registerWatchCommand } from './commands/watch.ts';
 
+// 同步读取本包版本号供 commander `.version()` 用(commander 需同步字符串)。
+// SEA 打包后 package.json 可能不可达——失败回退 'unknown',绝不抛。
+function readCliVersion(): string {
+  try {
+    const here = fileURLToPath(new URL('.', import.meta.url));
+    const pkg = JSON.parse(readFileSync(join(here, '..', '..', 'package.json'), 'utf8')) as {
+      version?: string;
+    };
+    return pkg.version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 export function buildProgram(): Command {
   const program = new Command('skill-switch');
   program
     .description('跨 Agent skill 治理工具(治理层,与各家 CRUD 工具共存分工)')
+    .version(readCliVersion(), '-V, --version', '输出版本号')
     .option('--home <dir>', '覆盖 home 根目录(默认取系统 home;测试与演练请指向假目录)');
 
   registerScanCommand(program);
