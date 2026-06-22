@@ -73,7 +73,7 @@ Each module is a focused, testable unit. The CLI layer imports from here; the GU
 
 ## CLI layer (`src/cli/`)
 
-`src/cli/program.ts` creates the Commander root program with the global `--home` and `--agent` options. Each file in `src/cli/commands/` registers one sub-command via a `register*Command(program)` function.
+`src/cli/program.ts` creates the Commander root program with the global `--home` option. Each file in `src/cli/commands/` registers one sub-command via a `register*Command(program)` function; commands that target a specific agent (e.g. `install`, `remove`, `diff`) declare their own `--agent <agent>` option.
 
 The CLI is the only layer that reads `--json`, formats human-readable tables, and sets `process.exitCode`. Core modules return typed objects; the CLI decides how to present them.
 
