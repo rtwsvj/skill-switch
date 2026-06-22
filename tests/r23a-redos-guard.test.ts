@@ -140,7 +140,7 @@ const ADVERSARIAL_FILES: Record<string, string> = {
 
   // base64-payload: lines with "base64 -d" pipe but blobs that decode to benign text.
   'base64-decode-pipe-benign-blobs': Array(200)
-    .fill('base64 -d | sh echo ' + Buffer.from('hello world').toString('base64'))
+    .fill(`base64 -d | sh echo ${Buffer.from('hello world').toString('base64')}`)
     .join('\n'),
 
   // ansi-injection: file containing no ESC bytes but many near-misses.
