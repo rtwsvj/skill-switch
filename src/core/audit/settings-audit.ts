@@ -81,6 +81,24 @@ const BROAD_PERMISSION_PATTERNS: Array<{ id: string; pattern: RegExp; message: s
     pattern: /^Bash\(\*\)$/,
     message: 'Permission "Bash(*)" grants unrestricted shell execution',
   },
+  {
+    // Write(/**), Write(/*), Write(~/**), Write(~/*)  — root or home-root write grants
+    // Matches: Write( followed by / or ~/ then optional globs or path segments then )
+    // Does NOT match: Write(src/**), Write(./dist/*), Write(/usr/local/bin/mytool)
+    // Precision note: we require the path to be exactly / or ~/ (optionally followed by
+    // ** or * globs) so that specific absolute paths like /usr/local/bin/foo are NOT flagged.
+    id: 'settings/permission-write-root',
+    pattern: /^Write\(\s*(?:~\/?\*\*?|\/\*\*?|~\/|\/)\s*\)$/,
+    message:
+      'Permission grants Write access to the filesystem root or home root — any file on the system can be overwritten',
+  },
+  {
+    // Read(/**), Read(/*), Read(~/**), Read(~/*) — root or home-root read grants
+    id: 'settings/permission-read-root',
+    pattern: /^Read\(\s*(?:~\/?\*\*?|\/\*\*?|~\/|\/)\s*\)$/,
+    message:
+      'Permission grants Read access to the filesystem root or home root — any file on the system can be read',
+  },
 ];
 
 /** Secret-looking literal values. Uses conservative patterns to avoid false positives. */
@@ -171,6 +189,87 @@ function auditPermissions(permissions: unknown, findings: AuditFinding[]): void 
       }
     }
   }
+}
+
+/**
+ * Check for settings that disable the human-in-the-loop confirmation step.
+ *
+ * Several Claude/agent config keys can silently suppress permission prompts or
+ * auto-approve every tool call without user interaction:
+ *   - dangerouslySkipPermissions: true   (Claude Code CLI flag surfaced in settings)
+ *   - autoApprove: true                  (generic auto-approval toggle)
+ *   - confirmations: "never" | false     (confirmation policy set to never ask)
+ *
+ * These are high-severity because a compromised / injected config can silently
+ * elevate agent privileges and remove the last human gate before destructive actions.
+ *
+ * Precision notes:
+ *   - We only flag boolean `true` or the string `"never"` / `"none"` / `"off"` for
+ *     the confirmation key — `"always"`, `"ask"`, `"prompt"` etc. are fine.
+ *   - Nested occurrences (e.g. under a profile key) are also flagged.
+ *   - `autoApprove: false` or absent is not flagged.
+ */
+
+/** Keys whose truthy value indicates auto-approval / skip-confirmation semantics. */
+const AUTO_APPROVE_BOOL_KEYS: ReadonlySet<string> = new Set([
+  'dangerouslySkipPermissions',
+  'autoApprove',
+  'skipPermissions',
+]);
+
+/** Keys whose value can be a string selecting confirmation policy; flagged when set to a never-confirm value. */
+const CONFIRMATION_POLICY_KEYS: ReadonlySet<string> = new Set([
+  'confirmations',
+  'confirmationPolicy',
+  'approval',
+  'approvalMode',
+]);
+
+/** String values for a confirmation policy key that mean "never confirm". */
+const CONFIRMATION_NEVER_VALUES: ReadonlySet<string> = new Set(['never', 'none', 'off', 'disable', 'disabled', 'skip']);
+
+function auditAutoApproveInObject(obj: unknown, findings: AuditFinding[]): void {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    // Boolean auto-approve keys
+    if (AUTO_APPROVE_BOOL_KEYS.has(key) && value === true) {
+      findings.push(
+        finding(
+          'settings/auto-approve-enabled',
+          'high',
+          `Setting "${key}: true" disables human-in-the-loop confirmation — tool calls proceed without approval`,
+          0,
+          makeExcerpt({ [key]: value }),
+        ),
+      );
+    }
+
+    // Confirmation policy keys set to a "never confirm" value
+    if (CONFIRMATION_POLICY_KEYS.has(key)) {
+      const isNeverBool = value === false;
+      const isNeverStr = typeof value === 'string' && CONFIRMATION_NEVER_VALUES.has(value.toLowerCase());
+      if (isNeverBool || isNeverStr) {
+        findings.push(
+          finding(
+            'settings/auto-approve-enabled',
+            'high',
+            `Setting "${key}: ${JSON.stringify(value)}" disables permission prompts — agent will never ask for confirmation`,
+            0,
+            makeExcerpt({ [key]: value }),
+          ),
+        );
+      }
+    }
+
+    // Recurse into nested objects
+    if (value && typeof value === 'object') {
+      auditAutoApproveInObject(value, findings);
+    }
+  }
+}
+
+function auditAutoApprove(settings: Record<string, unknown>, findings: AuditFinding[]): void {
+  auditAutoApproveInObject(settings, findings);
 }
 
 /** Check whether a string looks like an env var reference rather than a literal. */
@@ -282,7 +381,10 @@ export function auditSettingsJson(content: string): AuditFinding[] {
     auditPermissions(settings.permissions, findings);
   }
 
-  // ── 4. Literal secrets anywhere in the config ─────────────────────────────
+  // ── 4. Auto-approve / disabled confirmation settings ─────────────────────
+  auditAutoApprove(settings, findings);
+
+  // ── 5. Literal secrets anywhere in the config ─────────────────────────────
   auditSecretsInObject(settings, findings);
 
   return findings;
