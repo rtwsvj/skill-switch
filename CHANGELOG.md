@@ -7,6 +7,7 @@
 
 ### 新增 Added
 - **`audit --format sarif`**:输出 SARIF 2.1.0,可直接接入 GitHub code-scanning(团队/CI 集成的地基)。`--format` 取 `human`(默认)/`json`/`sarif`;`--json` 保持原样作 `--format json` 的别名,行为与退出码不变。
+- **`audit --configs` 覆盖更多 agent**:新增 Windsurf(`~/.codeium/windsurf/mcp_config.json`)与 Zed AI(`~/.config/zed/settings.json`)的配置发现(Cline/Continue/Claude Desktop 因路径不规范或格式已废弃,暂未纳入)。
 
 ## [0.4.0] — 2026-06-22
 

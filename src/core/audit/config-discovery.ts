@@ -16,9 +16,16 @@
 //   - <home>/.cursor/mcp.json              → auditMcpConfig
 //   VS Code (MCP extension)
 //   - <home>/.vscode/mcp.json              → auditMcpConfig
+//   Windsurf (Codeium)
+//   - <home>/.codeium/windsurf/mcp_config.json → auditMcpConfig
+//   Zed AI
+//   - <home>/.config/zed/settings.json     → auditSettingsJson(MCP 服务器在 context_servers 键下)
 //
-// Deliberately skipped (no compatible parser / not JSON):
-//   - ~/.codex/config.toml  (Codex — TOML format, no TOML parser added)
+// Deliberately skipped(无兼容解析器 / 路径不规范 / 已废弃):
+//   - ~/.codex/config.toml  (Codex — TOML 格式,未引入 TOML 解析器)
+//   - Cline:配置在 VS Code globalStorage 下(含空格、随 VS Code 变体/平台变化,非简单 home 相对路径)
+//   - Continue:~/.continue/config.json 已废弃→改 YAML(config.yaml)+ mcpServers/ 目录,审计废弃 JSON 无意义
+//   - Claude Desktop:~/Library/Application Support/Claude/...(含空格,非简单 home 相对路径)
 //
 // All reads silently skip missing files (they may not exist on every system).
 
@@ -73,6 +80,14 @@ const KNOWN_CONFIGS: KnownConfigFile[] = [
   // ── VS Code (MCP extension) ────────────────────────────────────────────────
   // ~/.vscode/mcp.json is VS Code's user-level MCP config (GitHub Copilot agent mode)
   { relPath: '.vscode/mcp.json', kind: 'mcp' },
+
+  // ── Windsurf (Codeium) ─────────────────────────────────────────────────────
+  // ~/.codeium/windsurf/mcp_config.json 是 Windsurf Cascade 的规范 MCP 配置(官方文档确认,标准 mcpServers 形态)
+  { relPath: '.codeium/windsurf/mcp_config.json', kind: 'mcp' },
+
+  // ── Zed AI ─────────────────────────────────────────────────────────────────
+  // ~/.config/zed/settings.json 是 Zed 的规范用户配置(XDG 风格);MCP 服务器在 context_servers 键下
+  { relPath: '.config/zed/settings.json', kind: 'settings' },
 ];
 
 // ─── Public API ────────────────────────────────────────────────────────────────
