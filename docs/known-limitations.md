@@ -32,6 +32,7 @@
 | `staged-exfil-aws-nc` | hit | R11-b 新增:多步外渗,第一行读取 `~/.aws/credentials`,第二行通过 `nc` 外传;由 `exfiltration/staged-read-exfil` 跨行文件规则命中。 |
 | `homoglyph-nc-reverse-shell` | hit | R11-b 新增:nc 命令中用 Cyrillic 同形字('nс'=n+с→c, '-е'=е→e)伪装,引擎 NFKC+同形字映射后归一化为 `nc ... -e /bin/bash`,命中 `reverse-shell/netcat-exec`。 |
 | `supply-chain-unofficial-npm-registry` | hit | R12-a 修复(miss→hit):`supply-chain/unofficial-registry` 规则检测 `--registry/--index-url/--extra-index-url` 后跟保留 TLD(`.invalid`/`.test`/`.local`)、明文 HTTP、原始 IP 或已知短链域名的安装命令。企业内网 HTTPS registry(如 `https://npm.mycompany.com`)不命中。 |
+| `mcp-config-credential-path-access` | hit (MCP config audit) | R19-a 新增:`mcp/credential-path-access` 规则(severity: medium)检测 MCP 服务器配置中 `command`/`args`/`env` 值指向凭据路径(如 `~/.ssh`、`~/.aws/credentials`、`~/.gnupg`、`.netrc`、`~/.config/gh`、`~/.docker/config.json`、`~/.kube/config`、`~/.npmrc`)的配置项。正则使用路径边界锚定(`/`、`~`、引号、`=`、空白作为前缀)避免误报 npm 包名或 prose 中含"ssh"的片段。此规则通过 `auditMcpConfig()` 触发,不在技能文件行规则路径内,不加入 A5 语料库。 |
 
 ### Documented Misses
 

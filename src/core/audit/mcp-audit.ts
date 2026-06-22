@@ -172,6 +172,31 @@ const PRELOAD_ENV_KEYS_RE = /^(?:LD_PRELOAD|DYLD_INSERT_LIBRARIES)$/;
 const COMMAND_REMOTE_URL_RE = /^https?:\/\//i;
 
 /**
+ * Credential path segments that indicate an MCP server is configured to access
+ * sensitive credential files or directories.
+ *
+ * Threat class (AppSecSanta 2026 MCP audit): filesystem-style MCP servers
+ * configured with access to credential directories allow the AI agent to
+ * silently read and exfiltrate SSH keys, AWS credentials, GPG keys, etc.
+ *
+ * Precision approach — path-boundary anchoring:
+ *   Each pattern uses a leading alternation anchor requiring the match to be
+ *   preceded by a path-boundary character: start-of-string (^), forward-slash,
+ *   tilde (home dir), double-quote, single-quote, equals-sign, or whitespace.
+ *   This ensures we match actual path tokens (e.g. "~/.ssh", "/Users/x/.aws/")
+ *   and not accidental substrings inside unrelated words (e.g. a package named
+ *   "ssh-agent-wrapper" in a prose description).
+ *
+ * NOT flagged by this rule:
+ *   - env key NAMES that contain "ssh" (env keys are not paths)
+ *   - prose descriptions mentioning ssh in a sentence
+ *   - normal project/workspace dirs (/Users/x/projects, ~/code)
+ *   - the existing prompt-injection and literal-secret checks
+ */
+const CREDENTIAL_PATH_RE =
+  /(?:^|[/~"'=\s])(?:~\/\.ssh|\/\.ssh\/|id_rsa|id_ed25519|authorized_keys|~\/\.aws|\/\.aws\/|\.aws\/credentials|~\/\.gnupg|\/\.gnupg\/|\.netrc|~\/\.config\/gh(?:$|[/"'\s])|~\/\.docker\/config\.json|~\/\.kube\/config|~\/\.npmrc)/i;
+
+/**
  * Command (or first arg) pointing at a world-writable / temporary directory.
  *
  * Threat: TOCTOU / binary-planting attack.  An attacker can write a malicious
@@ -385,6 +410,50 @@ function auditServerEntry(
           1,
         ),
       );
+    }
+  }
+
+  // ── 2h. Credential path access (R19-a) ──────────────────────────────────
+  // Flag when command, any arg, or any env VALUE contains a reference to a
+  // known credential file path or secrets directory.  A filesystem-style MCP
+  // server configured to access ~/.ssh, ~/.aws, ~/.gnupg, etc. gives the AI
+  // agent silent read access to those paths — enabling credential harvesting.
+  //
+  // We scan all three token sources:
+  //   - command string
+  //   - each element of args[]
+  //   - each env entry VALUE (not the key name; key names are not paths)
+  //
+  // The CREDENTIAL_PATH_RE regex requires a path-boundary character before
+  // the sensitive segment, so incidental substrings in unrelated words don't
+  // fire (e.g. a package named "libssh2" would not match "~/.ssh").
+  {
+    // Collect all token strings to scan (deduped source labels for the excerpt)
+    const credTokens: Array<{ token: string; label: string }> = [
+      { token: command, label: 'command' },
+      ...args.map((a, i) => ({ token: a, label: `args[${i}]` })),
+      ...Object.entries(env)
+        .filter(([, v]) => typeof v === 'string')
+        .map(([k, v]) => ({ token: v as string, label: `env.${k}` })),
+    ];
+
+    for (const { token, label } of credTokens) {
+      if (!token) continue;
+      const m = CREDENTIAL_PATH_RE.exec(token);
+      if (m) {
+        // Extract the matched path segment for the message (trim leading boundary char)
+        const matchedPath = m[0].replace(/^[/~"'=\s]/, '');
+        findings.push(
+          finding(
+            'mcp/credential-path-access',
+            'medium',
+            `MCP server ${label} is configured with access to credential path "${matchedPath}" — agent could silently read/exfiltrate credentials`,
+            `${ctx} ${label}="${excerpt(token)}"`,
+            1,
+          ),
+        );
+        break; // One finding per server is enough; first hit is the clearest signal
+      }
     }
   }
 
