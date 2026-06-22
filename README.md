@@ -62,14 +62,14 @@ skill-switch --help
 |---|---|---|
 | `scan` | 盘点各工具已装的 skill(只读;坏样本以 `error` 字段呈现)。 | `skill-switch scan` |
 | `init` | 扫描已安装 skill,草拟 `skills.json` 初始声明(已存在则跳过,`--force` 覆盖,`--dry-run` 只看草稿)。 | `skill-switch init --dry-run` |
-| `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。 | `skill-switch audit ./my-skill` |
+| `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。`--configs` 同时检查 agent 配置文件(settings.json / MCP 等),覆盖 Claude Code、Gemini CLI、Cursor、VS Code。 | `skill-switch audit ./my-skill` |
 | `install` | 安装本地或 git 来源:装前 audit + 装前快照,写 lock 与声明。 | `skill-switch install ./my-skills --agent claude-code` |
 | `toggle` | 按声明开关单个 skill(同步前自动快照)。 | `skill-switch toggle tidy-notes --off` |
 | `sync` | 把声明应用到磁盘(`--dry-run` 只看计划)。 | `skill-switch sync --dry-run` |
 | `remove` | 一致性拆除:磁盘产物 + 锁 + 声明一起清。 | `skill-switch remove tidy-notes --agent codex` |
 | `restore` | 列出 / 还原备份(`--latest` 或 `--id`)。 | `skill-switch restore --latest` |
 | `lint` | 规范校验 + 跨工具移植告警 + 冲突 / 预算健康度。 | `skill-switch lint --target codex` |
-| `doctor` | 声明/锁/磁盘三方一致性(`--ci` 不一致即 exit 1)。 | `skill-switch doctor` |
+| `doctor` | 声明/锁/磁盘三方一致性(`--ci` 不一致即 exit 1)。同时显示「配置安全:」advisory 段落(critical/high 配置问题摘要;`--json` 含 `configAudit` 字段;不影响退出码)。 | `skill-switch doctor` |
 | `diff` | 内容漂移的「改了什么」:磁盘 vs store 副本,逐文件 added/removed/modified。 | `skill-switch diff my-skill` |
 | `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。 | `skill-switch drift` |
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
@@ -110,7 +110,8 @@ skill-switch uninstall
 
 - **只读命令永不写盘**:`scan`、`audit`、`lint`、`doctor`、`drift`、`stats`、`lock`。
 - **写命令先做装前快照再动手**:`install`、`toggle`、`sync`、`remove`、`restore` 修改前在 `~/.skill-switch/backups/` 拍 tar.gz 快照,`restore` 还原前再拍一份;任何一步都能回滚。
-- **安装前安全体检**:任何 skill 装进来前先 audit,命中反弹 shell、外传敏感文件、钓鱼式索要凭据等会被拦,需 `--force` / 勾「遇到拦截也继续」才放行。
+- **安装前安全体检**:任何 skill 装进来前先 audit,命中反弹 shell、外传敏感文件、钓鱼式索要凭据、非官方 registry 安装(`supply-chain/unofficial-registry`)等会被拦,需 `--force` / 勾「遇到拦截也继续」才放行。
+- **配置文件审查**:`audit --configs` 同时检查 Claude Code、Gemini CLI、Cursor、VS Code 的 settings.json / MCP 配置,检测配置凭据路径访问(`mcp/credential-path-access`)、硬编码密钥、危险 MCP server 等;`doctor` 也会在输出中附上同类发现的 advisory 摘要。
 - **加固边界**:拒绝路径穿越/绝对路径/隐藏名等不安全 skill 名;copy 模式不跟随软链;audit 不跟随软链且有大小/数量/深度/单行匹配上限。已知盲区见 [docs/known-limitations.md](docs/known-limitations.md)。
 - **零遥测 · 本地优先**:skill-switch 不收集、不上传任何数据,没有分析/遥测/账号。所有操作都在你本机完成,配置只写到 `~/.skill-switch/`,装好后**可完全离线使用**(只有显式从 git 来源 `install` 时才联网拉取那一个仓库)。
 
