@@ -4,9 +4,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { lstat, mkdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { installFromSource } from '../src/core/install.ts';
+import { getSkillsLockPath } from '../src/core/lock.ts';
 import { listSnapshots } from '../src/core/backup.ts';
 import { runDoctor } from '../src/core/doctor.ts';
 import { toggleSkill } from '../src/core/toggle.ts';
@@ -344,6 +345,38 @@ describe('core/install', () => {
     await expect(
       installFromSource('--upload-pack=evil', { home, agent: 'claude-code', mode: 'copy' }),
     ).rejects.toThrow(/'-'|开头/);
+  });
+
+  // R30:写盘前 fail-fast——损坏的 skills.lock.json 必须在把 skill 拷到磁盘之前就让 install 失败,
+  // 不留「磁盘已写、lock/声明未更新」的撕裂态。回归:旧实现在收尾的 upsertLockEntries 才读 lock,
+  // 即在 skill 已落盘之后才抛错。
+  it('损坏的 skills.lock.json 使 install 在写盘前失败,磁盘无半成品(all-or-nothing)', async () => {
+    const home = freshHome();
+    const lockPath = getSkillsLockPath(home);
+    await mkdir(dirname(lockPath), { recursive: true });
+    await writeFile(lockPath, '{ this is not valid json'); // 损坏的 lock
+
+    // 损坏文件抛 StateFileError(语法坏 → "状态文件 JSON 损坏";结构坏 → "锁文件结构非法")。
+    await expect(
+      installFromSource(localSource, { home, agent: 'claude-code', mode: 'copy' }),
+    ).rejects.toThrow(/状态文件|损坏|锁文件/);
+
+    // 关键不变式:skill 绝不能已被拷到磁盘
+    await expect(lstat(join(home, '.claude', 'skills', 'local-skill'))).rejects.toThrow();
+  });
+
+  // R30:损坏的 skills.json(声明)同样在写盘前 fail-fast。
+  it('损坏的 skills.json 使 install 在写盘前失败,磁盘无半成品', async () => {
+    const home = freshHome();
+    const declPath = getSkillsJsonPath(home);
+    await mkdir(dirname(declPath), { recursive: true });
+    await writeFile(declPath, '{ broken declaration');
+
+    await expect(
+      installFromSource(localSource, { home, agent: 'claude-code', mode: 'copy' }),
+    ).rejects.toThrow(/状态文件|损坏|声明文件/);
+
+    await expect(lstat(join(home, '.claude', 'skills', 'local-skill'))).rejects.toThrow();
   });
 });
 

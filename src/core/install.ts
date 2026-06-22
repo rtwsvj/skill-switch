@@ -19,11 +19,11 @@ import type { AuditReport } from './audit/engine.ts';
 import { snapshot } from './backup.ts';
 import { getCliVersion, recordBypasses } from './bypass-ledger.ts';
 import { assertSafeGitSource } from './git-safe.ts';
-import { getSkillsLockPath, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
+import { getSkillsLockPath, readSkillsLock, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { copyDirWithoutSymlinks } from './safe-copy.ts';
 import { assertSafeSkillName, isCanonicalSkillName, isSafeSkillName } from './skill-name.ts';
-import { getSkillsJsonPath, upsertSkillDeclarations } from './sync.ts';
+import { getSkillsJsonPath, readDeclaration, upsertSkillDeclarations } from './sync.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -163,6 +163,15 @@ export async function installFromSource(
       }
     }
 
+    // R30:在任何写动作前先校验状态文件可读(损坏即 fail-fast),保证 all-or-nothing。
+    // upsertLockEntries / upsertSkillDeclarations 在收尾才读这两个文件——若其中一个损坏,
+    // 会在 skill 已拷贝到磁盘之后才抛错,留下「磁盘已写、lock/声明未更新」的撕裂态。
+    // 这里提前用同样的 reader 预检:缺文件返回默认(首次安装不受影响),仅损坏才抛 StateFileError。
+    const lockPath = getSkillsLockPath(options.home);
+    const declarationPath = getSkillsJsonPath(options.home);
+    await readSkillsLock(lockPath);
+    await readDeclaration(declarationPath);
+
     // 装前快照(目标目录已存在且非空才有内容可保)
     let snapshotPath: string | undefined;
     if (existsSync(skillsDir) && (await readdir(skillsDir)).length > 0) {
@@ -221,9 +230,8 @@ export async function installFromSource(
       });
     }
 
-    const lockPath = getSkillsLockPath(options.home);
+    // lockPath / declarationPath 已在写盘前声明并预校验(见上方 fail-fast 块)。
     await upsertLockEntries(lockPath, lockEntries);
-    const declarationPath = getSkillsJsonPath(options.home);
     await upsertSkillDeclarations(declarationPath, declarationAdditions);
 
     // force 越过 audit 的留痕:记录被越过的 skill + 命中的 findings + 理由 + 版本。
