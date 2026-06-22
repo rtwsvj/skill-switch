@@ -294,5 +294,17 @@
       "Safety: see which skills are risky and what bypassed the check",
       "History: undo a mistaken change with one click"
     ]
+  },
+  "configAudit": {
+    "title": "Config security",
+    "noConfigsFound": "No agent config files found.",
+    "noFindings": "No issues found in agent config files.",
+    "fileClean": "Clean",
+    "findingCount": "{{count}} issue(s)",
+    "fileNoFindings": "No issues found.",
+    "summary": {
+      "blocking": "{{count}} high/critical",
+      "other": "{{count}} medium/low"
+    }
   }
 }

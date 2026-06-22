@@ -231,6 +231,22 @@ export interface RestoreRunResult {
   safetySnapshot: SnapshotView;
 }
 
+/** One config file entry returned by `audit --configs --json`. */
+export interface ConfigFileResult {
+  absPath: string;
+  relPath: string;
+  findings: AuditFinding[];
+}
+
+/** Top-level shape of `audit --configs --json` output. */
+export interface ConfigAuditReport {
+  home: string;
+  total: number;
+  skills: AuditReport[];
+  configs: ConfigFileResult[];
+  configsBlocked: boolean;
+}
+
 export interface DashboardData {
   scan: ScanReport;
   audit: AuditReport[];

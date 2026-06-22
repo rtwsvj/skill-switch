@@ -6,6 +6,7 @@ import {
   runRestore,
   runSync,
   runToggle,
+  type ConfigAuditReport,
   type DashboardData,
   type InstallRunResult,
   type RestoreListResult,
@@ -45,6 +46,7 @@ import type {
 } from '../lib/types';
 import { ConfirmationDialog, Header, OperationBanner } from './atoms';
 import { Audit } from './Audit';
+import { ConfigAudit } from './ConfigAudit';
 import { History } from './History';
 import { Overview } from './Overview';
 import { Skills } from './Skills';
@@ -52,6 +54,7 @@ import { Stats } from './Stats';
 
 export function DashboardShell({
   data,
+  configAudit = null,
   initialScreen = 'overview',
   onRefresh,
   sections = initialSectionStates,
@@ -59,6 +62,7 @@ export function DashboardShell({
   onReloadSection,
 }: {
   data: DashboardData;
+  configAudit?: ConfigAuditReport | null;
   initialScreen?: Screen;
   onRefresh: () => Promise<void>;
   sections?: SectionStates;
@@ -448,7 +452,12 @@ export function DashboardShell({
       <ConfirmationDialog confirmation={confirmation} />
       {active === 'overview' ? <Overview data={mergedData} operations={operations} advanced={advanced} sections={sections} showOnboarding={!onboarded} onDismissOnboarding={dismissOnboarding} /> : null}
       {active === 'skills' ? <Skills data={mergedData} actions={skillActions} /> : null}
-      {active === 'audit' ? <Audit data={mergedData} section={sections.audit} onReload={() => onReloadSection?.('audit')} /> : null}
+      {active === 'audit' ? (
+        <>
+          <Audit data={mergedData} section={sections.audit} onReload={() => onReloadSection?.('audit')} />
+          <ConfigAudit report={configAudit} section={sections.configAudit} onReload={() => onReloadSection?.('configAudit')} />
+        </>
+      ) : null}
       {active === 'history' ? (
         <History
           restoreList={restoreList}

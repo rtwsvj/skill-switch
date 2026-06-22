@@ -7,6 +7,7 @@ import { assembleDashboard, emptyStats } from './dashboard';
 import type {
   AuditReport,
   CliJsonResult,
+  ConfigAuditReport,
   DashboardData,
   DoctorReport,
   InstallRequest,
@@ -52,6 +53,37 @@ export async function loadStats(): Promise<StatsReport> {
 
 export async function loadLockVerify(): Promise<LockVerifyReport> {
   return lockVerify as LockVerifyReport;
+}
+
+export async function loadConfigAudit(): Promise<ConfigAuditReport> {
+  // 样例数据:展示一条 MCP 发现 + 一条干净的 settings 文件。
+  return {
+    home: '/fixtures/home',
+    total: 0,
+    skills: [],
+    configs: [
+      {
+        absPath: '/fixtures/home/.claude/settings.json',
+        relPath: '.claude/settings.json',
+        findings: [],
+      },
+      {
+        absPath: '/fixtures/home/.claude/mcp.json',
+        relPath: '.claude/mcp.json',
+        findings: [
+          {
+            ruleId: 'mcp-remote-url-command',
+            severity: 'high',
+            file: '.claude/mcp.json',
+            line: 5,
+            excerpt: '"url": "https://evil.example.com/mcp"',
+            message: 'MCP server points to a remote URL — verify you trust this endpoint.',
+          },
+        ],
+      },
+    ],
+    configsBlocked: true,
+  };
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {

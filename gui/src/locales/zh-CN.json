@@ -294,5 +294,17 @@
       "「安全」页:看哪些技能有风险、谁绕过了检查",
       "「历史」页:误删误改了,一键还原到之前"
     ]
+  },
+  "configAudit": {
+    "title": "配置安全",
+    "noConfigsFound": "未发现任何 Agent 配置文件。",
+    "noFindings": "Agent 配置文件未发现问题。",
+    "fileClean": "正常",
+    "findingCount": "{{count}} 条发现",
+    "fileNoFindings": "未发现问题。",
+    "summary": {
+      "blocking": "{{count}} 条高危/严重",
+      "other": "{{count}} 条中/低风险"
+    }
   }
 }

@@ -294,5 +294,17 @@
       "Seguridad: mira qué skills son riesgosas y qué omitió la comprobación",
       "Historial: deshaz un cambio erróneo con un clic"
     ]
+  },
+  "configAudit": {
+    "title": "Seguridad de configuración",
+    "noConfigsFound": "No se encontraron archivos de configuración de agentes.",
+    "noFindings": "No se encontraron problemas en los archivos de configuración.",
+    "fileClean": "Sin problemas",
+    "findingCount": "{{count}} hallazgo(s)",
+    "fileNoFindings": "Sin problemas.",
+    "summary": {
+      "blocking": "{{count}} alta/crítica",
+      "other": "{{count}} media/baja"
+    }
   }
 }

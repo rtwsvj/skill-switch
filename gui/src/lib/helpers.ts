@@ -22,12 +22,13 @@ import type {
 export const initialSectionStates: SectionStates = {
   audit: { status: 'idle' },
   stats: { status: 'idle' },
+  configAudit: { status: 'idle' },
 };
 
 export function sectionsForScreen(screen: Screen): SectionName[] {
   // overview 同时消费 audit(待办)与 stats(僵尸技能数),故两者都要;各 tab 只需各自的。
   if (screen === 'overview') return ['audit', 'stats'];
-  if (screen === 'audit') return ['audit'];
+  if (screen === 'audit') return ['audit', 'configAudit'];
   if (screen === 'stats') return ['stats'];
   return [];
 }
