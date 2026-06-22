@@ -7,6 +7,12 @@
 //
 // v0.5-1:新增 --format sarif 输出 SARIF 2.1.0 文档(GitHub code-scanning 可用)。
 //   --json 旧标志保留,行为完全不变;--format json 与其等价。
+//
+// v0.5-3:新增 .skill-switch-policy.json 策略文件支持。
+//   --policy <path>   指定策略文件路径(默认从 cwd 查找)
+//   --no-policy       忽略策略文件,使用默认行为
+//   策略文件可调整 failOn(阻断严重度下限)和 suppress(按 ruleId 抑制 finding)。
+//   无策略文件 / --no-policy 时行为与旧版完全一致。
 import { readFileSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative } from 'node:path';
@@ -15,9 +21,15 @@ import type { Command } from 'commander';
 import { allFileRules, allRules } from '../../../rules/index.ts';
 import { auditContents, type AuditReport, type AuditTarget } from '../../core/audit/engine.ts';
 import { auditConfigFiles, flattenConfigFindings, type ConfigFileResult } from '../../core/audit/config-discovery.ts';
+import {
+  loadPolicyFile,
+  PolicyFileError,
+  DEFAULT_POLICY,
+  type ResolvedPolicy,
+} from '../../core/audit/policy.ts';
 import { toSarifDocument } from '../../core/audit/sarif.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
-import type { AuditFinding } from '../../core/audit/types.ts';
+import type { AuditFinding, Severity } from '../../core/audit/types.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import { scanHome, type SkillRecord } from '../../core/scan.ts';
 
@@ -34,7 +46,11 @@ function readVersion(): string {
   }
 }
 
+// 无策略时的默认阻断严重度集合(维持旧版行为)
 const BLOCKING_SEVERITIES = new Set(['critical', 'high']);
+
+// severity 排序:critical > high > medium > low(索引越小越严重)
+const SEVERITY_RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
 // 只读文本扩展;跳过二进制资源。扩到脚本/配置/源码常见可执行文本类型。
 const TEXT_EXT = new Set([
@@ -72,6 +88,44 @@ export function shouldBlock(report: Pick<AuditReport, 'score' | 'findings'>): bo
   if (report.score < DANGER_THRESHOLD) return true;
   return report.findings.some((f) => BLOCKING_SEVERITIES.has(f.severity));
 }
+
+/**
+ * 策略感知版 shouldBlock:
+ * - 被抑制的 finding(ruleId 在 policy.suppressedRuleIds 中)不计入阻断决策。
+ * - failOn 决定阻断的严重度下限(severity 索引 <= failOn 索引 → 阻断)。
+ * - score 阈值不受策略影响(score 基于所有 findings 计算)。
+ * - 传入 DEFAULT_POLICY 时行为与 shouldBlock() 完全一致。
+ */
+export function shouldBlockWithPolicy(
+  report: Pick<AuditReport, 'score' | 'findings'>,
+  policy: ResolvedPolicy,
+): boolean {
+  if (report.score < DANGER_THRESHOLD) return true;
+  const failOnRank = SEVERITY_RANK[policy.failOn];
+  // 只看未被抑制的 finding
+  return report.findings.some(
+    (f) =>
+      !policy.suppressedRuleIds.has(f.ruleId) &&
+      SEVERITY_RANK[f.severity] <= failOnRank,
+  );
+}
+
+/**
+ * 将 finding 列表按策略标注 suppressed 字段并过滤/标记。
+ * 返回每条 finding 附带 suppressed: boolean 字段。
+ */
+export function applyPolicyToFindings(
+  findings: AuditFinding[],
+  policy: ResolvedPolicy,
+): Array<AuditFinding & { suppressed: boolean }> {
+  return findings.map((f) => ({
+    ...f,
+    suppressed: policy.suppressedRuleIds.has(f.ruleId),
+  }));
+}
+
+/** 默认策略文件在 cwd 的文件名 */
+const POLICY_FILE_NAME = '.skill-switch-policy.json';
 
 async function collectTextFiles(root: string): Promise<{ targets: AuditTarget[]; coverage: AuditCoverage }> {
   const targets: AuditTarget[] = [];
@@ -291,6 +345,28 @@ function resolveFormat(options: { format?: string; json?: boolean }): OutputForm
   return 'human';
 }
 
+// ── 策略加载辅助 ─────────────────────────────────────────────────────────────
+
+/**
+ * 根据 CLI 选项加载策略。
+ * - noPolicy=true → 返回 { policy: DEFAULT_POLICY, policyActive: false }
+ * - 文件不存在 → { policy: DEFAULT_POLICY, policyActive: false }
+ * - 文件存在且合法 → { policy: 解析结果, policyActive: true }
+ * - 文件存在但损坏 → 抛 PolicyFileError
+ *
+ * policyActive=false 时输出格式与旧版完全一致(不附加 suppressed 字段)。
+ */
+async function resolvePolicy(opts: {
+  noPolicy?: boolean;
+  policy?: string;
+}): Promise<{ policy: ResolvedPolicy; policyActive: boolean }> {
+  if (opts.noPolicy) return { policy: DEFAULT_POLICY, policyActive: false };
+  const filePath = opts.policy ?? join(process.cwd(), POLICY_FILE_NAME);
+  const loaded = await loadPolicyFile(filePath);
+  if (loaded === null) return { policy: DEFAULT_POLICY, policyActive: false };
+  return { policy: loaded, policyActive: true };
+}
+
 export function registerAuditCommand(program: Command): void {
   program
     .command('audit')
@@ -300,25 +376,60 @@ export function registerAuditCommand(program: Command): void {
     .option('--json', '机器可读 JSON 输出(等价于 --format json;保留向后兼容)')
     .option('--format <fmt>', '输出格式:human(默认)/ json / sarif', 'human')
     .option('--configs', '同时审查 home 下的 agent 配置文件(settings.json / MCP 等)')
+    .option('--policy <path>', '指定策略文件路径(默认: ./.skill-switch-policy.json)')
+    .option('--no-policy', '忽略策略文件,使用默认阻断行为(等同于无策略文件)')
     .action(async (
       path: string | undefined,
-      options: { home?: string | boolean; json?: boolean; format?: string; configs?: boolean },
+      options: {
+        home?: string | boolean;
+        json?: boolean;
+        format?: string;
+        configs?: boolean;
+        policy?: string;
+        // commander 将 --no-policy 映射为 options.policy === false
+        // 但类型里用 noPolicy 更清晰;实际通过 options['policy'] 判断
+      },
       command: Command,
     ) => {
       const fmt = resolveFormat(options);
 
+      // 加载策略文件;损坏时打印错误并 exit 1
+      let policy: ResolvedPolicy;
+      let policyActive: boolean;
+      try {
+        // commander 的 --no-policy 会把 options.policy 置为 false(boolean)
+        const noPolicyFlag = (options as Record<string, unknown>)['policy'] === false;
+        ({ policy, policyActive } = await resolvePolicy({
+          noPolicy: noPolicyFlag,
+          policy: typeof options.policy === 'string' ? options.policy : undefined,
+        }));
+      } catch (err) {
+        if (err instanceof PolicyFileError) {
+          process.stderr.write(`audit: 策略文件错误 — ${err.message}\n`);
+          process.exitCode = 1;
+          return;
+        }
+        throw err;
+      }
+
       if (path) {
         const report = await auditSkillDir(path);
+
         if (fmt === 'sarif') {
-          // SARIF 模式:将单路径 findings 序列化为 SARIF 文档输出
-          const doc = toSarifDocument(report.findings, readVersion());
+          // SARIF 模式:被抑制的 finding 写入 suppressions;无策略时 suppressedRuleIds 为空集
+          const doc = toSarifDocument(report.findings, readVersion(), policy.suppressedRuleIds);
           console.log(JSON.stringify(doc, null, 2));
         } else if (fmt === 'json') {
-          console.log(JSON.stringify({ path, ...report }, null, 2));
+          // 无策略时输出与旧版完全一致(不含 suppressed 字段)
+          // 有策略时 findings 附带 suppressed 字段,方便 CI 脚本识别
+          const findings = policyActive
+            ? applyPolicyToFindings(report.findings, policy)
+            : report.findings;
+          console.log(JSON.stringify({ path, ...report, findings }, null, 2));
         } else {
           console.log(formatAuditReport(path, report));
         }
-        if (shouldBlock(report)) process.exitCode = 1;
+        if (shouldBlockWithPolicy(report, policy)) process.exitCode = 1;
         return;
       }
 
@@ -332,15 +443,29 @@ export function registerAuditCommand(program: Command): void {
           ...report.skills.flatMap((s) => s.findings),
           ...(report.configs ? flattenConfigFindings(report.configs) : []),
         ];
-        const doc = toSarifDocument(allFindings, readVersion());
+        const doc = toSarifDocument(allFindings, readVersion(), policy.suppressedRuleIds);
         console.log(JSON.stringify(doc, null, 2));
       } else if (fmt === 'json') {
-        console.log(JSON.stringify(report, null, 2));
+        if (policyActive) {
+          // 有策略:每个 skill 的 findings 附带 suppressed 字段,blocked 按策略重算
+          const reportWithSuppressed = {
+            ...report,
+            skills: report.skills.map((skill) => ({
+              ...skill,
+              findings: applyPolicyToFindings(skill.findings, policy),
+              blocked: shouldBlockWithPolicy(skill, policy),
+            })),
+          };
+          console.log(JSON.stringify(reportWithSuppressed, null, 2));
+        } else {
+          // 无策略:输出与旧版完全一致
+          console.log(JSON.stringify(report, null, 2));
+        }
       } else {
         console.log(formatAuditHomeTable(report));
       }
 
-      const skillsBlocked = report.skills.some((skill) => skill.blocked);
+      const skillsBlocked = report.skills.some((skill) => shouldBlockWithPolicy(skill, policy));
       const configBlocked = report.configsBlocked === true;
       if (skillsBlocked || configBlocked) process.exitCode = 1;
     });

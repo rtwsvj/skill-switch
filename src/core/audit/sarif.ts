@@ -1,6 +1,8 @@
 // SARIF 2.1.0 序列化器 — 纯函数,无副作用,方便单元测试。
 // 规格参考:https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
 // 只生成 GitHub code-scanning 要求的最小合法文档,不过度工程化。
+// v0.5-3:新增 suppressedRuleIds 参数;被抑制的 finding 在 SARIF result 中写入
+//         suppressions 数组,让 GitHub code-scanning 将其显示为 suppressed。
 
 import type { AuditFinding, Severity } from './types.ts';
 
@@ -37,11 +39,19 @@ interface SarifMessage {
   text: string;
 }
 
+// SARIF 2.1.0 §3.35 suppression 对象:状态 + 来源类型
+interface SarifSuppression {
+  kind: 'inSource' | 'external';
+  justification?: string;
+}
+
 interface SarifResult {
   ruleId: string;
   level: 'error' | 'warning' | 'note';
   message: SarifMessage;
   locations: SarifLocation[];
+  /** 存在时表示该 result 被抑制;GitHub code-scanning 据此标记为 suppressed */
+  suppressions?: SarifSuppression[];
 }
 
 interface SarifReportingDescriptor {
@@ -74,12 +84,14 @@ export interface SarifDocument {
 
 // ── 导出:将 findings 列表序列化为 SARIF 2.1.0 文档 ─────────────────────────
 /**
- * @param findings  audit 引擎产出的 finding 列表(可为空数组 → zero-result 合法文档)
- * @param toolVersion  package.json 版本号,由调用方同步读取后传入
+ * @param findings           audit 引擎产出的 finding 列表(可为空数组 → zero-result 合法文档)
+ * @param toolVersion        package.json 版本号,由调用方同步读取后传入
+ * @param suppressedRuleIds  被策略文件抑制的 ruleId 集合;命中的 result 写入 suppressions 字段
  */
 export function toSarifDocument(
   findings: AuditFinding[],
   toolVersion: string,
+  suppressedRuleIds: ReadonlySet<string> = new Set(),
 ): SarifDocument {
   // 构建 rules[]:从 findings 中去重 ruleId,每条取其第一次出现时的 severity
   const seenRules = new Map<string, 'error' | 'warning' | 'note'>();
@@ -94,20 +106,27 @@ export function toSarifDocument(
     defaultConfiguration: { level },
   }));
 
-  const results: SarifResult[] = findings.map((f) => ({
-    ruleId: f.ruleId,
-    level: severityToSarifLevel(f.severity),
-    message: { text: f.message },
-    locations: [
-      {
-        physicalLocation: {
-          // uri 使用相对路径;GitHub code scanning 会根据 checkout 根解析
-          artifactLocation: { uri: f.file, uriBaseId: '%SRCROOT%' },
-          region: { startLine: f.line },
+  const results: SarifResult[] = findings.map((f) => {
+    const result: SarifResult = {
+      ruleId: f.ruleId,
+      level: severityToSarifLevel(f.severity),
+      message: { text: f.message },
+      locations: [
+        {
+          physicalLocation: {
+            // uri 使用相对路径;GitHub code scanning 会根据 checkout 根解析
+            artifactLocation: { uri: f.file, uriBaseId: '%SRCROOT%' },
+            region: { startLine: f.line },
+          },
         },
-      },
-    ],
-  }));
+      ],
+    };
+    // 被策略文件抑制的 finding → 写入 suppressions 数组(SARIF §3.27.24)
+    if (suppressedRuleIds.has(f.ruleId)) {
+      result.suppressions = [{ kind: 'external' }];
+    }
+    return result;
+  });
 
   return {
     $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
