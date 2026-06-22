@@ -171,6 +171,30 @@ const PRELOAD_ENV_KEYS_RE = /^(?:LD_PRELOAD|DYLD_INSERT_LIBRARIES)$/;
  */
 const COMMAND_REMOTE_URL_RE = /^https?:\/\//i;
 
+/**
+ * Command (or first arg) pointing at a world-writable / temporary directory.
+ *
+ * Threat: TOCTOU / binary-planting attack.  An attacker can write a malicious
+ * executable to /tmp or /dev/shm before the MCP server starts (or replace it
+ * after the permission check but before execution).  World-writable temp dirs
+ * are also used by malware as a staging area to avoid writing to monitored paths.
+ *
+ * Paths flagged:  /tmp/…, /var/tmp/…, /dev/shm/…
+ * Paths NOT flagged: /usr/…, /usr/local/…, /opt/…, node, python, etc.
+ *
+ * We match on command AND on the first arg when the primary command is a generic
+ * shell/interpreter (sh, bash, node, python, python3, perl, ruby) — e.g.
+ *   command: "sh", args: ["/tmp/setup.sh", …]
+ * — because the actual executable is the first arg in that case.
+ *
+ * Severity: medium (not critical) because the file must already exist and be
+ * executable; this is a TOCTOU / hardening signal rather than instant RCE.
+ */
+const TEMP_DIR_COMMAND_RE = /^(?:\/tmp\/|\/var\/tmp\/|\/dev\/shm\/)/;
+
+/** Interpreters whose first positional arg is itself the script to execute. */
+const INTERPRETER_CMD_RE = /^(?:ba)?sh$|^(?:python3?|perl|ruby|node)$/;
+
 // ──────────────────────────────────────────────────────────────────────────────
 // MCP config shape (loose — we accept partial / malformed gracefully)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -358,6 +382,34 @@ export function auditMcpConfig(content: string): AuditFinding[] {
           1,
         ),
       );
+    }
+
+    // ── 2g-pre. Command / script in a world-writable temp directory (R10-a) ───
+    // Flag when the primary command OR (for interpreter commands) the first
+    // positional arg lives under /tmp, /var/tmp, or /dev/shm.
+    {
+      const targetPaths: string[] = [];
+      if (TEMP_DIR_COMMAND_RE.test(command)) {
+        targetPaths.push(command);
+      } else if (INTERPRETER_CMD_RE.test(command) && args.length > 0) {
+        // Find first non-flag arg — interpreters pass the script as the first
+        // positional argument (not starting with '-').
+        const firstPositional = args.find((a) => !a.startsWith('-'));
+        if (firstPositional && TEMP_DIR_COMMAND_RE.test(firstPositional)) {
+          targetPaths.push(firstPositional);
+        }
+      }
+      for (const p of targetPaths) {
+        findings.push(
+          finding(
+            'mcp/command-temp-dir',
+            'medium',
+            `MCP server executable path is in a world-writable temp directory (${p}) — TOCTOU / binary-planting risk`,
+            `${ctx} command path "${p}"`,
+            1,
+          ),
+        );
+      }
     }
 
     // ── 2g. Prompt-injection in server metadata (R7-a) ───────────────────────

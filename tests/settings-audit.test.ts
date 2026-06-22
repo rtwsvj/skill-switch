@@ -168,6 +168,157 @@ describe('overly broad permissions → high', () => {
     const findings = auditSettingsJson(settings);
     expect(ruleIds(findings)).toContain('settings/permission-wildcard-star');
   });
+
+  // ── R10-a: overly broad Write/Read root grants ────────────────────────────
+
+  it('detects Write(/**) — filesystem-root write grant → high', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Write(/**)'] } });
+    const findings = auditSettingsJson(settings);
+    expect(ruleIds(findings)).toContain('settings/permission-write-root');
+    expect(hasSeverity(findings, 'high')).toBe(true);
+  });
+
+  it('detects Write(/*) — filesystem-root write grant → high', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Write(/*)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/permission-write-root');
+  });
+
+  it('detects Write(~/**) — home-root write grant → high', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Write(~/**)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/permission-write-root');
+  });
+
+  it('detects Write(~/*) — home-root write grant → high', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Write(~/*)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/permission-write-root');
+  });
+
+  it('detects Read(/**) — filesystem-root read grant → high', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Read(/**)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/permission-read-root');
+    expect(hasSeverity(auditSettingsJson(settings), 'high')).toBe(true);
+  });
+
+  it('detects Read(~/**) — home-root read grant → high', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Read(~/**)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/permission-read-root');
+  });
+
+  // Benign: scoped paths must NOT trigger the root checks
+  it('Write(src/**) — scoped write is safe → no root-write finding', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Write(src/**)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).not.toContain('settings/permission-write-root');
+  });
+
+  it('Write(./dist/*) — relative scoped write is safe → no root-write finding', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Write(./dist/*)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).not.toContain('settings/permission-write-root');
+  });
+
+  it('Read(**) — project-relative glob is safe → no root-read finding', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Read(**)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).not.toContain('settings/permission-read-root');
+  });
+
+  it('Write(/usr/local/bin/mytool) — specific absolute path is safe → no root-write finding', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Write(/usr/local/bin/mytool)'] } });
+    expect(ruleIds(auditSettingsJson(settings))).not.toContain('settings/permission-write-root');
+  });
+});
+
+// ─── AUTO-APPROVE / DISABLED CONFIRMATION ────────────────────────────────────
+
+describe('auto-approve / disabled confirmation → high (R10-a)', () => {
+  // Malicious: must fire settings/auto-approve-enabled
+
+  it('dangerouslySkipPermissions: true → high', () => {
+    const settings = JSON.stringify({ dangerouslySkipPermissions: true });
+    const findings = auditSettingsJson(settings);
+    expect(ruleIds(findings)).toContain('settings/auto-approve-enabled');
+    expect(hasSeverity(findings, 'high')).toBe(true);
+  });
+
+  it('autoApprove: true → high', () => {
+    const settings = JSON.stringify({ autoApprove: true });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/auto-approve-enabled');
+  });
+
+  it('skipPermissions: true → high', () => {
+    const settings = JSON.stringify({ skipPermissions: true });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/auto-approve-enabled');
+  });
+
+  it('confirmations: "never" → high', () => {
+    const settings = JSON.stringify({ confirmations: 'never' });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/auto-approve-enabled');
+  });
+
+  it('confirmationPolicy: "none" → high', () => {
+    const settings = JSON.stringify({ confirmationPolicy: 'none' });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/auto-approve-enabled');
+  });
+
+  it('confirmations: false → high', () => {
+    const settings = JSON.stringify({ confirmations: false });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/auto-approve-enabled');
+  });
+
+  it('approvalMode: "off" → high', () => {
+    const settings = JSON.stringify({ approvalMode: 'off' });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/auto-approve-enabled');
+  });
+
+  it('nested dangerouslySkipPermissions inside a profile key → high', () => {
+    const settings = JSON.stringify({
+      profiles: { default: { dangerouslySkipPermissions: true } },
+    });
+    expect(ruleIds(auditSettingsJson(settings))).toContain('settings/auto-approve-enabled');
+  });
+
+  // Benign: these must NOT fire
+
+  it('dangerouslySkipPermissions: false → no finding', () => {
+    const settings = JSON.stringify({ dangerouslySkipPermissions: false });
+    const findings = auditSettingsJson(settings).filter((f) => f.ruleId === 'settings/auto-approve-enabled');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('autoApprove absent → no finding', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Read(**)'] } });
+    const findings = auditSettingsJson(settings).filter((f) => f.ruleId === 'settings/auto-approve-enabled');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('confirmations: "always" → no finding', () => {
+    const settings = JSON.stringify({ confirmations: 'always' });
+    const findings = auditSettingsJson(settings).filter((f) => f.ruleId === 'settings/auto-approve-enabled');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('confirmations: "ask" → no finding', () => {
+    const settings = JSON.stringify({ confirmations: 'ask' });
+    const findings = auditSettingsJson(settings).filter((f) => f.ruleId === 'settings/auto-approve-enabled');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('approval: "prompt" → no finding', () => {
+    const settings = JSON.stringify({ approval: 'prompt' });
+    const findings = auditSettingsJson(settings).filter((f) => f.ruleId === 'settings/auto-approve-enabled');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('clean real-world settings with hooks and permissions produces no auto-approve finding', () => {
+    const settings = JSON.stringify({
+      permissions: {
+        allow: ['Read(**)', 'Write(src/**)', 'Bash(pnpm *)'],
+        deny: ['Bash(git push --force *)'],
+      },
+      hooks: { PostToolUse: [{ command: 'pnpm lint:fix' }] },
+      env: { NODE_ENV: 'development' },
+    });
+    const findings = auditSettingsJson(settings).filter((f) => f.ruleId === 'settings/auto-approve-enabled');
+    expect(findings).toHaveLength(0);
+  });
 });
 
 // ─── LITERAL SECRETS ─────────────────────────────────────────────────────────

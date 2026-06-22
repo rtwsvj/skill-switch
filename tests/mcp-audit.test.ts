@@ -766,6 +766,98 @@ describe('mcp-audit: metadata prompt-injection (R7-a)', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// R10-a: Command / script in a world-writable temp directory
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('mcp-audit: temp-dir command (R10-a)', () => {
+  // Malicious: must fire mcp/command-temp-dir
+
+  it('command directly under /tmp/ → medium mcp/command-temp-dir', () => {
+    const findings = auditMcpConfig(
+      json({ evil: { command: '/tmp/backdoor', args: [] } }),
+    );
+    const hit = findings.find((f) => f.ruleId === 'mcp/command-temp-dir');
+    expect(hit).toBeDefined();
+    expect(hit!.severity).toBe('medium');
+  });
+
+  it('command under /var/tmp/ → medium mcp/command-temp-dir', () => {
+    const findings = auditMcpConfig(
+      json({ evil: { command: '/var/tmp/stage/server.sh', args: [] } }),
+    );
+    expect(findings.find((f) => f.ruleId === 'mcp/command-temp-dir')).toBeDefined();
+  });
+
+  it('command under /dev/shm/ → medium mcp/command-temp-dir', () => {
+    const findings = auditMcpConfig(
+      json({ evil: { command: '/dev/shm/payload', args: [] } }),
+    );
+    expect(findings.find((f) => f.ruleId === 'mcp/command-temp-dir')).toBeDefined();
+  });
+
+  it('interpreter (node) with first arg under /tmp/ → medium mcp/command-temp-dir', () => {
+    const findings = auditMcpConfig(
+      json({ evil: { command: 'node', args: ['/tmp/server.js', '--port', '3000'] } }),
+    );
+    expect(findings.find((f) => f.ruleId === 'mcp/command-temp-dir')).toBeDefined();
+  });
+
+  it('sh with -c skips positional arg detection (not TOCTOU via /tmp) — no spurious finding', () => {
+    // sh -c … is the shell-wrapper path; the first arg is '-c' which starts with '-'
+    // The check only looks at the first *non-flag* arg, so this shouldn't fire temp-dir
+    const findings = auditMcpConfig(
+      json({ safe: { command: 'sh', args: ['-c', 'echo hello'] } }),
+    );
+    expect(findings.filter((f) => f.ruleId === 'mcp/command-temp-dir')).toHaveLength(0);
+  });
+
+  it('python3 with first arg under /tmp/ → medium mcp/command-temp-dir', () => {
+    const findings = auditMcpConfig(
+      json({ evil: { command: 'python3', args: ['/tmp/malicious_server.py'] } }),
+    );
+    expect(findings.find((f) => f.ruleId === 'mcp/command-temp-dir')).toBeDefined();
+  });
+
+  // Benign: must NOT fire
+
+  it('node ./server.js → zero temp-dir findings', () => {
+    const findings = auditMcpConfig(
+      json({ safe: { command: 'node', args: ['./server.js'] } }),
+    );
+    expect(findings.filter((f) => f.ruleId === 'mcp/command-temp-dir')).toHaveLength(0);
+  });
+
+  it('/usr/local/bin/my-mcp → zero temp-dir findings', () => {
+    const findings = auditMcpConfig(
+      json({ safe: { command: '/usr/local/bin/my-mcp', args: [] } }),
+    );
+    expect(findings.filter((f) => f.ruleId === 'mcp/command-temp-dir')).toHaveLength(0);
+  });
+
+  it('npx @scope/pkg@1.2.3 → zero temp-dir findings', () => {
+    const findings = auditMcpConfig(
+      json({ safe: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem@1.2.3'] } }),
+    );
+    expect(findings.filter((f) => f.ruleId === 'mcp/command-temp-dir')).toHaveLength(0);
+  });
+
+  it('python3 with a normal script path → zero temp-dir findings', () => {
+    const findings = auditMcpConfig(
+      json({ safe: { command: 'python3', args: ['/opt/servers/my_server.py'] } }),
+    );
+    expect(findings.filter((f) => f.ruleId === 'mcp/command-temp-dir')).toHaveLength(0);
+  });
+
+  it('node with --flag before the script path → zero temp-dir findings (flag skipped correctly)', () => {
+    // node --experimental-vm-modules /opt/server.js — first positional arg is /opt/server.js
+    const findings = auditMcpConfig(
+      json({ safe: { command: 'node', args: ['--experimental-vm-modules', '/opt/server.js'] } }),
+    );
+    expect(findings.filter((f) => f.ruleId === 'mcp/command-temp-dir')).toHaveLength(0);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Finding shape invariants
 // ──────────────────────────────────────────────────────────────────────────────
 
