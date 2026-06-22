@@ -25,6 +25,7 @@ import {
   type SkillDeclaration,
 } from './sync.ts';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
+import { auditConfigFiles, type ConfigFileResult } from './audit/config-discovery.ts';
 
 export type DriftKind = 'missing' | 'content-drift' | 'stale-lock' | 'extra-locked';
 
@@ -54,6 +55,11 @@ export interface DoctorReport {
   bypasses: BypassRecord[];
   /** M0-5.9:声明里不符合规范命名的 legacy skill 名(迁移告警用,不影响 clean,不硬拒)。 */
   legacyNames: string[];
+  /**
+   * R20-b:home 下各 agent 配置文件的安全扫描结果(advisory,不影响 clean 与退出码)。
+   * 与 `audit --configs` 返回相同的 ConfigFileResult[] 形态。
+   */
+  configAudit: ConfigFileResult[];
 }
 
 function skillsDirFor(home: string, agent: AgentType): string | undefined {
@@ -159,6 +165,14 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
     }
   }
 
+  // R20-b:配置文件安全扫描(advisory)。失败一律吞掉,绝不影响三方对账结论与退出码。
+  let configAudit: ConfigFileResult[] = [];
+  try {
+    configAudit = await auditConfigFiles(home);
+  } catch {
+    // 配置扫描失败:advisory 段落,不报错、不改变本次结论。
+  }
+
   return {
     findings,
     clean: findings.length === 0,
@@ -166,5 +180,6 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
     declarations: declaration.skills.map(summarizeDeclaration),
     bypasses,
     legacyNames,
+    configAudit,
   };
 }
