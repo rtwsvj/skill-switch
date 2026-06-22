@@ -141,6 +141,23 @@ export async function auditSkillDir(path: string): Promise<AuditReport & { cover
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'] as const;
 
+/**
+ * 将 findings 列表按严重度排序后格式化为缩进文本行。
+ * 供 formatAuditReport 和 formatAuditHomeTable 共用,避免重复实现渲染逻辑。
+ */
+function formatFindingLines(findings: AuditFinding[]): string[] {
+  const sorted = [...findings].sort(
+    (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity),
+  );
+  const lines: string[] = [];
+  for (const f of sorted) {
+    lines.push(`  [${f.severity.toUpperCase()}] ${f.ruleId}  ${f.file}:${f.line}`);
+    lines.push(`    ${f.message}`);
+    lines.push(`    > ${f.excerpt.trim()}`);
+  }
+  return lines;
+}
+
 export function formatAuditReport(path: string, report: AuditReport): string {
   const lines: string[] = [`audit: ${path}`, `score: ${report.score}/100  verdict: ${report.verdict}`];
   if (report.findings.length === 0) {
@@ -148,14 +165,7 @@ export function formatAuditReport(path: string, report: AuditReport): string {
     return lines.join('\n');
   }
   lines.push(`findings: ${report.findings.length}`, '');
-  const sorted = [...report.findings].sort(
-    (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity),
-  );
-  for (const f of sorted) {
-    lines.push(`  [${f.severity.toUpperCase()}] ${f.ruleId}  ${f.file}:${f.line}`);
-    lines.push(`    ${f.message}`);
-    lines.push(`    > ${f.excerpt.trim()}`);
-  }
+  lines.push(...formatFindingLines(report.findings));
   return lines.join('\n');
 }
 
@@ -244,14 +254,7 @@ function formatAuditHomeTable(report: AuditHomeReport): string {
           parts.push(`${cfg.relPath}: ok`);
         } else {
           parts.push(`${cfg.relPath}: ${cfg.findings.length} finding(s)`);
-          const sorted = [...cfg.findings].sort(
-            (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity),
-          );
-          for (const f of sorted) {
-            parts.push(`  [${f.severity.toUpperCase()}] ${f.ruleId}  ${f.file}:${f.line}`);
-            parts.push(`    ${f.message}`);
-            parts.push(`    > ${f.excerpt.trim()}`);
-          }
+          parts.push(...formatFindingLines(cfg.findings));
         }
       }
     }
