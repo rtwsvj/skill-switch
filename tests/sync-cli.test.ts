@@ -85,4 +85,94 @@ describe('sync CLI(真实子进程)', () => {
     expect(again.actions).toEqual([expect.objectContaining({ kind: 'noop' })]);
     expect(again.snapshots).toEqual([]);
   });
+
+  // R26-a:CLI 层回归测试
+
+  it('R26-a: 禁用 skill 前先快照(remove 动作也受快照保护)', async () => {
+    // 先让 delta 落地
+    const firstRun = runSync(['--json']);
+    expect(firstRun.status).toBe(0);
+    await lstat(target); // 确认在位
+
+    // 将 delta 改为 disabled
+    const disabledDecl: import('../src/core/sync.ts').SkillsDeclarationFile = {
+      version: 1,
+      skills: [{ name: 'delta', source, agents: ['claude-code'], enabled: false, mode: 'copy' }],
+    };
+    await writeFile(getSkillsJsonPath(home), `${JSON.stringify(disabledDecl, null, 2)}\n`);
+
+    const result = runSync(['--json']);
+    expect(result.status).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      dryRun: boolean;
+      actions: Array<{ kind: string; name: string }>;
+      snapshots: Array<{ path: string }>;
+    };
+
+    // remove 动作已执行
+    expect(parsed.actions).toEqual([expect.objectContaining({ kind: 'remove', name: 'delta' })]);
+    // 快照在 remove 前已保存
+    expect(parsed.snapshots.length).toBeGreaterThanOrEqual(1);
+    // 目标已被移除
+    await expect(lstat(target)).rejects.toThrow();
+  });
+
+  it('R26-a: --dry-run 下禁用也不删除磁盘目标', async () => {
+    // 先落地 delta
+    runSync(['--json']);
+    await lstat(target);
+
+    // 禁用声明
+    const disabledDecl: import('../src/core/sync.ts').SkillsDeclarationFile = {
+      version: 1,
+      skills: [{ name: 'delta', source, agents: ['claude-code'], enabled: false, mode: 'copy' }],
+    };
+    await writeFile(getSkillsJsonPath(home), `${JSON.stringify(disabledDecl, null, 2)}\n`);
+
+    const result = runSync(['--dry-run', '--json']);
+    expect(result.status).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      dryRun: boolean;
+      actions: Array<{ kind: string }>;
+      snapshots: unknown[];
+    };
+
+    expect(parsed.dryRun).toBe(true);
+    // 报告了 remove 计划,但未执行
+    expect(parsed.actions).toEqual([expect.objectContaining({ kind: 'remove' })]);
+    expect(parsed.snapshots).toEqual([]);
+    // 目标仍在位(dry-run 不执行删除)
+    await lstat(target);
+  });
+
+  it('R26-a: 损坏的 skills.json → 进程退出非零,无任何磁盘写入', async () => {
+    // 写入损坏的 JSON
+    await writeFile(getSkillsJsonPath(home), '{ "version": 1, "skills": [BROKEN JSON}');
+
+    const result = runSync(['--json']);
+    // 应该以非零退出
+    expect(result.status).not.toBe(0);
+    // 未创建 target
+    await expect(lstat(target)).rejects.toThrow();
+  });
+
+  it('R26-a: 已同步状态下 sync 是 noop,不产生额外快照', async () => {
+    // 先同步
+    runSync(['--json']);
+    const backupsBefore = await listSnapshots(join(home, '.skill-switch', 'backups'));
+
+    // 再次同步(已在位,应全 noop)
+    const result = runSync(['--json']);
+    expect(result.status).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      actions: Array<{ kind: string }>;
+      snapshots: unknown[];
+    };
+    expect(parsed.actions.every((a) => a.kind === 'noop')).toBe(true);
+    // noop 不产生新快照
+    expect(parsed.snapshots).toEqual([]);
+    // backups 目录大小不变
+    const backupsAfter = await listSnapshots(join(home, '.skill-switch', 'backups'));
+    expect(backupsAfter.length).toBe(backupsBefore.length);
+  });
 });
