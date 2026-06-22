@@ -1,5 +1,8 @@
 // F14 restore 子命令:列出快照,或按 id/latest 还原到 manifest 记录的 sourceDir。
 // 写入前总是先对当前态再拍 pre-restore 快照,保证可逆。
+// 例外:target 目录不存在时(用户已手动删除)跳过 pre-restore 快照(无内容可备份),
+// 直接还原——这与 snapshotAgents 对不存在根目录的处理一致。
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { listSnapshots, restoreSnapshot, snapshot, type SnapshotInfo } from '../../core/backup.ts';
@@ -85,21 +88,25 @@ export function registerRestoreCommand(program: Command): void {
       // 合法等价拼写在下游 fs rename 时 EINVAL,同时保证日志/返回值里是干净的绝对路径。
       const target = resolve(selected.sourceDir);
 
-      const safetySnapshot = await snapshot(target, { store, label: 'pre-restore' });
+      // target が存在する場合のみ pre-restore 快照:不存在时无内容可备份,
+      // 与 snapshotAgents 对不存在根目录的处理保持一致。
+      const safetySnapshot = existsSync(target)
+        ? await snapshot(target, { store, label: 'pre-restore' })
+        : null;
       await restoreSnapshot(selected.path, target);
 
       const result = {
         restored: true,
         target,
         snapshot: viewOf(selected),
-        safetySnapshot: viewOf(safetySnapshot),
+        ...(safetySnapshot ? { safetySnapshot: viewOf(safetySnapshot) } : {}),
       };
 
       if (options.json) {
         console.log(JSON.stringify(result, null, 2));
       } else {
         console.log(`restored: ${selected.path} → ${selected.sourceDir}`);
-        console.log(`pre-restore snapshot: ${safetySnapshot.path}`);
+        if (safetySnapshot) console.log(`pre-restore snapshot: ${safetySnapshot.path}`);
       }
     });
 }
