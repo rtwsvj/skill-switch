@@ -56,14 +56,14 @@ skill-switch --help
 |---|---|
 | `scan` | Inventory installed skills per tool (read-only). |
 | `init` | Scan installed skills and draft an initial `skills.json` (skips if one exists; `--force` to overwrite, `--dry-run` to preview). |
-| `audit` | Security audit; any critical/high or score < 70 → exit 1. |
+| `audit` | Security audit; any critical/high or score < 70 → exit 1. Add `--configs` to also audit agent config files (settings.json / MCP), covering Claude Code, Gemini CLI, Cursor, and VS Code. |
 | `install` | Install from a local or git source (audits + snapshots first). |
 | `toggle` | Enable/disable a single skill per the declaration. |
 | `sync` | Apply the declaration to disk (`--dry-run` to preview). |
 | `remove` | Consistent teardown: disk + lock + declaration together. |
 | `restore` | List / restore snapshots (`--latest` or `--id`). |
 | `lint` | Spec checks + cross-tool portability + conflict/budget health. |
-| `doctor` | Declared × locked × disk reconciliation (`--ci` exits 1 on drift). |
+| `doctor` | Declared × locked × disk reconciliation (`--ci` exits 1 on drift). Also prints a "Config security:" advisory section summarizing critical/high config findings; `--json` includes a `configAudit` field (advisory only — does not affect exit code). |
 | `diff` | Content drift, file-by-file: disk vs. stored copy. |
 | `drift` | Upstream HEAD / locked commit / local content three-way drift. |
 | `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). |
@@ -79,7 +79,8 @@ Common options: `--json`, `--home <dir>`, `--agent <tool>` (claude-code / codex 
 
 - **Read-only commands never write:** `scan`, `audit`, `lint`, `doctor`, `drift`, `stats`, `lock`.
 - **Write commands snapshot first:** `install`, `toggle`, `sync`, `remove`, `restore` write a `tar.gz` to `~/.skill-switch/backups/` before changing anything; everything is reversible.
-- **Audit before install:** anything matching reverse shells, sensitive-file exfiltration, credential phishing, or hidden/prompt-injection is blocked; you must `--force` (and leave a recorded reason) to override.
+- **Audit before install:** anything matching reverse shells, sensitive-file exfiltration, credential phishing, unofficial package registries (`supply-chain/unofficial-registry`), or hidden/prompt-injection is blocked; you must `--force` (and leave a recorded reason) to override.
+- **Config-file audit:** `audit --configs` scans Claude Code, Gemini CLI, Cursor, and VS Code config files (settings.json / MCP configs) for credential-path access (`mcp/credential-path-access`), hardcoded secrets, and dangerous MCP server patterns. `doctor` also surfaces the same findings as an advisory summary in its output.
 - **Hardened boundaries:** rejects path-traversal / absolute / hidden skill names; copy mode doesn't follow symlinks; audit doesn't follow symlinks and caps size/count/depth/per-line matching. Known blind spots are documented in [docs/known-limitations.md](docs/known-limitations.md).
 - **Zero telemetry, local-first:** no analytics, no account; all state lives in `~/.skill-switch/`.
 
