@@ -4,10 +4,21 @@
 // grouped by file path.
 //
 // Currently covers:
-//   - <home>/.claude/settings.json   → auditSettingsJson
-//   - <home>/.claude/settings.local.json → auditSettingsJson
+//   Claude Code
+//   - <home>/.claude/settings.json         → auditSettingsJson
+//   - <home>/.claude/settings.local.json   → auditSettingsJson
 //   - <home>/.claude/claude_desktop_config.json → auditMcpConfig
-//   - <home>/.claude/mcp.json        → auditMcpConfig
+//   - <home>/.claude/mcp.json              → auditMcpConfig
+//   - <home>/.mcp.json                     → auditMcpConfig  (user-level MCP config)
+//   Gemini CLI
+//   - <home>/.gemini/settings.json         → auditSettingsJson
+//   Cursor
+//   - <home>/.cursor/mcp.json              → auditMcpConfig
+//   VS Code (MCP extension)
+//   - <home>/.vscode/mcp.json              → auditMcpConfig
+//
+// Deliberately skipped (no compatible parser / not JSON):
+//   - ~/.codex/config.toml  (Codex — TOML format, no TOML parser added)
 //
 // All reads silently skip missing files (they may not exist on every system).
 
@@ -41,13 +52,27 @@ interface KnownConfigFile {
  * Extend here as more agent configs are identified.
  */
 const KNOWN_CONFIGS: KnownConfigFile[] = [
-  // Claude Code user settings
+  // ── Claude Code user settings ──────────────────────────────────────────────
   { relPath: '.claude/settings.json', kind: 'settings' },
   { relPath: '.claude/settings.local.json', kind: 'settings' },
   // Claude Desktop MCP config (also consumed by Claude Code)
   { relPath: '.claude/claude_desktop_config.json', kind: 'mcp' },
   // MCP config used by some setups
   { relPath: '.claude/mcp.json', kind: 'mcp' },
+  // User-level MCP config (home root, loaded by Claude Code alongside .claude/mcp.json)
+  { relPath: '.mcp.json', kind: 'mcp' },
+
+  // ── Gemini CLI ─────────────────────────────────────────────────────────────
+  // ~/.gemini/settings.json is the canonical Gemini CLI user config
+  { relPath: '.gemini/settings.json', kind: 'settings' },
+
+  // ── Cursor ─────────────────────────────────────────────────────────────────
+  // ~/.cursor/mcp.json is Cursor's global MCP server config
+  { relPath: '.cursor/mcp.json', kind: 'mcp' },
+
+  // ── VS Code (MCP extension) ────────────────────────────────────────────────
+  // ~/.vscode/mcp.json is VS Code's user-level MCP config (GitHub Copilot agent mode)
+  { relPath: '.vscode/mcp.json', kind: 'mcp' },
 ];
 
 // ─── Public API ────────────────────────────────────────────────────────────────
