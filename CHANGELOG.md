@@ -8,6 +8,7 @@
 ### 新增 Added
 - **`audit --format sarif`**:输出 SARIF 2.1.0,可直接接入 GitHub code-scanning(团队/CI 集成的地基)。`--format` 取 `human`(默认)/`json`/`sarif`;`--json` 保持原样作 `--format json` 的别名,行为与退出码不变。
 - **`audit --configs` 覆盖更多 agent**:新增 Windsurf(`~/.codeium/windsurf/mcp_config.json`)与 Zed AI(`~/.config/zed/settings.json`)的配置发现(Cline/Continue/Claude Desktop 因路径不规范或格式已废弃,暂未纳入)。
+- **`.skill-switch-policy.json` 策略文件**:项目级可调审计阻断策略。`failOn` 设阻断的严重度下限;`suppress[]` 按 `ruleId` 抑制 finding(仍出现在输出里、但不计入退出码,SARIF 写 `suppressions` 字段便于 GitHub code-scanning 显示为 suppressed);`--policy <path>` 指定路径、`--no-policy` 忽略。无策略文件时行为、输出、退出码与旧版逐字节一致。
 
 ## [0.4.0] — 2026-06-22
 
