@@ -228,48 +228,49 @@ const CONFIRMATION_POLICY_KEYS: ReadonlySet<string> = new Set([
 /** String values for a confirmation policy key that mean "never confirm". */
 const CONFIRMATION_NEVER_VALUES: ReadonlySet<string> = new Set(['never', 'none', 'off', 'disable', 'disabled', 'skip']);
 
+/** Check a single key-value pair for boolean auto-approve semantics. */
+function checkBoolAutoApproveKey(key: string, value: unknown, findings: AuditFinding[]): void {
+  if (AUTO_APPROVE_BOOL_KEYS.has(key) && value === true) {
+    findings.push(
+      finding(
+        'settings/auto-approve-enabled',
+        'high',
+        `Setting "${key}: true" disables human-in-the-loop confirmation — tool calls proceed without approval`,
+        0,
+        makeExcerpt({ [key]: value }),
+      ),
+    );
+  }
+}
+
+/** Check a single key-value pair for a "never confirm" confirmation-policy value. */
+function checkConfirmationPolicyKey(key: string, value: unknown, findings: AuditFinding[]): void {
+  if (!CONFIRMATION_POLICY_KEYS.has(key)) return;
+  const isNeverBool = value === false;
+  const isNeverStr = typeof value === 'string' && CONFIRMATION_NEVER_VALUES.has(value.toLowerCase());
+  if (isNeverBool || isNeverStr) {
+    findings.push(
+      finding(
+        'settings/auto-approve-enabled',
+        'high',
+        `Setting "${key}: ${JSON.stringify(value)}" disables permission prompts — agent will never ask for confirmation`,
+        0,
+        makeExcerpt({ [key]: value }),
+      ),
+    );
+  }
+}
+
 function auditAutoApproveInObject(obj: unknown, findings: AuditFinding[]): void {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    // Boolean auto-approve keys
-    if (AUTO_APPROVE_BOOL_KEYS.has(key) && value === true) {
-      findings.push(
-        finding(
-          'settings/auto-approve-enabled',
-          'high',
-          `Setting "${key}: true" disables human-in-the-loop confirmation — tool calls proceed without approval`,
-          0,
-          makeExcerpt({ [key]: value }),
-        ),
-      );
-    }
-
-    // Confirmation policy keys set to a "never confirm" value
-    if (CONFIRMATION_POLICY_KEYS.has(key)) {
-      const isNeverBool = value === false;
-      const isNeverStr = typeof value === 'string' && CONFIRMATION_NEVER_VALUES.has(value.toLowerCase());
-      if (isNeverBool || isNeverStr) {
-        findings.push(
-          finding(
-            'settings/auto-approve-enabled',
-            'high',
-            `Setting "${key}: ${JSON.stringify(value)}" disables permission prompts — agent will never ask for confirmation`,
-            0,
-            makeExcerpt({ [key]: value }),
-          ),
-        );
-      }
-    }
-
+    checkBoolAutoApproveKey(key, value, findings);
+    checkConfirmationPolicyKey(key, value, findings);
     // Recurse into nested objects
     if (value && typeof value === 'object') {
       auditAutoApproveInObject(value, findings);
     }
   }
-}
-
-function auditAutoApprove(settings: Record<string, unknown>, findings: AuditFinding[]): void {
-  auditAutoApproveInObject(settings, findings);
 }
 
 /** Check whether a string looks like an env var reference rather than a literal. */
@@ -382,7 +383,7 @@ export function auditSettingsJson(content: string): AuditFinding[] {
   }
 
   // ── 4. Auto-approve / disabled confirmation settings ─────────────────────
-  auditAutoApprove(settings, findings);
+  auditAutoApproveInObject(settings, findings);
 
   // ── 5. Literal secrets anywhere in the config ─────────────────────────────
   auditSecretsInObject(settings, findings);
