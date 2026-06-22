@@ -294,5 +294,17 @@
       "「セキュリティ」:危険なスキルやチェックを回避したものを確認",
       "「履歴」:誤った変更をワンクリックで元に戻す"
     ]
+  },
+  "configAudit": {
+    "title": "設定のセキュリティ",
+    "noConfigsFound": "エージェント設定ファイルが見つかりませんでした。",
+    "noFindings": "エージェント設定ファイルに問題は見つかりませんでした。",
+    "fileClean": "問題なし",
+    "findingCount": "{{count}} 件の検出",
+    "fileNoFindings": "問題は見つかりませんでした。",
+    "summary": {
+      "blocking": "{{count}} 件の高/重大",
+      "other": "{{count}} 件の中/低"
+    }
   }
 }

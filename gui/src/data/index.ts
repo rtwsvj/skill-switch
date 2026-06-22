@@ -32,6 +32,10 @@ export async function loadLockVerify() {
   return (await activeAdapter()).loadLockVerify();
 }
 
+export async function loadConfigAudit() {
+  return (await activeAdapter()).loadConfigAudit();
+}
+
 export async function loadDashboardData(): Promise<DashboardData> {
   return (await activeAdapter()).loadDashboardData();
 }
@@ -68,6 +72,8 @@ export type {
   AuditVerdict,
   BypassRecord,
   CliJsonResult,
+  ConfigAuditReport,
+  ConfigFileResult,
   DashboardData,
   DoctorDeclaration,
   DoctorFinding,

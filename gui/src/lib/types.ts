@@ -9,9 +9,9 @@ import type {
 
 export type Screen = 'overview' | 'skills' | 'audit' | 'history' | 'stats';
 
-// M0-5.6 懒加载:audit/stats 这两个重区块(逐文件审计 / 解析 transcript)按需加载,
+// M0-5.6 懒加载:audit/stats/configAudit 这几个重区块按需加载,
 // 每个区块有独立状态机:idle 未触发 / loading 加载中 / loaded 成功 / error 失败。
-export type SectionName = 'audit' | 'stats';
+export type SectionName = 'audit' | 'stats' | 'configAudit';
 export type SectionStatus = 'idle' | 'loading' | 'loaded' | 'error';
 export interface SectionState {
   status: SectionStatus;

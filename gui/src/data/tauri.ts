@@ -2,6 +2,7 @@ import { Command } from '@tauri-apps/plugin-shell';
 import type {
   AuditReport,
   CliJsonResult,
+  ConfigAuditReport,
   DashboardData,
   DoctorReport,
   InstallRequest,
@@ -111,6 +112,12 @@ export async function loadStats(): Promise<StatsReport> {
 
 export async function loadLockVerify(): Promise<LockVerifyReport> {
   return runCli<LockVerifyReport>(['lock', '--verify', '--json'], 'lock --verify', true);
+}
+
+export async function loadConfigAudit(): Promise<ConfigAuditReport> {
+  // audit --configs --json:审查 home 下的 agent 配置文件(settings.json / MCP 等)。
+  // 允许非零退出(有 blocking finding 时 exit 1),故 allowNonZero=true。
+  return runCli<ConfigAuditReport>(['audit', '--configs', '--json'], 'audit --configs', true);
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {

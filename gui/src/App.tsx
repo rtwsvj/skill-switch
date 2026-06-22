@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   loadAudit,
+  loadConfigAudit,
   loadCoreDashboard,
   loadStats,
   type AuditReport,
+  type ConfigAuditReport,
   type DashboardData,
   type StatsReport,
 } from './data';
@@ -25,6 +27,7 @@ export default function App() {
   const [core, setCore] = useState<DashboardData | null>(null);
   const [auditValue, setAuditValue] = useState<AuditReport[] | null>(null);
   const [statsValue, setStatsValue] = useState<StatsReport | null>(null);
+  const [configAuditValue, setConfigAuditValue] = useState<ConfigAuditReport | null>(null);
   const [sections, setSections] = useState<SectionStates>(initialSectionStates);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +40,8 @@ export default function App() {
     try {
       if (name === 'audit') {
         setAuditValue(await loadAudit());
+      } else if (name === 'configAudit') {
+        setConfigAuditValue(await loadConfigAudit());
       } else {
         setStatsValue(await loadStats());
       }
@@ -67,7 +72,7 @@ export default function App() {
   // 全局刷新(刷新按钮 / 写操作后):重载 core,并强制刷新已加载过的懒区块;idle 的保持懒态。
   const refreshAll = useCallback(async () => {
     await reloadCore();
-    for (const name of ['audit', 'stats'] as SectionName[]) {
+    for (const name of ['audit', 'stats', 'configAudit'] as SectionName[]) {
       if (sectionsRef.current[name].status !== 'idle') void loadSection(name);
     }
   }, [reloadCore, loadSection]);
@@ -107,6 +112,7 @@ export default function App() {
     <main className="app-shell">
       <DashboardShell
         data={data}
+        configAudit={configAuditValue}
         onRefresh={refreshAll}
         sections={sections}
         onEnsureSections={ensureSections}
