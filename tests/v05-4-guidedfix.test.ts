@@ -12,9 +12,9 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { applyFixer, hasFixer, FIXER_REGISTRY } from '../src/core/audit/fixers.ts';
 import { runGuidedFix } from '../src/core/audit/guided-fix.ts';

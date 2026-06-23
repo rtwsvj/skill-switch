@@ -70,7 +70,7 @@ function safeAbsPath(root: string, relFile: string): string | null {
   const abs = resolve(join(root, relFile));
   const absRoot = resolve(root);
   // 必须以 absRoot + sep 开头或恰好等于 absRoot
-  if (abs !== absRoot && !abs.startsWith(absRoot + '/') && !abs.startsWith(absRoot + '\\')) {
+  if (abs !== absRoot && !abs.startsWith(`${absRoot}/`) && !abs.startsWith(`${absRoot}\\`)) {
     return null; // 路径穿越,拒绝
   }
   return abs;
