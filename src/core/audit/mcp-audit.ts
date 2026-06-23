@@ -7,6 +7,13 @@ import type { AuditFinding } from './types.ts';
 //   mcp/metadata-prompt-injection  — prompt-injection phrases / invisible chars in name/description
 //   mcp/env-preload-hijack         — LD_PRELOAD / DYLD_INSERT_LIBRARIES with a non-ref literal value
 //   mcp/command-remote-url         — command field is an HTTP/HTTPS URL (remote code execution)
+//
+// v0.5-5: Three new static capability checks (zero process spawning / zero new deps):
+//   mcp/remote-http-plaintext      — url field uses http:// to a non-loopback host
+//   mcp/auto-approve-wildcard      — autoApprove/alwaysAllow is true or contains "*"
+//   mcp/auto-approve-broad         — autoApprove/alwaysAllow list has many entries
+//   mcp/broad-filesystem-scope     — args contain a root/home path (/, ~, $HOME, drive root)
+//   mcp/dangerous-permission-flag  — args contain --allow-all / --no-sandbox / --dangerously-* etc.
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Internal helpers
@@ -221,6 +228,55 @@ const TEMP_DIR_COMMAND_RE = /^(?:\/tmp\/|\/var\/tmp\/|\/dev\/shm\/)/;
 const INTERPRETER_CMD_RE = /^(?:ba)?sh$|^(?:python3?|perl|ruby|node)$/;
 
 // ──────────────────────────────────────────────────────────────────────────────
+// v0.5-5: New static capability check patterns
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Loopback host names / addresses — http:// to these is benign (local only, no MITM risk).
+ * We match:  localhost  127.x.x.x  0.0.0.0  [::1]
+ */
+const LOOPBACK_HOST_RE = /^(?:localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[::1\])(?::\d+)?(?:\/|$)/i;
+
+/**
+ * Raw IPv4 address host (e.g. 203.0.113.42) — used for mcp/remote-untrusted-host.
+ * Matches exactly 4 dot-separated decimal octets, optionally followed by a port.
+ */
+const RAW_IP_HOST_RE = /^(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?(?:\/|$)/;
+
+/**
+ * Whole-disk / home-root arg values that grant over-broad filesystem scope.
+ *
+ * Matches arg values that ARE exactly (or normalise to) a root path:
+ *   /           — filesystem root
+ *   ~  ~/       — home directory (bare or trailing slash)
+ *   $HOME  ${HOME}  — shell home references
+ *   C:\  D:\  etc. — Windows drive roots (A–Z)
+ *
+ * Does NOT match normal project subpaths like /home/user/projects or ~/code/app.
+ * We anchor the pattern: the arg must BE a root path, not merely contain one.
+ */
+const BROAD_FS_ROOT_ARG_RE = /^(?:\/|~\/?|~\\|(?:\$HOME|\$\{HOME\})\/?)$|^[A-Za-z]:\\$/;
+
+/**
+ * Dangerously over-broad permission flags in args.
+ * Only the highest-confidence, unambiguous flags are included.
+ *   --allow-all            — grants all permissions (deno, etc.)
+ *   --no-sandbox           — disables process sandbox (Chromium-family)
+ *   --dangerously-*        — any flag prefixed with "dangerously-" (Claude code, etc.)
+ *   --allow-*=*            — wildcard allow grants (--allow-read=/ style)
+ *   --unsafe-*             — explicitly-unsafe flags
+ */
+const DANGEROUS_PERMISSION_FLAG_RE =
+  /^(?:--allow-all|--no-sandbox|--dangerously-[a-z]|--allow-[a-z-]+=\*|--unsafe-[a-z])/i;
+
+/**
+ * Threshold for mcp/auto-approve-broad: a list this long or longer is considered
+ * broadly permissive.  Rationale: 1–2 named tools is normal targeted approval;
+ * 5+ specific tool names is an unusual volume that surfaces unattended-execution risk.
+ */
+const AUTO_APPROVE_BROAD_THRESHOLD = 5;
+
+// ──────────────────────────────────────────────────────────────────────────────
 // MCP config shape (loose — we accept partial / malformed gracefully)
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -230,6 +286,17 @@ interface McpServerEntry {
   env?: unknown;
   /** Optional human-readable description of the server — audited for prompt-injection. */
   description?: unknown;
+  // v0.5-5: remote transport fields
+  /** SSE / HTTP transport URL (used by remote MCP servers). Also accepted: serverUrl. */
+  url?: unknown;
+  serverUrl?: unknown;
+  /** Transport type hint — "sse" or "http" indicate remote servers. */
+  type?: unknown;
+  // v0.5-5: per-server auto-approval fields (Cline, Roo, Windsurf)
+  /** Array of tool names to auto-run without user confirmation, or boolean true = all. */
+  autoApprove?: unknown;
+  /** Alias used by some clients (alwaysAllow). */
+  alwaysAllow?: unknown;
 }
 
 interface McpConfig {
@@ -498,6 +565,143 @@ function auditServerEntry(
           ),
         );
         break; // One finding per field is enough; don't emit N findings for N patterns
+      }
+    }
+  }
+
+  // ── v0.5-5 check 1: 远程传输风险 (remote transport URL) ──────────────────
+  // Accept both `url` and `serverUrl` field names (both appear in real configs).
+  // http:// to loopback addresses is benign — only non-loopback remote hosts are flagged.
+  {
+    const rawUrl = typeof server.url === 'string' ? server.url
+      : typeof server.serverUrl === 'string' ? server.serverUrl
+      : '';
+
+    if (rawUrl) {
+      // Strip scheme to get the host+path portion for loopback check
+      const afterScheme = rawUrl.replace(/^https?:\/\//i, '');
+
+      if (/^http:\/\//i.test(rawUrl)) {
+        // Plaintext http — only flag non-loopback destinations
+        if (!LOOPBACK_HOST_RE.test(afterScheme)) {
+          findings.push(
+            finding(
+              'mcp/remote-http-plaintext',
+              'high',
+              `MCP server uses a plaintext http:// URL to a remote host — credentials and data are exposed to MITM interception`,
+              `${ctx} url="${excerpt(rawUrl)}"`,
+              1,
+            ),
+          );
+        }
+      } else if (/^https:\/\//i.test(rawUrl)) {
+        // Encrypted https — only flag raw IP hosts (conservative; don't flag normal domains)
+        if (RAW_IP_HOST_RE.test(afterScheme) && !LOOPBACK_HOST_RE.test(afterScheme)) {
+          findings.push(
+            finding(
+              'mcp/remote-untrusted-host',
+              'medium',
+              `MCP server connects to a raw IP address via https:// — certificate pinning is typically absent for bare IPs`,
+              `${ctx} url="${excerpt(rawUrl)}"`,
+              1,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // ── v0.5-5 check 2: 自动批准绕过 (auto-approval bypass) ──────────────────
+  // Inspect `autoApprove` and `alwaysAllow` fields (Cline / Roo / Windsurf).
+  // Boolean true or a list containing "*" = wildcard; a large list = broadly permissive.
+  {
+    // Normalise both field names into a single value to inspect
+    const approveFields: Array<{ fieldName: string; value: unknown }> = [
+      { fieldName: 'autoApprove', value: server.autoApprove },
+      { fieldName: 'alwaysAllow', value: server.alwaysAllow },
+    ];
+
+    for (const { fieldName, value: approveVal } of approveFields) {
+      if (approveVal === undefined || approveVal === null) continue;
+
+      // Case A: boolean true → all tools auto-run
+      if (approveVal === true) {
+        findings.push(
+          finding(
+            'mcp/auto-approve-wildcard',
+            'high',
+            `MCP server "${serverName}" has ${fieldName}: true — ALL tools run without user confirmation`,
+            `${ctx} ${fieldName}=true`,
+            1,
+          ),
+        );
+        continue;
+      }
+
+      // Case B: array
+      if (Array.isArray(approveVal)) {
+        const tools = (approveVal as unknown[]).filter((t): t is string => typeof t === 'string');
+
+        // Wildcard entry
+        if (tools.includes('*')) {
+          findings.push(
+            finding(
+              'mcp/auto-approve-wildcard',
+              'high',
+              `MCP server "${serverName}" ${fieldName} contains "*" — ALL tools run without user confirmation`,
+              `${ctx} ${fieldName}=["*",…]`,
+              1,
+            ),
+          );
+        } else if (tools.length >= AUTO_APPROVE_BROAD_THRESHOLD) {
+          // Large list — unattended execution at scale
+          findings.push(
+            finding(
+              'mcp/auto-approve-broad',
+              'medium',
+              `MCP server "${serverName}" ${fieldName} auto-approves ${tools.length} tools — broad unattended execution risk`,
+              `${ctx} ${fieldName}=[${tools.slice(0, 3).join(', ')}, …]`,
+              1,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // ── v0.5-5 check 3: 过宽权限范围 (over-broad scope in args) ─────────────
+  // Flag args that grant access to filesystem root/home, or use dangerously broad flags.
+  // Only runs when there are actually args to inspect.
+  if (args.length > 0) {
+    for (const arg of args) {
+      // 3a. Root / home path as an arg value
+      if (BROAD_FS_ROOT_ARG_RE.test(arg)) {
+        findings.push(
+          finding(
+            'mcp/broad-filesystem-scope',
+            'high',
+            `MCP server arg grants root/home filesystem scope ("${arg}") — agent can read/write the entire file system`,
+            `${ctx} args contains "${arg}"`,
+            1,
+          ),
+        );
+        break; // One finding per server is enough for this check
+      }
+    }
+
+    for (const arg of args) {
+      // 3b. Dangerous permission flag
+      if (DANGEROUS_PERMISSION_FLAG_RE.test(arg)) {
+        findings.push(
+          finding(
+            'mcp/dangerous-permission-flag',
+            'medium',
+            `MCP server uses a dangerous permission flag ("${arg}") — sandbox or safety boundary is disabled`,
+            `${ctx} args contains "${arg}"`,
+            1,
+          ),
+        );
+        break; // One finding per server is enough for this check
       }
     }
   }
