@@ -27,6 +27,7 @@ import {
   DEFAULT_POLICY,
   type ResolvedPolicy,
 } from '../../core/audit/policy.ts';
+import { runGuidedFix, type GuidedFixSummary } from '../../core/audit/guided-fix.ts';
 import { toSarifDocument } from '../../core/audit/sarif.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
 import type { AuditFinding, Severity } from '../../core/audit/types.ts';
@@ -336,6 +337,66 @@ function formatAuditHomeTable(report: AuditHomeReport): string {
   return parts.join('\n');
 }
 
+// ── 引导式修复输出格式化 ──────────────────────────────────────────────────────
+
+/**
+ * 把 GuidedFixSummary 格式化为人类可读的文本块。
+ * dry-run 时展示 diff 预览;apply 时显示已写盘的文件与备份路径。
+ */
+export function formatGuidedFixOutput(summary: GuidedFixSummary, apply: boolean): string {
+  const lines: string[] = [];
+
+  if (apply) {
+    lines.push(`[guided-fix] 模式:apply(实际写盘)`);
+  } else {
+    lines.push(`[guided-fix] 模式:dry-run(预览;加 --apply 才写盘)`);
+  }
+
+  for (const r of summary.results) {
+    if (r.kind === 'skipped-config') {
+      lines.push(`  跳过(配置文件,只读): ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+      continue;
+    }
+    if (r.kind === 'manual') {
+      lines.push(`  需手动修复 (no safe auto-fix): ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+      lines.push(`    ${r.finding.message}`);
+      lines.push(`    > ${r.finding.excerpt.trim()}`);
+      continue;
+    }
+    // fixable
+    if (r.diffPreview === '') {
+      lines.push(`  已处理(幂等,无变化): ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+      continue;
+    }
+    if (apply) {
+      lines.push(`  已修复: ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+      if (r.backupPath) {
+        const created = r.backupCreated ? '(新建)' : '(已存在,保留原备份)';
+        lines.push(`    备份: ${r.backupPath} ${created}`);
+      }
+    } else {
+      lines.push(`  可自动修复: ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+    }
+    lines.push(`    ${r.finding.message}`);
+    // diff 预览缩进 4 格
+    for (const dl of r.diffPreview.split('\n')) {
+      lines.push(`    ${dl}`);
+    }
+  }
+
+  lines.push('');
+  if (apply) {
+    lines.push(`已修改 ${summary.filesModified} 个文件,修复 ${summary.fixableCount} 条 finding,${summary.manualCount} 条需手动复核。`);
+  } else {
+    lines.push(`可自动修复: ${summary.fixableCount} 条;需手动复核: ${summary.manualCount} 条;config 文件跳过: ${summary.configSkipCount} 条。`);
+  }
+  if (summary.configSkipCount > 0) {
+    lines.push(`注意:--configs 发现的 ${summary.configSkipCount} 条 config finding 永远不会被 --fix 修改(只读保护)。`);
+  }
+
+  return lines.join('\n');
+}
+
 // 解析最终输出格式:--format 优先;若无 --format 但有 --json 则等价于 json。
 type OutputFormat = 'human' | 'json' | 'sarif';
 
@@ -378,6 +439,8 @@ export function registerAuditCommand(program: Command): void {
     .option('--configs', '同时审查 home 下的 agent 配置文件(settings.json / MCP 等)')
     .option('--policy <path>', '指定策略文件路径(默认: ./.skill-switch-policy.json)')
     .option('--no-policy', '忽略策略文件,使用默认阻断行为(等同于无策略文件)')
+    .option('--fix', '受控引导修复(dry-run):展示每条可修复 finding 的差异预览;不写盘。加 --apply 才实际修改。')
+    .option('--apply', '与 --fix 搭配:实际写盘修复,并自动生成 .skill-switch.bak 备份(已存在则不覆盖)。单独使用无效。')
     .action(async (
       path: string | undefined,
       options: {
@@ -386,6 +449,8 @@ export function registerAuditCommand(program: Command): void {
         format?: string;
         configs?: boolean;
         policy?: string;
+        fix?: boolean;
+        apply?: boolean;
         // commander 将 --no-policy 映射为 options.policy === false
         // 但类型里用 noPolicy 更清晰;实际通过 options['policy'] 判断
       },
@@ -430,6 +495,20 @@ export function registerAuditCommand(program: Command): void {
           console.log(formatAuditReport(path, report));
         }
         if (shouldBlockWithPolicy(report, policy)) process.exitCode = 1;
+
+        // --fix(含 dry-run 和 apply)仅在 path 模式 + human 格式下运行。
+        // --json/--sarif 时跳过引导修复输出(机器消费者无需差异预览)。
+        if (options.fix && fmt === 'human') {
+          const doApply = options.apply === true;
+          const summary = await runGuidedFix({
+            targetRoot: path,
+            skillFindings: report.findings,
+            configFindings: [], // path 模式无 --configs findings
+            apply: doApply,
+          });
+          console.log('');
+          console.log(formatGuidedFixOutput(summary, doApply));
+        }
         return;
       }
 
@@ -468,5 +547,25 @@ export function registerAuditCommand(program: Command): void {
       const skillsBlocked = report.skills.some((skill) => shouldBlockWithPolicy(skill, policy));
       const configBlocked = report.configsBlocked === true;
       if (skillsBlocked || configBlocked) process.exitCode = 1;
+
+      // --fix 在 home 全量模式下:对每个 skill 目录分别跑引导修复。
+      // --configs 的 finding 永远不修改(config 只读保护)。
+      if (options.fix && fmt === 'human') {
+        const doApply = options.apply === true;
+        for (const skill of report.skills) {
+          const skillConfigFindings = report.configs ? flattenConfigFindings(report.configs) : [];
+          const summary = await runGuidedFix({
+            targetRoot: skill.path,
+            skillFindings: skill.findings,
+            configFindings: skillConfigFindings,
+            apply: doApply,
+          });
+          if (summary.results.length > 0) {
+            console.log('');
+            console.log(`--- ${skill.name} (${skill.path}) ---`);
+            console.log(formatGuidedFixOutput(summary, doApply));
+          }
+        }
+      }
     });
 }

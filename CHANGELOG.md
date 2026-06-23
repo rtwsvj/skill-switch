@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### 新增 Added
+- **`audit --fix` / `--fix --apply` 受控引导式修复**:`--fix` 打印每条可修复 finding 的 unified-diff 预览(dry-run,不写盘);`--fix --apply` 实际修改文件,并先写 `<file>.skill-switch.bak` 备份(已存在则保留,不覆盖)。修复策略:注释化目标行并插入 `# [skill-switch] 已隔离可疑命令,请人工复核` 注解,操作幂等且可逆。无修复器的规则报 "需手动修复 (no safe auto-fix)"。`--configs` 发现的 config 文件永远只读。无 `--fix` 时行为、输出、退出码与旧版逐字节一致。
 - **`audit --format sarif`**:输出 SARIF 2.1.0,可直接接入 GitHub code-scanning(团队/CI 集成的地基)。`--format` 取 `human`(默认)/`json`/`sarif`;`--json` 保持原样作 `--format json` 的别名,行为与退出码不变。
 - **`audit --configs` 覆盖更多 agent**:新增 Windsurf(`~/.codeium/windsurf/mcp_config.json`)与 Zed AI(`~/.config/zed/settings.json`)的配置发现(Cline/Continue/Claude Desktop 因路径不规范或格式已废弃,暂未纳入)。
 - **`.skill-switch-policy.json` 策略文件**:项目级可调审计阻断策略。`failOn` 设阻断的严重度下限;`suppress[]` 按 `ruleId` 抑制 finding(仍出现在输出里、但不计入退出码,SARIF 写 `suppressions` 字段便于 GitHub code-scanning 显示为 suppressed);`--policy <path>` 指定路径、`--no-policy` 忽略。无策略文件时行为、输出、退出码与旧版逐字节一致。
