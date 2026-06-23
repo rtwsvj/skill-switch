@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### 新增 Added
+- **运行时 MCP 审计 · 静态能力检查**:`audit --configs` 在已有结构化 MCP 分析上新增六项静态检查(零进程 / 零网络 / 零依赖)——明文 `http://` 远程传输(`mcp/remote-http-plaintext`)、裸 IP 的 https 主机(`mcp/remote-untrusted-host`)、`autoApprove`/`alwaysAllow` 全量批准(`mcp/auto-approve-wildcard`)、批量自动批准 ≥5(`mcp/auto-approve-broad`)、根/家目录范围参数(`mcp/broad-filesystem-scope`)、危险权限标志如 `--no-sandbox`/`--allow-all`(`mcp/dangerous-permission-flag`)。loopback URL、空/少量 autoApprove、正常子路径等近似情形零误报;纯增量,现有规则与行为不变。
 - **`audit --fix` / `--fix --apply` 受控引导式修复**:`--fix` 打印每条可修复 finding 的 unified-diff 预览(dry-run,不写盘);`--fix --apply` 实际修改文件,并先写 `<file>.skill-switch.bak` 备份(已存在则保留,不覆盖)。修复策略:注释化目标行并插入 `# [skill-switch] 已隔离可疑命令,请人工复核` 注解,操作幂等且可逆。无修复器的规则报 "需手动修复 (no safe auto-fix)"。`--configs` 发现的 config 文件永远只读。无 `--fix` 时行为、输出、退出码与旧版逐字节一致。
 - **`audit --format sarif`**:输出 SARIF 2.1.0,可直接接入 GitHub code-scanning(团队/CI 集成的地基)。`--format` 取 `human`(默认)/`json`/`sarif`;`--json` 保持原样作 `--format json` 的别名,行为与退出码不变。
 - **`audit --configs` 覆盖更多 agent**:新增 Windsurf(`~/.codeium/windsurf/mcp_config.json`)与 Zed AI(`~/.config/zed/settings.json`)的配置发现(Cline/Continue/Claude Desktop 因路径不规范或格式已废弃,暂未纳入)。
