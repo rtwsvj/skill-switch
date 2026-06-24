@@ -1,0 +1,94 @@
+# skill-switch 可复用 GitHub Action
+# 在别的仓库的 CI 里跑 `skill-switch audit`,把 AI agent skills / MCP 配置里的危险模式
+# (反弹 shell、外传敏感文件、钓鱼式索要凭据、危险 MCP server、明文远程传输……)
+# 扫出来,并可把 SARIF 上传到 GitHub code-scanning。
+#
+# 用法(在消费仓库的 .github/workflows/*.yml):
+#   permissions:
+#     security-events: write   # 上传 SARIF 到 code-scanning 需要
+#     contents: read
+#   steps:
+#     - uses: actions/checkout@v4
+#     - uses: rtwsvj/skill-switch@v0.6.0
+#       with:
+#         path: .
+#         args: --configs
+#
+# ⚠ 需要 skill-switch 已发布到公共 npm(action 内部用 `npx skill-switch`)。
+name: 'skill-switch audit'
+description: '审计 AI agent skills 与 MCP/agent 配置中的危险模式,可上传 SARIF 到 GitHub code-scanning。'
+author: 'rtwsvj'
+branding:
+  icon: 'shield'
+  color: 'blue'
+inputs:
+  path:
+    description: '要审计的路径(默认仓库根)'
+    required: false
+    default: '.'
+  args:
+    description: '传给 `skill-switch audit` 的额外参数(如 "--configs" 同时审计 agent 配置文件)'
+    required: false
+    default: '--configs'
+  version:
+    description: '使用的 skill-switch npm 版本(默认 latest;生产建议 pin,如 0.6.0)'
+    required: false
+    default: 'latest'
+  node-version:
+    description: '运行所用的 Node 版本'
+    required: false
+    default: '20'
+  format:
+    description: '输出格式:human | json | sarif'
+    required: false
+    default: 'sarif'
+  output:
+    description: '输出文件路径(format=sarif 时用于上传 code-scanning)'
+    required: false
+    default: 'skill-switch.sarif'
+  upload-sarif:
+    description: 'format=sarif 时是否把结果上传到 GitHub code-scanning'
+    required: false
+    default: 'true'
+  fail-on-findings:
+    description: '审计命中阻断级问题(exit 1)时是否让本步骤失败'
+    required: false
+    default: 'true'
+outputs:
+  exit-code:
+    description: 'skill-switch audit 的退出码(0=无阻断;1=有阻断或评分过低)'
+    value: ${{ steps.audit.outputs.exit-code }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Run skill-switch audit
+      id: audit
+      shell: bash
+      run: |
+        set +e
+        npx -y "skill-switch@${{ inputs.version }}" audit "${{ inputs.path }}" \
+          --format "${{ inputs.format }}" ${{ inputs.args }} > "${{ inputs.output }}"
+        code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "skill-switch audit 退出码: $code"
+        # 非 sarif 格式直接回显到日志,方便人看
+        if [ "${{ inputs.format }}" != "sarif" ]; then cat "${{ inputs.output }}"; fi
+    - name: Upload SARIF to code-scanning
+      if: ${{ inputs.format == 'sarif' && inputs.upload-sarif == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.output }}
+    - name: Fail on findings
+      if: ${{ inputs.fail-on-findings == 'true' }}
+      shell: bash
+      run: |
+        code="${{ steps.audit.outputs.exit-code }}"
+        if [ "$code" != "0" ]; then
+          echo "::error::skill-switch audit 发现阻断级问题(退出码 $code)。详见上方 SARIF / code-scanning。"
+          exit 1
+        fi
+        echo "skill-switch audit 通过,无阻断级问题。"
