@@ -1,9 +1,30 @@
 {
   "name": "skill-switch",
   "version": "0.6.0",
-  "private": true,
   "type": "module",
   "description": "跨 Agent skill 治理 CLI:盘点、安全体检、锁定、开关、lint、漂移与使用统计",
+  "license": "MIT",
+  "author": "rtwsvj",
+  "homepage": "https://github.com/rtwsvj/skill-switch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rtwsvj/skill-switch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rtwsvj/skill-switch/issues"
+  },
+  "keywords": [
+    "skill",
+    "mcp",
+    "ai-agent",
+    "security-audit",
+    "claude",
+    "cli",
+    "governance"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "skill-switch": "bin/skill-switch.mjs"
   },
@@ -35,6 +56,7 @@
     "commander": "^15.0.0",
     "gray-matter": "^4.0.3",
     "simple-git": "^3.36.0",
+    "tsx": "^4.22.4",
     "xdg-basedir": "^5.1.0"
   },
   "devDependencies": {
@@ -42,7 +64,6 @@
     "@types/node": "^25.9.2",
     "@vitest/coverage-v8": "^4.1.9",
     "fast-check": "^4.8.0",
-    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   }
