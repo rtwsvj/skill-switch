@@ -14,6 +14,11 @@ import type { AuditFinding } from './types.ts';
 //   mcp/auto-approve-broad         — autoApprove/alwaysAllow list has many entries
 //   mcp/broad-filesystem-scope     — args contain a root/home path (/, ~, $HOME, drive root)
 //   mcp/dangerous-permission-flag  — args contain --allow-all / --no-sandbox / --dangerously-* etc.
+//
+// v0.6-2: Three new remote-credential-exposure checks (purely static, additive):
+//   mcp/header-literal-secret      — headers object has a value that is a literal secret
+//   mcp/url-embedded-credential    — url/serverUrl contains userinfo credentials (user:pass@host)
+//   mcp/env-secret-to-remote       — remote server has an env literal secret (remote-context escalation)
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Internal helpers
@@ -107,6 +112,14 @@ const SECRET_KEY_SUFFIX_RE = /(?:_TOKEN|_SECRET|_KEY|_PASSWORD)$/i;
 
 /** Value is a shell/env variable reference (not literal): ${VAR} or $VAR. */
 const ENV_REF_RE = /^\$(?:\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*)$/;
+
+/**
+ * Value CONTAINS an embedded variable reference anywhere: ${VAR} or $VAR.
+ * Used for header values like "Bearer ${TOKEN}" where the actual secret is
+ * injected at runtime — these are not literal secrets even though the value
+ * is not purely a reference.
+ */
+const EMBEDDED_VAR_RE = /\$(?:\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*)/;
 
 // ── R7-a additions ──────────────────────────────────────────────────────────
 
@@ -277,6 +290,42 @@ const DANGEROUS_PERMISSION_FLAG_RE =
 const AUTO_APPROVE_BROAD_THRESHOLD = 5;
 
 // ──────────────────────────────────────────────────────────────────────────────
+// v0.6-2: New remote-credential-exposure patterns
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Header key names with authentication / secret semantics.
+ * A header carrying one of these keys with a non-empty, non-variable-reference
+ * literal value is flagged as mcp/header-literal-secret regardless of whether
+ * the value matches a known secret pattern.
+ *
+ * Rationale: auth-semantic header keys almost never carry a plaintext literal
+ * in a well-managed config — they should always reference an env variable.
+ * We use a case-insensitive match (headers are case-insensitive by spec).
+ */
+const AUTH_HEADER_KEY_RE =
+  /^(?:authorization|x-api-key|api-key|token|bearer|cookie|proxy-authorization)$/i;
+
+/**
+ * URL userinfo credential pattern.
+ * Matches the authority component of a URL when it contains a password:
+ *   https://user:pass@host/...
+ *   http://admin:secret@192.168.1.1/mcp
+ *
+ * Capture groups:
+ *   [1] = username
+ *   [2] = password (the presence of this group is the trigger)
+ *
+ * Conservative: we ONLY flag when a password component is present (colon-separated
+ * from username). A bare username with no password (user@host) is NOT flagged.
+ *
+ * We look for the pattern after the scheme (https?://) — the userinfo portion is
+ * everything before the first @ that contains a colon separating user from pass.
+ * We avoid false positives on IPv6 addresses ([::1]) by requiring the @.
+ */
+const URL_USERINFO_RE = /^https?:\/\/([^:@/\s]+):([^@/\s]+)@/i;
+
+// ──────────────────────────────────────────────────────────────────────────────
 // MCP config shape (loose — we accept partial / malformed gracefully)
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -297,6 +346,9 @@ interface McpServerEntry {
   autoApprove?: unknown;
   /** Alias used by some clients (alwaysAllow). */
   alwaysAllow?: unknown;
+  // v0.6-2: HTTP headers for remote transport authentication
+  /** Per-server HTTP headers sent with every request (e.g. Authorization, X-API-Key). */
+  headers?: unknown;
 }
 
 interface McpConfig {
@@ -702,6 +754,159 @@ function auditServerEntry(
           ),
         );
         break; // One finding per server is enough for this check
+      }
+    }
+  }
+
+  // ── v0.6-2 check 1: 请求头明文密钥 (literal secret in headers) ────────────
+  // Remote MCP servers accept a `headers` object that is sent with every request.
+  // Flag any header whose KEY has authentication semantics (authorization, x-api-key,
+  // etc.) OR whose VALUE matches a known secret pattern — when the value is a
+  // non-empty, non-variable-reference literal.
+  // Variable references (${TOKEN} / $TOKEN) are NOT flagged — they are the safe pattern.
+  {
+    const headers =
+      server.headers &&
+      typeof server.headers === 'object' &&
+      !Array.isArray(server.headers)
+        ? (server.headers as Record<string, unknown>)
+        : null;
+
+    if (headers) {
+      for (const [headerKey, headerVal] of Object.entries(headers)) {
+        if (typeof headerVal !== 'string') continue;
+        if (headerVal.length === 0) continue;
+        // Skip values that are purely variable references (${TOKEN} / $TOKEN)
+        // or that CONTAIN an embedded variable reference (e.g. "Bearer ${TOKEN}").
+        // In both cases the actual secret is resolved at runtime — not hardcoded.
+        if (ENV_REF_RE.test(headerVal) || EMBEDDED_VAR_RE.test(headerVal)) continue;
+
+        // Check A: value matches a known secret pattern (pattern-based detection)
+        let firedByValue = false;
+        for (const { re } of SECRET_VALUE_PATTERNS) {
+          if (re.test(headerVal)) {
+            findings.push(
+              finding(
+                'mcp/header-literal-secret',
+                'high',
+                `MCP server header "${headerKey}" contains a hardcoded secret value — rotate immediately and use a variable reference`,
+                `${ctx} headers.${headerKey}=<redacted>`,
+                1,
+              ),
+            );
+            firedByValue = true;
+            break;
+          }
+        }
+
+        // Check B: key has auth/secret semantics with any non-empty literal value
+        // Only fire if A didn't already fire for this header (avoid duplicate findings)
+        if (!firedByValue && AUTH_HEADER_KEY_RE.test(headerKey)) {
+          findings.push(
+            finding(
+              'mcp/header-literal-secret',
+              'high',
+              `MCP server header "${headerKey}" carries a literal value — use a variable reference (e.g. \${TOKEN}) instead of a hardcoded credential`,
+              `${ctx} headers.${headerKey}=<redacted>`,
+              1,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // ── v0.6-2 check 2: URL 内嵌凭据 (url-embedded-credential) ─────────────
+  // Flag when a url/serverUrl contains userinfo credentials in the authority:
+  //   https://user:pass@host/...
+  // Only triggers when a password component is present (user:pass, not bare user@host).
+  // Redacts the password in the excerpt.
+  {
+    const rawUrl =
+      typeof server.url === 'string'
+        ? server.url
+        : typeof server.serverUrl === 'string'
+          ? server.serverUrl
+          : '';
+
+    if (rawUrl) {
+      const m = URL_USERINFO_RE.exec(rawUrl);
+      if (m) {
+        // Redact: replace the entire userinfo portion with user:<redacted>@ in excerpt
+        const redacted = rawUrl.replace(URL_USERINFO_RE, (_, user) => {
+          // Reconstruct the scheme+user portion; password is redacted
+          const scheme = rawUrl.match(/^https?:\/\//i)?.[0] ?? '';
+          return `${scheme}${user}:<redacted>@`;
+        });
+        findings.push(
+          finding(
+            'mcp/url-embedded-credential',
+            'high',
+            `MCP server URL contains embedded credentials (user:password@host) — move the password to an env variable reference`,
+            `${ctx} url="${excerpt(redacted)}"`,
+            1,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── v0.6-2 check 3: 远程环境变量明文密钥 (env-secret-to-remote) ──────────
+  // When the server is REMOTE (has a url/serverUrl field) AND an env value is a
+  // literal secret, surface the remote-context escalation risk.
+  //
+  // Dedup strategy: we track which env keys already fired existing checks (2d above)
+  // and SKIP those keys here, so the same key never produces two findings for the
+  // same underlying issue.  The existing checks (mcp/env-literal-* and
+  // mcp/env-literal-secret-key) are sufficient for local servers; this check adds
+  // the remote-transmission context for remote servers only.
+  //
+  // Keys already emitting findings in 2d:
+  //   - SECRET_VALUE_PATTERNS match  → mcp/env-literal-openai-key / github-token / aws-key
+  //   - SECRET_KEY_SUFFIX_RE match   → mcp/env-literal-secret-key
+  // We skip those to avoid duplication.
+  {
+    const rawUrl =
+      typeof server.url === 'string'
+        ? server.url
+        : typeof server.serverUrl === 'string'
+          ? server.serverUrl
+          : '';
+
+    if (rawUrl) {
+      // Server is remote — check env for literal secrets not already covered
+      for (const [key, val] of Object.entries(env)) {
+        if (typeof val !== 'string') continue;
+        if (val.length === 0) continue;
+        if (ENV_REF_RE.test(val)) continue;
+
+        // Determine whether the existing 2d checks already fired for this key
+        const existingSecretPattern = SECRET_VALUE_PATTERNS.some(({ re }) => re.test(val));
+        const existingKeyHeuristic = SECRET_KEY_SUFFIX_RE.test(key);
+
+        // Skip keys already covered by existing checks to avoid duplicate findings
+        if (existingSecretPattern || existingKeyHeuristic) continue;
+
+        // No existing check fired — but for remote servers, any env literal that
+        // looks like it could be a credential is worth surfacing.
+        // We conservatively only flag here when the key name suggests credential
+        // semantics beyond the existing suffix heuristic: look for common auth key names.
+        // This keeps FP rate low while catching patterns like API_KEY, ACCESS_TOKEN
+        // (with different casing), AUTH, SECRET, PASSWORD without the underscore suffix.
+        const REMOTE_ENV_CREDENTIAL_KEY_RE =
+          /(?:api[_-]?key|access[_-]?token|auth(?:orization)?|secret|password|passwd|bearer|credential|apikey)/i;
+
+        if (REMOTE_ENV_CREDENTIAL_KEY_RE.test(key) && val.length >= 8) {
+          findings.push(
+            finding(
+              'mcp/env-secret-to-remote',
+              'medium',
+              `MCP env key "${key}" may contain a literal credential that will be transmitted to a remote endpoint (${rawUrl.replace(/^(https?:\/\/[^/]+).*/, '$1')})`,
+              `${ctx} env.${key}=<redacted>`,
+              1,
+            ),
+          );
+        }
       }
     }
   }
