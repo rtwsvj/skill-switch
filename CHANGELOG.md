@@ -5,6 +5,9 @@
 
 ## [Unreleased]
 
+### 新增 Added
+- **静态 MCP 远程凭据暴露检查**:`audit --configs` 在结构化 MCP 分析上再加三项静态检查(零进程/零网络/零依赖)——`headers` 里硬编码密钥(`mcp/header-literal-secret`)、`url` 内嵌 `user:pass@` 凭据(`mcp/url-embedded-credential`)、把字面密钥 env 传给远程 server(`mcp/env-secret-to-remote`)。变量引用(`${X}`)、`Content-Type` 之类非鉴权头、无 userinfo 的 URL 等近似情形零误报;输出中密钥值一律脱敏。纯增量,现有规则与行为不变。
+
 ## [0.5.0] — 2026-06-23
 
 v0.5「团队与 CI 集成」——把 `audit` 从单机安全体检升级为可接入团队工作流与 CI 流水线的安全门禁:机器可读输出、项目级可调策略、受控引导式修复,以及更广的 agent 配置覆盖与静态运行时 MCP 能力审计。全部为**纯增量**——无 `audit` 标志时行为、输出、退出码与 v0.4 逐字节一致。
