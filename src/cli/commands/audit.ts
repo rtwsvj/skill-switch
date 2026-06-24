@@ -397,6 +397,101 @@ export function formatGuidedFixOutput(summary: GuidedFixSummary, apply: boolean)
   return lines.join('\n');
 }
 
+// ── 引导式修复 JSON 序列化 ────────────────────────────────────────────────────
+
+/**
+ * GuidedFixEntry:单条 finding 的机器可读修复信息。
+ * 稳定 schema——CI 脚本可依赖此结构。
+ */
+export interface GuidedFixEntry {
+  /** 触发此 finding 的规则 ID */
+  ruleId: string;
+  /** finding 所在的相对文件路径(相对 audit 根目录) */
+  file: string;
+  /** finding 所在的行号(1-based) */
+  line: number;
+  /** 修复分类:'fixable'=有自动修复器;'manual'=需人工处理;'skipped-config'=config 文件,永远只读 */
+  kind: 'fixable' | 'manual' | 'skipped-config';
+  /** finding 是否被当前策略抑制(当策略激活时由 CI 读取;未传入策略时不含此字段) */
+  suppressed?: boolean;
+  /** apply 模式且实际写盘后为 true;dry-run 或未修改则为 false */
+  applied: boolean;
+  /** apply 模式且写盘成功时备份文件的绝对路径 */
+  backupPath?: string;
+  /** unified diff 预览字符串;幂等(已处理)或无 diff 时为空字符串 */
+  diff?: string;
+}
+
+/**
+ * GuidedFixJsonSection:嵌入 JSON 报告的顶层 guidedFix 对象。
+ */
+export interface GuidedFixJsonSection {
+  /** 干运行还是实际写盘 */
+  mode: 'dry-run' | 'apply';
+  /** 每条 finding 的修复条目 */
+  entries: GuidedFixEntry[];
+  /** 合计:有自动修复器的 finding 数(含幂等) */
+  fixableCount: number;
+  /** 合计:需手动处理的 finding 数 */
+  manualCount: number;
+  /** 合计:因来自 config 文件而跳过的 finding 数 */
+  configSkipCount: number;
+  /** apply 模式下实际修改的文件数;dry-run 时恒为 0 */
+  filesModified: number;
+}
+
+/**
+ * 把 GuidedFixSummary 转换为可稳定序列化的 GuidedFixJsonSection。
+ * 此函数为纯函数(无副作用),供 path 模式与 home 模式共用。
+ */
+export function serializeGuidedFix(
+  summary: GuidedFixSummary,
+  apply: boolean,
+): GuidedFixJsonSection {
+  const entries: GuidedFixEntry[] = summary.results.map((r) => {
+    if (r.kind === 'skipped-config') {
+      return {
+        ruleId: r.finding.ruleId,
+        file: r.relFile,
+        line: r.finding.line,
+        kind: 'skipped-config' as const,
+        applied: false,
+      };
+    }
+    if (r.kind === 'manual') {
+      return {
+        ruleId: r.finding.ruleId,
+        file: r.relFile,
+        line: r.finding.line,
+        kind: 'manual' as const,
+        applied: false,
+      };
+    }
+    // fixable
+    const entry: GuidedFixEntry = {
+      ruleId: r.finding.ruleId,
+      file: r.relFile,
+      line: r.finding.line,
+      kind: 'fixable' as const,
+      applied: apply && r.diffPreview !== '' && r.backupPath !== undefined,
+      diff: r.diffPreview,
+    };
+    if (r.backupPath !== undefined) {
+      entry.backupPath = r.backupPath;
+    }
+    return entry;
+  });
+
+  return {
+    mode: apply ? 'apply' : 'dry-run',
+    entries,
+    fixableCount: summary.fixableCount,
+    manualCount: summary.manualCount,
+    configSkipCount: summary.configSkipCount,
+    filesModified: summary.filesModified,
+  };
+}
+
 // 解析最终输出格式:--format 优先;若无 --format 但有 --json 则等价于 json。
 type OutputFormat = 'human' | 'json' | 'sarif';
 
@@ -482,6 +577,7 @@ export function registerAuditCommand(program: Command): void {
 
         if (fmt === 'sarif') {
           // SARIF 模式:被抑制的 finding 写入 suppressions;无策略时 suppressedRuleIds 为空集
+          // --fix 对 SARIF 输出无影响;机器消费者通过 --format json 取修复信息。
           const doc = toSarifDocument(report.findings, readVersion(), policy.suppressedRuleIds);
           console.log(JSON.stringify(doc, null, 2));
         } else if (fmt === 'json') {
@@ -490,14 +586,29 @@ export function registerAuditCommand(program: Command): void {
           const findings = policyActive
             ? applyPolicyToFindings(report.findings, policy)
             : report.findings;
-          console.log(JSON.stringify({ path, ...report, findings }, null, 2));
+
+          // --fix + json:先跑引导修复(dry-run 或 apply),再把摘要嵌入 JSON 对象一次性输出。
+          // 无 --fix 时:不含 guidedFix 键,与旧版逐字节一致。
+          if (options.fix) {
+            const doApply = options.apply === true;
+            const summary = await runGuidedFix({
+              targetRoot: path,
+              skillFindings: report.findings,
+              configFindings: [],
+              apply: doApply,
+            });
+            const guidedFix = serializeGuidedFix(summary, doApply);
+            console.log(JSON.stringify({ path, ...report, findings, guidedFix }, null, 2));
+          } else {
+            console.log(JSON.stringify({ path, ...report, findings }, null, 2));
+          }
         } else {
           console.log(formatAuditReport(path, report));
         }
         if (shouldBlockWithPolicy(report, policy)) process.exitCode = 1;
 
-        // --fix(含 dry-run 和 apply)仅在 path 模式 + human 格式下运行。
-        // --json/--sarif 时跳过引导修复输出(机器消费者无需差异预览)。
+        // --fix human 格式:打印人类可读差异预览/应用报告(原有行为不变)
+        // json 格式已在上方 json 块中处理;sarif 格式 --fix 无输出。
         if (options.fix && fmt === 'human') {
           const doApply = options.apply === true;
           const summary = await runGuidedFix({
@@ -525,7 +636,31 @@ export function registerAuditCommand(program: Command): void {
         const doc = toSarifDocument(allFindings, readVersion(), policy.suppressedRuleIds);
         console.log(JSON.stringify(doc, null, 2));
       } else if (fmt === 'json') {
-        if (policyActive) {
+        // --fix + json:对每个 skill 跑引导修复(dry-run 或 apply),结果嵌入对应 skill 的 guidedFix 字段。
+        // 无 --fix 时:不含任何 guidedFix 键,与旧版逐字节一致。
+        if (options.fix) {
+          const doApply = options.apply === true;
+          const skillConfigFindings = report.configs ? flattenConfigFindings(report.configs) : [];
+          const skillsWithFix = await Promise.all(
+            report.skills.map(async (skill) => {
+              const summary = await runGuidedFix({
+                targetRoot: skill.path,
+                skillFindings: skill.findings,
+                configFindings: skillConfigFindings,
+                apply: doApply,
+              });
+              const base = policyActive
+                ? {
+                    ...skill,
+                    findings: applyPolicyToFindings(skill.findings, policy),
+                    blocked: shouldBlockWithPolicy(skill, policy),
+                  }
+                : skill;
+              return { ...base, guidedFix: serializeGuidedFix(summary, doApply) };
+            }),
+          );
+          console.log(JSON.stringify({ ...report, skills: skillsWithFix }, null, 2));
+        } else if (policyActive) {
           // 有策略:每个 skill 的 findings 附带 suppressed 字段,blocked 按策略重算
           const reportWithSuppressed = {
             ...report,
@@ -548,7 +683,8 @@ export function registerAuditCommand(program: Command): void {
       const configBlocked = report.configsBlocked === true;
       if (skillsBlocked || configBlocked) process.exitCode = 1;
 
-      // --fix 在 home 全量模式下:对每个 skill 目录分别跑引导修复。
+      // --fix human 格式:对每个 skill 目录分别跑引导修复,打印人类可读报告。
+      // json 格式已在上方 json 块中处理;sarif 格式 --fix 无输出。
       // --configs 的 finding 永远不修改(config 只读保护)。
       if (options.fix && fmt === 'human') {
         const doApply = options.apply === true;
