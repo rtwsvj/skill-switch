@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+// 动态读取版本号,避免发版时忘改硬编码的 DMG 文件名
+const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
 
 function run(label, command, args) {
   console.log(`\n==> ${label}`);
@@ -40,7 +43,7 @@ run('Tauri app and dmg build', 'pnpm', ['--dir', 'gui', 'tauri', 'build']);
 const artifacts = [
   requireArtifact('gui/src-tauri/target/release/bundle/macos/skill-switch.app'),
   requireArtifact('gui/src-tauri/target/release/bundle/macos/skill-switch.app/Contents/MacOS/skill-switch-cli'),
-  requireArtifact('gui/src-tauri/target/release/bundle/dmg/skill-switch_0.4.0_aarch64.dmg'),
+  requireArtifact(`gui/src-tauri/target/release/bundle/dmg/skill-switch_${version}_aarch64.dmg`),
 ];
 
 console.log('\nRelease build artifacts:');
