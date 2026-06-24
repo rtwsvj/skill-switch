@@ -5,9 +5,16 @@
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-06-25
+
+v0.6 在 v0.5「团队与 CI 集成」基础上深化审计:更多静态 MCP 凭据暴露检查、修复建议可被 CI 程序化消费,并以端到端 CLI 集成测试锁定全部审计行为。纯增量,无破坏性变更。
+
 ### 新增 Added
 - **`audit --fix --format json` 机器可读修复报告**:同时传 `--fix` 与 `--format json` 时,JSON 报告追加顶层 `guidedFix` 字段——每条含 `kind`(`fixable`/`manual`/`skipped-config`)、`applied`、`backupPath`、`diff`(unified diff)及汇总计数,便于 CI 流水线消费修复建议。`--apply` 的写盘副作用与 human 格式完全复用 `runGuidedFix`(备份/幂等不变)。无 `--fix` 时 JSON 逐字节同旧;`--format sarif` 不受 `--fix` 影响。
 - **静态 MCP 远程凭据暴露检查**:`audit --configs` 在结构化 MCP 分析上再加三项静态检查(零进程/零网络/零依赖)——`headers` 里硬编码密钥(`mcp/header-literal-secret`)、`url` 内嵌 `user:pass@` 凭据(`mcp/url-embedded-credential`)、把字面密钥 env 传给远程 server(`mcp/env-secret-to-remote`)。变量引用(`${X}`)、`Content-Type` 之类非鉴权头、无 userinfo 的 URL 等近似情形零误报;输出中密钥值一律脱敏。纯增量,现有规则与行为不变。
+
+### 质量 Internal
+- 新增**端到端 CLI 集成测试**,以真实子进程驱动 `audit` 锁定 SARIF / 策略文件 / 引导式修复 / 配置发现 / 静态 MCP 等 v0.5–v0.6 全部审计行为(测试总数增至 1555)。
 
 ## [0.5.0] — 2026-06-23
 
