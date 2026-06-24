@@ -30,6 +30,10 @@ import { afterAll, describe, expect, it } from 'vitest';
 const ROOT = join(import.meta.dirname, '..');
 const FIX = join(import.meta.dirname, 'fixtures');
 const CLI = join(ROOT, 'src', 'cli', 'index.ts');
+// bin shim 会相对自身(仓库内)解析 tsx,因此从任意 cwd 调用都不会 tsx-not-found。
+// 凡是需要把 cwd 设成临时目录的用例,必须走它,否则 `node --import tsx CLI` 会在
+// 临时目录找不到 tsx 而崩——那样测试会"因子进程根本没启动、恰好拿到非零退出"假通过。
+const BIN = join(ROOT, 'bin', 'skill-switch.mjs');
 
 // ── 辅助 ──────────────────────────────────────────────────────────────────────
 
@@ -62,6 +66,17 @@ function runCli(args: string[]): { stdout: string; stderr: string; status: numbe
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };
     return { stdout: e.stdout ?? '', stderr: e.stderr ?? '', status: e.status ?? -1 };
+  }
+}
+
+/** 在指定 cwd 运行 CLI(走 bin shim,tsx 解析与 cwd 无关);从不抛出。 */
+function runCliInCwd(args: string[], cwd: string): { stdout: string; status: number } {
+  try {
+    const stdout = execFileSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
+    return { stdout, status: 0 };
+  } catch (err) {
+    const e = err as { stdout?: string; status?: number };
+    return { stdout: e.stdout ?? '', status: e.status ?? -1 };
   }
 }
 
@@ -282,8 +297,8 @@ describe('e2e: .skill-switch-policy.json / --policy', () => {
     expect(stderr).toMatch(/策略|policy/i);
   });
 
-  it('--no-policy 忽略临时目录中的策略文件,high → exit 1', () => {
-    // 将 failOn:critical 策略写入临时目录作为 cwd 默认策略
+  it('cwd 中的策略文件被默认采用,--no-policy 忽略它', () => {
+    // failOn:critical 写入临时目录作为 cwd 默认策略
     const dir = makeTmpDir();
     writeFileSync(
       join(dir, '.skill-switch-policy.json'),
@@ -291,20 +306,10 @@ describe('e2e: .skill-switch-policy.json / --policy', () => {
       'utf8',
     );
 
-    // 以临时目录为 cwd(手动传 cwd 给 execFileSync)
-    let status: number;
-    try {
-      execFileSync(
-        process.execPath,
-        ['--import', 'tsx', CLI, 'audit', HIGH_ONLY_SKILL_DIR, '--no-policy'],
-        { cwd: dir, encoding: 'utf8' },
-      );
-      status = 0;
-    } catch (err) {
-      status = (err as { status?: number }).status ?? -1;
-    }
-    // 忽略策略 → 默认行为 → high 阻断 → exit 1
-    expect(status).toBe(1);
+    // 默认:cwd 策略(failOn:critical)被采用 → high-only 不达阈值 → 不阻断 → exit 0
+    expect(runCliInCwd(['audit', HIGH_ONLY_SKILL_DIR], dir).status).toBe(0);
+    // --no-policy:忽略 cwd 策略 → 回到默认 failOn=high → high 阻断 → exit 1
+    expect(runCliInCwd(['audit', HIGH_ONLY_SKILL_DIR, '--no-policy'], dir).status).toBe(1);
   });
 });
 
