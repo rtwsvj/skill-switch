@@ -93,3 +93,5 @@ jobs:
 
 把 `.skill-switch-policy.json` 放进仓库根即可调整阻断严重度下限与规则抑制
 (`failOn` / `suppress`),Action 会自动采用。详见 README 与 CHANGELOG。
+
+所有可用 ruleId 的完整列表见 [docs/rules.md](./rules.md)。
