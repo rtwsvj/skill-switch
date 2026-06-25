@@ -3,7 +3,7 @@
 `skill-switch` 提供一个可复用的 GitHub Action,让任何仓库在 CI 里自动审计自己的
 AI agent skills 与 MCP/agent 配置,并把结果上传到 GitHub code-scanning。
 
-> 前提:`skill-switch` 已发布到公共 npm(Action 内部用 `npx skill-switch`)。
+> 前提:`@rtwsvj/skill-switch` 已发布到公共 npm(Action 内部用 `npx @rtwsvj/skill-switch`;命令名仍是 `skill-switch`)。
 
 ## 最小用法
 

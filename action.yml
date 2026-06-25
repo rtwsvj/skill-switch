@@ -14,7 +14,7 @@
 #         path: .
 #         args: --configs
 #
-# ⚠ 需要 skill-switch 已发布到公共 npm(action 内部用 `npx skill-switch`)。
+# ⚠ 需要 @rtwsvj/skill-switch 已发布到公共 npm(action 内部用 `npx @rtwsvj/skill-switch`)。
 name: 'skill-switch audit'
 description: '审计 AI agent skills 与 MCP/agent 配置中的危险模式,可上传 SARIF 到 GitHub code-scanning。'
 author: 'rtwsvj'
@@ -70,7 +70,7 @@ runs:
       shell: bash
       run: |
         set +e
-        npx -y "skill-switch@${{ inputs.version }}" audit "${{ inputs.path }}" \
+        npx -y "@rtwsvj/skill-switch@${{ inputs.version }}" audit "${{ inputs.path }}" \
           --format "${{ inputs.format }}" ${{ inputs.args }} > "${{ inputs.output }}"
         code=$?
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
