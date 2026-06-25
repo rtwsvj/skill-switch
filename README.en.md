@@ -2,14 +2,22 @@
 
 <p align="center"><a href="./README.md">简体中文</a> · <b>English</b></p>
 
+[![npm](https://img.shields.io/npm/v/@rtwsvj/skill-switch?logo=npm&label=npm)](https://www.npmjs.com/package/@rtwsvj/skill-switch)
 [![Release](https://img.shields.io/github/v/release/rtwsvj/skill-switch?sort=semver)](https://github.com/rtwsvj/skill-switch/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/rtwsvj/skill-switch/releases/latest)
 [![CI](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml/badge.svg)](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml)
 
-**A local-first governance layer for the "skills" you install across AI coding agents** — Claude Code, Codex, Gemini CLI, Cursor, Copilot, and more. Inventory, security-audit, toggle, install, sync, and roll back your skills from one place — with a **pre-install security gate** that blocks dangerous skills before they ever touch your machine.
+**Security audit for AI agent skills & MCP configs.** Scan the skills and MCP/agent configs of Claude Code, Cursor, Gemini CLI, Windsurf, Zed, and VS Code for **reverse shells, data exfiltration, credential phishing, dangerous MCP servers, plaintext remote transport, and hardcoded secrets** — dozens of rules, **1,555 tests**. Emit **SARIF straight into GitHub code-scanning**, set a project policy (`.skill-switch-policy.json`), and apply guided fixes (`--fix`).
 
-It doesn't manage skills *for* those tools — it sits *above* them and answers three questions: **what's installed, is it safe, and is it still consistent with your declaration / lock / upstream?** Ships as a **desktop app (GUI)** and a **command-line tool (CLI)** with equivalent power. Every change is **snapshotted first and one-click reversible**; dangerous skills are caught by a security audit before they install.
+```bash
+npx @rtwsvj/skill-switch audit            # audit this project's skills / configs
+npx @rtwsvj/skill-switch audit --configs  # also scan ~/.claude, MCP, and agent configs
+```
+
+Or drop the [GitHub Action](docs/github-action.md) into CI to audit every PR and upload results to code-scanning.
+
+On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and roll back — every write is **snapshotted first and one-click reversible**, and dangerous skills are blocked before they install. Available as a **CLI** (`npx @rtwsvj/skill-switch`) and a signed + notarized **desktop app (GUI)**.
 
 ![demo](assets/demo.svg)
 

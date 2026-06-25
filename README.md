@@ -2,16 +2,24 @@
 
 <p align="center"><b>简体中文</b> · <a href="./README.en.md">English</a></p>
 
+[![npm](https://img.shields.io/npm/v/@rtwsvj/skill-switch?logo=npm&label=npm)](https://www.npmjs.com/package/@rtwsvj/skill-switch)
 [![Release](https://img.shields.io/github/v/release/rtwsvj/skill-switch?sort=semver)](https://github.com/rtwsvj/skill-switch/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/rtwsvj/skill-switch/releases/latest)
 [![CI](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml/badge.svg)](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml)
 
-跨 AI 编程工具的「技能(skill)治理台」——在 Claude Code、Codex、Gemini CLI、Cursor、Copilot 等之间**盘点、体检、开关、安装、同步、回滚**你装过的 skill。
+**AI agent skills 与 MCP/agent 配置的安全审计器。** 在 Claude Code、Cursor、Gemini CLI、Windsurf、Zed、VS Code 等工具的 skill 与配置里,扫出**反弹 shell、外传敏感文件、钓鱼式索要凭据、危险 MCP server、明文远程传输、硬编码密钥**等危险模式——**几十条规则、1,555 测试**;输出 **SARIF 直通 GitHub code-scanning**,支持项目级策略(`.skill-switch-policy.json`)与受控修复(`--fix`)。
 
-它是一个**跨 agent 的 skill 治理层**:不替这些工具管 skill,而是站在它们之上做 `install/toggle/sync/remove/restore` 等治理动作,回答三个问题——**现在装了什么、安不安全、和声明/锁/上游还一致吗。** 提供**桌面 App(GUI)** 和**命令行(CLI)** 两种用法,能力对等;所有改动都**先自动备份、可一键回滚**,危险 skill 在安装前会被安全体检拦下。
+```bash
+npx @rtwsvj/skill-switch audit            # 立刻体检当前项目的 skills / 配置
+npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置一起查
+```
 
-> 状态:**v0.4.0**。macOS 安装包已用 Developer ID 签名 + Apple 公证,双击即可打开;源码 clone + run 亦可。
+或把 [GitHub Action](docs/github-action.md) 丢进 CI,每个 PR 自动审计 + 上传 code-scanning。
+
+在审计之上,它还是个**跨 agent 的 skill 治理层**:盘点 / 开关 / 安装 / 同步 / 回滚——所有写操作**先自动备份、可一键回滚**,危险 skill 装前即被拦。**命令行(CLI)** 与**桌面 App(GUI)** 两种用法,能力对等。
+
+> 状态:**v0.6.0**。CLI 已发布 npm(`npx @rtwsvj/skill-switch`);macOS 桌面 App 已 Developer ID 签名 + Apple 公证,双击即用。
 
 ![demo](assets/demo.svg)
 
