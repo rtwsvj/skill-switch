@@ -25,7 +25,9 @@ import type { AuditFinding } from '../src/core/audit/types.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const FIX = join(import.meta.dirname, 'fixtures');
-const CLI = join(ROOT, 'src', 'cli', 'index.ts');
+// 用 bin shim(相对自身解析 tsx),这样以临时目录为 cwd 时也不会 tsx-not-found。
+// 直接 `node --import tsx <CLI>` 在临时 cwd 下解析 tsx 不稳,会偶发崩溃 + 假通过。
+const BIN = join(ROOT, 'bin', 'skill-switch.mjs');
 
 // ── 辅助 ──────────────────────────────────────────────────────────────────────
 
@@ -36,7 +38,7 @@ function runCli(
   try {
     const stdout = execFileSync(
       process.execPath,
-      ['--import', 'tsx', CLI, ...args],
+      [BIN, ...args],
       { cwd: cwdOverride ?? ROOT, encoding: 'utf8' },
     );
     return { stdout, stderr: '', status: 0 };
