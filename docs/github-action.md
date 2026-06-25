@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rtwsvj/skill-switch@v0.6.1
+      - uses: rtwsvj/skill-switch@v0.7.0
         with:
           path: .
           args: --configs        # 同时审计 ~/.claude 等 agent 配置(可去掉)
@@ -51,7 +51,7 @@ SARIF 也会出现在仓库的 **Security → Code scanning** 里。
 想先观察、不让 CI 失败:
 
 ```yaml
-      - uses: rtwsvj/skill-switch@v0.6.1
+      - uses: rtwsvj/skill-switch@v0.7.0
         with:
           fail-on-findings: 'false'
 ```
@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rtwsvj/skill-switch@main   # github 格式:v0.7.0 发布后可 pin 该 tag
+      - uses: rtwsvj/skill-switch@v0.7.0
         with:
           format: github
           args: --configs

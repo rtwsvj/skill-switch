@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/rtwsvj/skill-switch/releases/latest)
 [![CI](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml/badge.svg)](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml)
 
-**Security audit for AI agent skills & MCP configs.** Scan the skills and MCP/agent configs of Claude Code, Cursor, Gemini CLI, Windsurf, Zed, and VS Code for **reverse shells, data exfiltration, credential phishing, dangerous MCP servers, plaintext remote transport, and hardcoded secrets** — dozens of rules, **1,555 tests**. Emit **SARIF straight into GitHub code-scanning**, set a project policy (`.skill-switch-policy.json`), and apply guided fixes (`--fix`).
+**Security audit for AI agent skills & MCP configs.** Scan the skills and MCP/agent configs of Claude Code, Cursor, Gemini CLI, Windsurf, Zed, and VS Code for **reverse shells, data exfiltration, credential phishing, dangerous MCP servers, plaintext remote transport, and hardcoded secrets** — 80+ detection rules, **1,600+ tests**. Emit **SARIF straight into GitHub code-scanning**, set a project policy (`.skill-switch-policy.json`), and apply guided fixes (`--fix`).
 
 ```bash
 npx @rtwsvj/skill-switch audit            # audit this project's skills / configs
@@ -43,7 +43,7 @@ AI coding agents increasingly run on *skills* — reusable bundles of instructio
 
 ## Install (macOS, Apple Silicon)
 
-1. Download `skill-switch_0.6.1_aarch64.dmg` from the [latest release](https://github.com/rtwsvj/skill-switch/releases/latest).
+1. Download `skill-switch_0.7.0_aarch64.dmg` from the [latest release](https://github.com/rtwsvj/skill-switch/releases/latest).
 2. Open it and drag **skill-switch** into Applications.
 3. It's signed with a Developer ID and notarized by Apple, so it opens with a double-click — Gatekeeper won't block it.
 
