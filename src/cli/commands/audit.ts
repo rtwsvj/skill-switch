@@ -13,6 +13,11 @@
 //   --no-policy       忽略策略文件,使用默认行为
 //   策略文件可调整 failOn(阻断严重度下限)和 suppress(按 ruleId 抑制 finding)。
 //   无策略文件 / --no-policy 时行为与旧版完全一致。
+//
+// v0.7-1:新增基线模式(baseline mode)。
+//   --write-baseline <path>  将当前所有 finding 的指纹写入基线文件,exit 0。
+//   --baseline <path>        加载基线;已基线化的 finding 不计入退出码(仍出现在输出中)。
+//   两者同时使用时,--write-baseline 优先(写入当前状态)。
 import { readFileSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative } from 'node:path';
@@ -27,6 +32,13 @@ import {
   DEFAULT_POLICY,
   type ResolvedPolicy,
 } from '../../core/audit/policy.ts';
+import {
+  buildBaselineFile,
+  fingerprintFinding,
+  loadBaselineFile,
+  writeBaselineFile,
+  BaselineFileError,
+} from '../../core/audit/baseline.ts';
 import { runGuidedFix, type GuidedFixSummary } from '../../core/audit/guided-fix.ts';
 import { toSarifDocument } from '../../core/audit/sarif.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
@@ -93,20 +105,23 @@ export function shouldBlock(report: Pick<AuditReport, 'score' | 'findings'>): bo
 /**
  * 策略感知版 shouldBlock:
  * - 被抑制的 finding(ruleId 在 policy.suppressedRuleIds 中)不计入阻断决策。
+ * - 已基线化的 finding(指纹在 baselinedFingerprints 中)不计入阻断决策。
  * - failOn 决定阻断的严重度下限(severity 索引 <= failOn 索引 → 阻断)。
  * - score 阈值不受策略影响(score 基于所有 findings 计算)。
- * - 传入 DEFAULT_POLICY 时行为与 shouldBlock() 完全一致。
+ * - 传入 DEFAULT_POLICY + 空 baselinedFingerprints 时行为与 shouldBlock() 完全一致。
  */
 export function shouldBlockWithPolicy(
   report: Pick<AuditReport, 'score' | 'findings'>,
   policy: ResolvedPolicy,
+  baselinedFingerprints: ReadonlySet<string> = new Set(),
 ): boolean {
   if (report.score < DANGER_THRESHOLD) return true;
   const failOnRank = SEVERITY_RANK[policy.failOn];
-  // 只看未被抑制的 finding
+  // 只看未被抑制且未基线化的 finding
   return report.findings.some(
     (f) =>
       !policy.suppressedRuleIds.has(f.ruleId) &&
+      !baselinedFingerprints.has(fingerprintFinding(f)) &&
       SEVERITY_RANK[f.severity] <= failOnRank,
   );
 }
@@ -122,6 +137,37 @@ export function applyPolicyToFindings(
   return findings.map((f) => ({
     ...f,
     suppressed: policy.suppressedRuleIds.has(f.ruleId),
+  }));
+}
+
+/**
+ * 将 finding 列表按基线标注 baselined 字段。
+ * 返回每条 finding 附带 baselined: boolean 字段。
+ * 可与 applyPolicyToFindings 链式组合。
+ */
+export function applyBaselineToFindings(
+  findings: AuditFinding[],
+  baselinedFingerprints: ReadonlySet<string>,
+): Array<AuditFinding & { baselined: boolean }> {
+  return findings.map((f) => ({
+    ...f,
+    baselined: baselinedFingerprints.has(fingerprintFinding(f)),
+  }));
+}
+
+/**
+ * 将 finding 列表同时按策略和基线标注。
+ * 返回附带 suppressed: boolean + baselined: boolean 的 finding 列表。
+ */
+export function applyPolicyAndBaselineToFindings(
+  findings: AuditFinding[],
+  policy: ResolvedPolicy,
+  baselinedFingerprints: ReadonlySet<string>,
+): Array<AuditFinding & { suppressed: boolean; baselined: boolean }> {
+  return findings.map((f) => ({
+    ...f,
+    suppressed: policy.suppressedRuleIds.has(f.ruleId),
+    baselined: baselinedFingerprints.has(fingerprintFinding(f)),
   }));
 }
 
@@ -218,28 +264,40 @@ const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'] as const;
 /**
  * 将 findings 列表按严重度排序后格式化为缩进文本行。
  * 供 formatAuditReport 和 formatAuditHomeTable 共用,避免重复实现渲染逻辑。
+ * baselinedFingerprints 非空时,已基线化的 finding 追加"（基线已接受）"标注。
  */
-function formatFindingLines(findings: AuditFinding[]): string[] {
+function formatFindingLines(
+  findings: AuditFinding[],
+  baselinedFingerprints: ReadonlySet<string> = new Set(),
+): string[] {
   const sorted = [...findings].sort(
     (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity),
   );
+  const needsBaseline = baselinedFingerprints.size > 0;
   const lines: string[] = [];
   for (const f of sorted) {
-    lines.push(`  [${f.severity.toUpperCase()}] ${f.ruleId}  ${f.file}:${f.line}`);
+    const baselineTag = needsBaseline && baselinedFingerprints.has(fingerprintFinding(f))
+      ? '  （基线已接受）'
+      : '';
+    lines.push(`  [${f.severity.toUpperCase()}] ${f.ruleId}  ${f.file}:${f.line}${baselineTag}`);
     lines.push(`    ${f.message}`);
     lines.push(`    > ${f.excerpt.trim()}`);
   }
   return lines;
 }
 
-export function formatAuditReport(path: string, report: AuditReport): string {
+export function formatAuditReport(
+  path: string,
+  report: AuditReport,
+  baselinedFingerprints: ReadonlySet<string> = new Set(),
+): string {
   const lines: string[] = [`audit: ${path}`, `score: ${report.score}/100  verdict: ${report.verdict}`];
   if (report.findings.length === 0) {
     lines.push('findings: none');
     return lines.join('\n');
   }
   lines.push(`findings: ${report.findings.length}`, '');
-  lines.push(...formatFindingLines(report.findings));
+  lines.push(...formatFindingLines(report.findings, baselinedFingerprints));
   return lines.join('\n');
 }
 
@@ -299,7 +357,10 @@ export async function auditHome(home: string, options: { includeConfigs?: boolea
   return { home, total: skills.length, skills, configs, configsBlocked };
 }
 
-function formatAuditHomeTable(report: AuditHomeReport): string {
+function formatAuditHomeTable(
+  report: AuditHomeReport,
+  baselinedFingerprints: ReadonlySet<string> = new Set(),
+): string {
   const parts: string[] = [`audit home: ${report.home}`];
 
   if (report.skills.length === 0) {
@@ -328,7 +389,7 @@ function formatAuditHomeTable(report: AuditHomeReport): string {
           parts.push(`${cfg.relPath}: ok`);
         } else {
           parts.push(`${cfg.relPath}: ${cfg.findings.length} finding(s)`);
-          parts.push(...formatFindingLines(cfg.findings));
+          parts.push(...formatFindingLines(cfg.findings, baselinedFingerprints));
         }
       }
     }
@@ -536,6 +597,8 @@ export function registerAuditCommand(program: Command): void {
     .option('--no-policy', '忽略策略文件,使用默认阻断行为(等同于无策略文件)')
     .option('--fix', '受控引导修复(dry-run):展示每条可修复 finding 的差异预览;不写盘。加 --apply 才实际修改。')
     .option('--apply', '与 --fix 搭配:实际写盘修复,并自动生成 .skill-switch.bak 备份(已存在则不覆盖)。单独使用无效。')
+    .option('--write-baseline <path>', '将当前所有 finding 的指纹写入基线文件,exit 0(与 --baseline 同时使用时本标志优先)')
+    .option('--baseline <path>', '加载基线文件;已基线化的 finding 不影响退出码(仍出现在输出中)')
     .action(async (
       path: string | undefined,
       options: {
@@ -546,6 +609,8 @@ export function registerAuditCommand(program: Command): void {
         policy?: string;
         fix?: boolean;
         apply?: boolean;
+        writeBaseline?: string;
+        baseline?: string;
         // commander 将 --no-policy 映射为 options.policy === false
         // 但类型里用 noPolicy 更清晰;实际通过 options['policy'] 判断
       },
@@ -572,19 +637,53 @@ export function registerAuditCommand(program: Command): void {
         throw err;
       }
 
+      // 加载基线文件(若指定了 --baseline 且未指定 --write-baseline)
+      // --write-baseline 优先:此时跳过基线加载,直接写出当前状态。
+      let baselinedFingerprints: ReadonlySet<string> = new Set();
+      const writeBaselinePath = options.writeBaseline;
+      const baselinePath = options.baseline;
+      const baselineActive = baselinePath !== undefined && writeBaselinePath === undefined;
+
+      if (baselineActive) {
+        try {
+          baselinedFingerprints = await loadBaselineFile(baselinePath!);
+        } catch (err) {
+          if (err instanceof BaselineFileError) {
+            process.stderr.write(`audit: 基线文件错误 — ${err.message}\n`);
+            process.exitCode = 1;
+            return;
+          }
+          throw err;
+        }
+      }
+
       if (path) {
         const report = await auditSkillDir(path);
 
+        // ── --write-baseline:写出当前 finding 指纹,exit 0 ──────────────────────
+        if (writeBaselinePath !== undefined) {
+          const allFindings: AuditFinding[] = report.findings;
+          const baseline = buildBaselineFile(allFindings);
+          try {
+            await writeBaselineFile(writeBaselinePath, baseline);
+          } catch (err) {
+            process.stderr.write(`audit: 无法写入基线文件 ${writeBaselinePath}: ${(err as Error).message}\n`);
+            process.exitCode = 1;
+            return;
+          }
+          process.stdout.write(`audit: 已写入基线 ${writeBaselinePath}(${baseline.fingerprints.length} 条 finding)\n`);
+          return; // exit 0
+        }
+
         if (fmt === 'sarif') {
-          // SARIF 模式:被抑制的 finding 写入 suppressions;无策略时 suppressedRuleIds 为空集
+          // SARIF 模式:被抑制/已基线化的 finding 写入 suppressions
           // --fix 对 SARIF 输出无影响;机器消费者通过 --format json 取修复信息。
-          const doc = toSarifDocument(report.findings, readVersion(), policy.suppressedRuleIds);
+          const doc = toSarifDocument(report.findings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
           console.log(JSON.stringify(doc, null, 2));
         } else if (fmt === 'json') {
-          // 无策略时输出与旧版完全一致(不含 suppressed 字段)
-          // 有策略时 findings 附带 suppressed 字段,方便 CI 脚本识别
-          const findings = policyActive
-            ? applyPolicyToFindings(report.findings, policy)
+          // 无策略且无基线时,输出与旧版完全一致(不含 suppressed/baselined 字段)
+          const findings = (policyActive || baselineActive)
+            ? applyPolicyAndBaselineToFindings(report.findings, policy, baselinedFingerprints)
             : report.findings;
 
           // --fix + json:先跑引导修复(dry-run 或 apply),再把摘要嵌入 JSON 对象一次性输出。
@@ -603,9 +702,10 @@ export function registerAuditCommand(program: Command): void {
             console.log(JSON.stringify({ path, ...report, findings }, null, 2));
           }
         } else {
-          console.log(formatAuditReport(path, report));
+          // human 格式:基线化的 finding 用括号标注
+          console.log(formatAuditReport(path, report, baselinedFingerprints));
         }
-        if (shouldBlockWithPolicy(report, policy)) process.exitCode = 1;
+        if (shouldBlockWithPolicy(report, policy, baselinedFingerprints)) process.exitCode = 1;
 
         // --fix human 格式:打印人类可读差异预览/应用报告(原有行为不变)
         // json 格式已在上方 json 块中处理;sarif 格式 --fix 无输出。
@@ -627,13 +727,31 @@ export function registerAuditCommand(program: Command): void {
       const home = resolveHomeRoot(optionHome ?? command.parent?.opts<{ home?: string }>().home);
       const report = await auditHome(home, { includeConfigs: options.configs === true });
 
+      // ── --write-baseline(home 模式):合并所有 skill + config findings 后写出 ──
+      if (writeBaselinePath !== undefined) {
+        const allFindings: AuditFinding[] = [
+          ...report.skills.flatMap((s) => s.findings),
+          ...(report.configs ? flattenConfigFindings(report.configs) : []),
+        ];
+        const baseline = buildBaselineFile(allFindings);
+        try {
+          await writeBaselineFile(writeBaselinePath, baseline);
+        } catch (err) {
+          process.stderr.write(`audit: 无法写入基线文件 ${writeBaselinePath}: ${(err as Error).message}\n`);
+          process.exitCode = 1;
+          return;
+        }
+        process.stdout.write(`audit: 已写入基线 ${writeBaselinePath}(${baseline.fingerprints.length} 条 finding)\n`);
+        return; // exit 0
+      }
+
       if (fmt === 'sarif') {
         // home 全量模式:合并所有 skill findings(+ configs findings)后序列化
         const allFindings: AuditFinding[] = [
           ...report.skills.flatMap((s) => s.findings),
           ...(report.configs ? flattenConfigFindings(report.configs) : []),
         ];
-        const doc = toSarifDocument(allFindings, readVersion(), policy.suppressedRuleIds);
+        const doc = toSarifDocument(allFindings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
         console.log(JSON.stringify(doc, null, 2));
       } else if (fmt === 'json') {
         // --fix + json:对每个 skill 跑引导修复(dry-run 或 apply),结果嵌入对应 skill 的 guidedFix 字段。
@@ -649,37 +767,37 @@ export function registerAuditCommand(program: Command): void {
                 configFindings: skillConfigFindings,
                 apply: doApply,
               });
-              const base = policyActive
+              const base = (policyActive || baselineActive)
                 ? {
                     ...skill,
-                    findings: applyPolicyToFindings(skill.findings, policy),
-                    blocked: shouldBlockWithPolicy(skill, policy),
+                    findings: applyPolicyAndBaselineToFindings(skill.findings, policy, baselinedFingerprints),
+                    blocked: shouldBlockWithPolicy(skill, policy, baselinedFingerprints),
                   }
                 : skill;
               return { ...base, guidedFix: serializeGuidedFix(summary, doApply) };
             }),
           );
           console.log(JSON.stringify({ ...report, skills: skillsWithFix }, null, 2));
-        } else if (policyActive) {
-          // 有策略:每个 skill 的 findings 附带 suppressed 字段,blocked 按策略重算
-          const reportWithSuppressed = {
+        } else if (policyActive || baselineActive) {
+          // 有策略或基线:每个 skill 的 findings 附带 suppressed/baselined 字段,blocked 按策略+基线重算
+          const reportWithAnnotations = {
             ...report,
             skills: report.skills.map((skill) => ({
               ...skill,
-              findings: applyPolicyToFindings(skill.findings, policy),
-              blocked: shouldBlockWithPolicy(skill, policy),
+              findings: applyPolicyAndBaselineToFindings(skill.findings, policy, baselinedFingerprints),
+              blocked: shouldBlockWithPolicy(skill, policy, baselinedFingerprints),
             })),
           };
-          console.log(JSON.stringify(reportWithSuppressed, null, 2));
+          console.log(JSON.stringify(reportWithAnnotations, null, 2));
         } else {
-          // 无策略:输出与旧版完全一致
+          // 无策略且无基线:输出与旧版完全一致
           console.log(JSON.stringify(report, null, 2));
         }
       } else {
-        console.log(formatAuditHomeTable(report));
+        console.log(formatAuditHomeTable(report, baselinedFingerprints));
       }
 
-      const skillsBlocked = report.skills.some((skill) => shouldBlockWithPolicy(skill, policy));
+      const skillsBlocked = report.skills.some((skill) => shouldBlockWithPolicy(skill, policy, baselinedFingerprints));
       const configBlocked = report.configsBlocked === true;
       if (skillsBlocked || configBlocked) process.exitCode = 1;
 
