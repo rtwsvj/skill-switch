@@ -40,6 +40,7 @@ import {
   BaselineFileError,
 } from '../../core/audit/baseline.ts';
 import { runGuidedFix, type GuidedFixSummary } from '../../core/audit/guided-fix.ts';
+import { toGithubAnnotations } from '../../core/audit/github-annotations.ts';
 import { toSarifDocument } from '../../core/audit/sarif.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
 import type { AuditFinding, Severity } from '../../core/audit/types.ts';
@@ -554,10 +555,11 @@ export function serializeGuidedFix(
 }
 
 // 解析最终输出格式:--format 优先;若无 --format 但有 --json 则等价于 json。
-type OutputFormat = 'human' | 'json' | 'sarif';
+type OutputFormat = 'human' | 'json' | 'sarif' | 'github';
 
 function resolveFormat(options: { format?: string; json?: boolean }): OutputFormat {
   if (options.format === 'sarif') return 'sarif';
+  if (options.format === 'github') return 'github';
   if (options.format === 'json' || options.json === true) return 'json';
   return 'human';
 }
@@ -591,7 +593,7 @@ export function registerAuditCommand(program: Command): void {
     .argument('[path]', 'skill 目录或 SKILL.md 路径;省略时扫描 --home 下全部已装 skill')
     .option('--home [dir]', '启用 home 全量模式;可选覆盖 home 根目录(默认取系统 home)')
     .option('--json', '机器可读 JSON 输出(等价于 --format json;保留向后兼容)')
-    .option('--format <fmt>', '输出格式:human(默认)/ json / sarif', 'human')
+    .option('--format <fmt>', '输出格式:human(默认)/ json / sarif / github', 'human')
     .option('--configs', '同时审查 home 下的 agent 配置文件(settings.json / MCP 等)')
     .option('--policy <path>', '指定策略文件路径(默认: ./.skill-switch-policy.json)')
     .option('--no-policy', '忽略策略文件,使用默认阻断行为(等同于无策略文件)')
@@ -680,6 +682,12 @@ export function registerAuditCommand(program: Command): void {
           // --fix 对 SARIF 输出无影响;机器消费者通过 --format json 取修复信息。
           const doc = toSarifDocument(report.findings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
           console.log(JSON.stringify(doc, null, 2));
+        } else if (fmt === 'github') {
+          // GitHub Actions 注解模式:每条 finding 输出一行工作流注解命令。
+          // 被抑制/已基线化的 finding 输出为 ::notice,不触发阻断。
+          // --fix 对 github 格式输出无影响(同 sarif)。
+          const findings = applyPolicyAndBaselineToFindings(report.findings, policy, baselinedFingerprints);
+          console.log(toGithubAnnotations(findings));
         } else if (fmt === 'json') {
           // 无策略且无基线时,输出与旧版完全一致(不含 suppressed/baselined 字段)
           const findings = (policyActive || baselineActive)
@@ -753,6 +761,15 @@ export function registerAuditCommand(program: Command): void {
         ];
         const doc = toSarifDocument(allFindings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
         console.log(JSON.stringify(doc, null, 2));
+      } else if (fmt === 'github') {
+        // GitHub Actions 注解模式(home 全量):合并所有 skill + config findings 后输出注解。
+        // 被抑制/已基线化的 finding 输出为 ::notice,不触发阻断。
+        const allFindings: AuditFinding[] = [
+          ...report.skills.flatMap((s) => s.findings),
+          ...(report.configs ? flattenConfigFindings(report.configs) : []),
+        ];
+        const annotatedFindings = applyPolicyAndBaselineToFindings(allFindings, policy, baselinedFingerprints);
+        console.log(toGithubAnnotations(annotatedFindings));
       } else if (fmt === 'json') {
         // --fix + json:对每个 skill 跑引导修复(dry-run 或 apply),结果嵌入对应 skill 的 guidedFix 字段。
         // 无 --fix 时:不含任何 guidedFix 键,与旧版逐字节一致。

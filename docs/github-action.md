@@ -39,7 +39,7 @@ SARIF 也会出现在仓库的 **Security → Code scanning** 里。
 | `args` | `--configs` | 传给 `skill-switch audit` 的额外参数 |
 | `version` | `latest` | 使用的 npm 版本;生产建议 pin(如 `0.6.0`) |
 | `node-version` | `20` | 运行所用 Node 版本 |
-| `format` | `sarif` | `human` / `json` / `sarif` |
+| `format` | `sarif` | `human` / `json` / `sarif` / `github` |
 | `output` | `skill-switch.sarif` | 输出文件(sarif 时用于上传) |
 | `upload-sarif` | `true` | 是否上传到 code-scanning(仅 sarif) |
 | `fail-on-findings` | `true` | 命中阻断级问题时是否让步骤失败 |
@@ -55,6 +55,39 @@ SARIF 也会出现在仓库的 **Security → Code scanning** 里。
         with:
           fail-on-findings: 'false'
 ```
+
+## PR 内联注解(`--format github`)
+
+`format: github` 会让 skill-switch 直接把每条 finding 输出为 GitHub Actions
+[工作流注解命令](https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions)。
+GitHub Actions 运行器自动把这些注解内联显示在 PR diff 对应行上,无需 `security-events: write` 权限,无需 code-scanning 设置:
+
+```yaml
+name: skill-switch audit (inline annotations)
+on: [pull_request]
+
+permissions:
+  contents: read   # 无需 security-events: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rtwsvj/skill-switch@v0.7.2
+        with:
+          format: github
+          args: --configs
+```
+
+注解级别映射:
+- `critical` / `high` → `::error`(显示为 PR 检查失败项)
+- `medium` / `low` → `::warning`(建议级,不阻断)
+- 已被策略抑制或已基线化 → `::notice`(不阻断,仅告知)
+
+末尾自动追加一行汇总 `::notice::skill-switch: N blocking, M advisory, K baselined`。
+
+> 提示:同时需要 code-scanning 归档时可继续用 `format: sarif`(默认)。两种格式可在不同步骤里并用。
 
 ## 配项目级策略
 
