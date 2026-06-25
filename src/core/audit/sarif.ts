@@ -5,6 +5,7 @@
 //         suppressions 数组,让 GitHub code-scanning 将其显示为 suppressed。
 
 import type { AuditFinding, Severity } from './types.ts';
+import { fingerprintFinding } from './baseline.ts';
 
 // ── SARIF level 映射 ─────────────────────────────────────────────────────────
 // critical/high → error;medium → warning;low/info → note
@@ -84,14 +85,16 @@ export interface SarifDocument {
 
 // ── 导出:将 findings 列表序列化为 SARIF 2.1.0 文档 ─────────────────────────
 /**
- * @param findings           audit 引擎产出的 finding 列表(可为空数组 → zero-result 合法文档)
- * @param toolVersion        package.json 版本号,由调用方同步读取后传入
- * @param suppressedRuleIds  被策略文件抑制的 ruleId 集合;命中的 result 写入 suppressions 字段
+ * @param findings                audit 引擎产出的 finding 列表(可为空数组 → zero-result 合法文档)
+ * @param toolVersion             package.json 版本号,由调用方同步读取后传入
+ * @param suppressedRuleIds       被策略文件抑制的 ruleId 集合;命中的 result 写入 suppressions 字段
+ * @param baselinedFingerprints   已基线化的指纹集合;命中的 result 同样写入 suppressions 字段
  */
 export function toSarifDocument(
   findings: AuditFinding[],
   toolVersion: string,
   suppressedRuleIds: ReadonlySet<string> = new Set(),
+  baselinedFingerprints: ReadonlySet<string> = new Set(),
 ): SarifDocument {
   // 构建 rules[]:从 findings 中去重 ruleId,每条取其第一次出现时的 severity
   const seenRules = new Map<string, 'error' | 'warning' | 'note'>();
@@ -105,6 +108,9 @@ export function toSarifDocument(
     id,
     defaultConfiguration: { level },
   }));
+
+  // fingerprint 仅在 baselinedFingerprints 非空时才计算(零开销 fast-path)。
+  const needsBaseline = baselinedFingerprints.size > 0;
 
   const results: SarifResult[] = findings.map((f) => {
     const result: SarifResult = {
@@ -122,7 +128,10 @@ export function toSarifDocument(
       ],
     };
     // 被策略文件抑制的 finding → 写入 suppressions 数组(SARIF §3.27.24)
-    if (suppressedRuleIds.has(f.ruleId)) {
+    // 已基线化的 finding → 同样写入 suppressions(kind:'external')
+    const isSuppressed = suppressedRuleIds.has(f.ruleId);
+    const isBaselined = needsBaseline && baselinedFingerprints.has(fingerprintFinding(f));
+    if (isSuppressed || isBaselined) {
       result.suppressions = [{ kind: 'external' }];
     }
     return result;
