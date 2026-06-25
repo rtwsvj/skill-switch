@@ -1,8 +1,8 @@
 {
   "name": "@rtwsvj/skill-switch",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "type": "module",
-  "description": "跨 Agent skill 治理 CLI:盘点、安全体检、锁定、开关、lint、漂移与使用统计",
+  "description": "Security audit for AI agent skills & MCP configs (reverse shells, exfiltration, dangerous MCP servers, hardcoded secrets) → SARIF/code-scanning; plus cross-agent skill governance for Claude Code, Cursor, Gemini CLI, Windsurf, Zed.",
   "license": "MIT",
   "author": "rtwsvj",
   "homepage": "https://github.com/rtwsvj/skill-switch#readme",

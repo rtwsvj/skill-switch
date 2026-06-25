@@ -5,6 +5,17 @@
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-06-25
+
+分发与定位:CLI 正式发布到公共 npm,新增可复用 GitHub Action,README 重定位为安全审计。CLI/审计行为与 v0.6.0 一致。
+
+### 新增 Added
+- **发布到公共 npm**:`npx @rtwsvj/skill-switch audit` 即可在任意项目/CI 里运行,无需装桌面 App(命令名仍是 `skill-switch`)。
+- **可复用 GitHub Action**(`action.yml`):composite action,`setup-node → npx @rtwsvj/skill-switch audit --format sarif → 上传 GitHub code-scanning → 命中阻断级问题即 fail`,8 个可配输入(`path`/`args`/`version`/`format`/`upload-sarif`/`fail-on-findings` 等)。用法见 `docs/github-action.md`。
+
+### 变更 Changed
+- README(中/英)重定位:第一屏从「skill 治理台」改为「AI agent skills 与 MCP 配置的安全审计器」,突出 audit / SARIF / 策略 / 修复 的差异化;npm 包 `description` 同步。
+
 ## [0.6.0] — 2026-06-25
 
 v0.6 在 v0.5「团队与 CI 集成」基础上深化审计:更多静态 MCP 凭据暴露检查、修复建议可被 CI 程序化消费,并以端到端 CLI 集成测试锁定全部审计行为。纯增量,无破坏性变更。

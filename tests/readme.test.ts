@@ -49,14 +49,15 @@ describe('README', () => {
       '装前快照',
       '确认 + 快照 + audit',
       'install/toggle/sync/remove/restore',
-      'v0.4.0',
       'clone + run',
       'pnpm release',
       'Node SEA sidecar',
-      'skill-switch_0.4.0_aarch64.dmg',
     ]) {
       expect(readme).toContain(required);
     }
+    // 版本号 / DMG 文件名用模式匹配,避免每次发版都要改测试(原先硬编码 v0.4.0 很脆)
+    expect(readme).toMatch(/状态:\*\*v\d+\.\d+\.\d+\*\*/);
+    expect(readme).toMatch(/skill-switch_\d+\.\d+\.\d+_aarch64\.dmg/);
     expect(readme).not.toContain('只读白名单');
     expect(readme).not.toContain('read-only dashboard sidecar');
   });

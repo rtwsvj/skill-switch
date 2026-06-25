@@ -19,7 +19,7 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 在审计之上,它还是个**跨 agent 的 skill 治理层**:盘点 / 开关 / 安装 / 同步 / 回滚——所有写操作**先自动备份、可一键回滚**,危险 skill 装前即被拦。**命令行(CLI)** 与**桌面 App(GUI)** 两种用法,能力对等。
 
-> 状态:**v0.6.0**。CLI 已发布 npm(`npx @rtwsvj/skill-switch`);macOS 桌面 App 已 Developer ID 签名 + Apple 公证,双击即用。
+> 状态:**v0.6.1**。CLI 已发布 npm(`npx @rtwsvj/skill-switch`);macOS 桌面 App 已 Developer ID 签名 + Apple 公证,双击即用。
 
 ![demo](assets/demo.svg)
 
@@ -33,7 +33,7 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 ## 安装(macOS,Apple Silicon)
 
-1. 双击 `skill-switch_0.4.0_aarch64.dmg`,把 **skill-switch** 拖进「应用程序」。
+1. 双击 `skill-switch_0.6.1_aarch64.dmg`,把 **skill-switch** 拖进「应用程序」。
 2. 首次打开:双击图标 → 出现「下载自互联网,确认打开吗」点**打开**(已签名公证,不会被 Gatekeeper 拦)。
 3. 默认中文界面,右上角可切语言(见下)。
 
@@ -143,7 +143,7 @@ pnpm --dir gui tauri dev                 # 本地起 GUI
 pnpm release                             # 一键产出 .app / .dmg(不签名)
 ```
 
-`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.4.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
+`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.6.1_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
 
 签名 + 公证(需 Developer ID,见 [docs/release/signing.md](docs/release/signing.md)):
 

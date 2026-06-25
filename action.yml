@@ -9,7 +9,7 @@
 #     contents: read
 #   steps:
 #     - uses: actions/checkout@v4
-#     - uses: rtwsvj/skill-switch@v0.6.0
+#     - uses: rtwsvj/skill-switch@v0.6.1
 #       with:
 #         path: .
 #         args: --configs
