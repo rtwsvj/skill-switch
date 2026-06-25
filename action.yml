@@ -39,7 +39,7 @@ inputs:
     required: false
     default: '20'
   format:
-    description: '输出格式:human | json | sarif'
+    description: '输出格式:human | json | sarif | github。github 格式直接输出 Actions 工作流注解(无需 code-scanning 权限,findings 立即内联显示在 PR diff 上)。'
     required: false
     default: 'sarif'
   output:
@@ -70,13 +70,20 @@ runs:
       shell: bash
       run: |
         set +e
-        npx -y "@rtwsvj/skill-switch@${{ inputs.version }}" audit "${{ inputs.path }}" \
-          --format "${{ inputs.format }}" ${{ inputs.args }} > "${{ inputs.output }}"
-        code=$?
+        if [ "${{ inputs.format }}" = "github" ]; then
+          # github 格式:注解直接写到 stdout,GitHub Actions 自动解析并内联到 PR diff,无需上传。
+          npx -y "@rtwsvj/skill-switch@${{ inputs.version }}" audit "${{ inputs.path }}" \
+            --format github ${{ inputs.args }}
+          code=$?
+        else
+          npx -y "@rtwsvj/skill-switch@${{ inputs.version }}" audit "${{ inputs.path }}" \
+            --format "${{ inputs.format }}" ${{ inputs.args }} > "${{ inputs.output }}"
+          code=$?
+          # 非 sarif 格式直接回显到日志,方便人看
+          if [ "${{ inputs.format }}" != "sarif" ]; then cat "${{ inputs.output }}"; fi
+        fi
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
         echo "skill-switch audit 退出码: $code"
-        # 非 sarif 格式直接回显到日志,方便人看
-        if [ "${{ inputs.format }}" != "sarif" ]; then cat "${{ inputs.output }}"; fi
     - name: Upload SARIF to code-scanning
       if: ${{ inputs.format == 'sarif' && inputs.upload-sarif == 'true' }}
       uses: github/codeql-action/upload-sarif@v3
