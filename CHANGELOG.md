@@ -5,6 +5,9 @@
 
 ## [Unreleased]
 
+### 新增 Added
+- **`audit` 基线模式**(让审计在已有仓库的 CI 里能落地):`--write-baseline <file>` 把当前所有 finding 存成基线;`--baseline <file>` 之后只对**新增** finding 失败(基线内的仍在输出里、标 `baselined`,但不计入退出码)。指纹基于 `ruleId + 相对路径 + 规范化 excerpt`(**不含行号**,故插入/移动代码行不会让既有 finding 误判为新增)。与 `--policy`/`suppress`、`--format`(json 加 `baselined` 字段、sarif 走 `suppressions`)、`--configs` 组合;基线文件缺失/损坏 → 友好报错。无基线标志时行为、输出、退出码与旧版逐字节一致。
+
 ## [0.6.1] — 2026-06-25
 
 分发与定位:CLI 正式发布到公共 npm,新增可复用 GitHub Action,README 重定位为安全审计。CLI/审计行为与 v0.6.0 一致。
