@@ -154,6 +154,7 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui
 ## 更多文档
 
 - [CHANGELOG.md](./CHANGELOG.md):版本变更。
+- [docs/rules.md](./docs/rules.md):审计规则目录——所有 ruleId、严重度与一句话说明（81 条规则，按威胁类别分组）。
 - [docs/roadmap.md](./docs/roadmap.md):路线图——近期加固、中期功能、远期探索。
 - [docs/troubleshooting.md](./docs/troubleshooting.md):常见问题与解决方法（Gatekeeper、CLI 路径、audit 拦截、doctor 漂移、备份还原、卸载）。
 - [docs/architecture.md](./docs/architecture.md):贡献者架构概述——核心模块、CLI 层、GUI、vendored 快照与数据模型。

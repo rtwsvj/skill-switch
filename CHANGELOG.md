@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### 新增 Added
+- **规则目录 `docs/rules.md`**:列出 audit 可 emit 的全部 81 条 ruleId，按威胁类别分组，含严重度与一句话说明；`tests/rules-doc.test.ts` 同步检查——新增 ruleId 若未更新文档测试即报错。
 - **`audit --format github`**:直接输出 GitHub Actions 工作流注解命令,无需 `security-events: write` 权限或 code-scanning 设置,即可把每条 finding **内联显示在 PR diff** 对应行上。critical/high → `::error`、medium/low → `::warning`、已抑制/已基线化 → `::notice`,末尾附汇总行。退出码与其它格式一致(格式只改 stdout,不改阻断决策);可与 `--baseline`/`--policy`/`--configs` 组合。GitHub Action 新增 `format: github` 选项。
 - **`audit` 基线模式**(让审计在已有仓库的 CI 里能落地):`--write-baseline <file>` 把当前所有 finding 存成基线;`--baseline <file>` 之后只对**新增** finding 失败(基线内的仍在输出里、标 `baselined`,但不计入退出码)。指纹基于 `ruleId + 相对路径 + 规范化 excerpt`(**不含行号**,故插入/移动代码行不会让既有 finding 误判为新增)。与 `--policy`/`suppress`、`--format`(json 加 `baselined` 字段、sarif 走 `suppressions`)、`--configs` 组合;基线文件缺失/损坏 → 友好报错。无基线标志时行为、输出、退出码与旧版逐字节一致。
 
