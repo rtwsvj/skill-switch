@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rtwsvj/skill-switch@v0.7.2
+      - uses: rtwsvj/skill-switch@main   # github 格式:v0.7.0 发布后可 pin 该 tag
         with:
           format: github
           args: --configs
