@@ -18,6 +18,14 @@
 //   --write-baseline <path>  将当前所有 finding 的指纹写入基线文件,exit 0。
 //   --baseline <path>        加载基线;已基线化的 finding 不计入退出码(仍出现在输出中)。
 //   两者同时使用时,--write-baseline 优先(写入当前状态)。
+//
+// v0.8-1:新增 MCP 配置漂移检测(仅在 --configs 时生效)。
+//   --write-mcp-baseline <path>  把当前发现的 MCP server 指纹写入基线文件,exit 0。
+//   --mcp-baseline <path>        与基线对比:command/args/url 变化 → mcp/server-config-changed (high);
+//                                 新出现 server → mcp/server-added (medium);移除不产生 finding。
+//   两个标志必须配合 --configs 使用;单独使用会产生友好错误。
+//   写入时:--write-mcp-baseline 优先,写完 exit 0,不再继续常规审计流程。
+//   对比时:drift finding 与其它 config finding 走同一输出/退出码路径。
 import { readFileSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative } from 'node:path';
@@ -25,7 +33,7 @@ import { fileURLToPath } from 'node:url';
 import type { Command } from 'commander';
 import { allFileRules, allRules } from '../../../rules/index.ts';
 import { auditContents, type AuditReport, type AuditTarget } from '../../core/audit/engine.ts';
-import { auditConfigFiles, flattenConfigFindings, type ConfigFileResult } from '../../core/audit/config-discovery.ts';
+import { auditConfigFiles, flattenConfigFindings, readMcpConfigsRaw, type ConfigFileResult } from '../../core/audit/config-discovery.ts';
 import {
   loadPolicyFile,
   PolicyFileError,
@@ -39,6 +47,14 @@ import {
   writeBaselineFile,
   BaselineFileError,
 } from '../../core/audit/baseline.ts';
+import {
+  fingerprintMcpServersFromRaw,
+  writeMcpBaseline,
+  loadMcpBaseline,
+  diffMcpBaseline,
+  mcpDiffToFindings,
+  McpBaselineError,
+} from '../../core/audit/mcp-baseline.ts';
 import { runGuidedFix, type GuidedFixSummary } from '../../core/audit/guided-fix.ts';
 import { toGithubAnnotations } from '../../core/audit/github-annotations.ts';
 import { toSarifDocument } from '../../core/audit/sarif.ts';
@@ -601,6 +617,8 @@ export function registerAuditCommand(program: Command): void {
     .option('--apply', '与 --fix 搭配:实际写盘修复,并自动生成 .skill-switch.bak 备份(已存在则不覆盖)。单独使用无效。')
     .option('--write-baseline <path>', '将当前所有 finding 的指纹写入基线文件,exit 0(与 --baseline 同时使用时本标志优先)')
     .option('--baseline <path>', '加载基线文件;已基线化的 finding 不影响退出码(仍出现在输出中)')
+    .option('--write-mcp-baseline <path>', '将当前发现的 MCP server 指纹写入 MCP 漂移基线文件,exit 0(须配合 --configs)')
+    .option('--mcp-baseline <path>', '与 MCP 漂移基线对比;command/args/url 变化 → mcp/server-config-changed;新 server → mcp/server-added(须配合 --configs)')
     .action(async (
       path: string | undefined,
       options: {
@@ -613,6 +631,8 @@ export function registerAuditCommand(program: Command): void {
         apply?: boolean;
         writeBaseline?: string;
         baseline?: string;
+        writeMcpBaseline?: string;
+        mcpBaseline?: string;
         // commander 将 --no-policy 映射为 options.policy === false
         // 但类型里用 noPolicy 更清晰;实际通过 options['policy'] 判断
       },
@@ -658,6 +678,23 @@ export function registerAuditCommand(program: Command): void {
           throw err;
         }
       }
+
+      // ── --write-mcp-baseline / --mcp-baseline 前置校验 ───────────────────────
+      // 这两个标志仅在 --configs 时有意义(MCP server 来自 config 文件发现);
+      // 单独使用时给出友好错误,而非静默无效。
+      const writeMcpBaselinePath = options.writeMcpBaseline;
+      const mcpBaselinePath = options.mcpBaseline;
+      const hasMcpBaselineFlag = writeMcpBaselinePath !== undefined || mcpBaselinePath !== undefined;
+      if (hasMcpBaselineFlag && options.configs !== true) {
+        process.stderr.write(
+          `audit: --write-mcp-baseline / --mcp-baseline 须配合 --configs 使用\n` +
+          `  示例: skill-switch audit --configs --mcp-baseline mcp-baseline.json\n`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      // 若同时指定两者,--write-mcp-baseline 优先(写出后 exit 0;不再对比)
+      const mcpBaselineCompareActive = mcpBaselinePath !== undefined && writeMcpBaselinePath === undefined;
 
       if (path) {
         const report = await auditSkillDir(path);
@@ -734,6 +771,61 @@ export function registerAuditCommand(program: Command): void {
       const optionHome = typeof options.home === 'string' ? options.home : undefined;
       const home = resolveHomeRoot(optionHome ?? command.parent?.opts<{ home?: string }>().home);
       const report = await auditHome(home, { includeConfigs: options.configs === true });
+
+      // ── --write-mcp-baseline:写出 MCP server 指纹基线,exit 0 ─────────────────
+      if (writeMcpBaselinePath !== undefined) {
+        const rawMcpContents = await readMcpConfigsRaw(home);
+        const fp = fingerprintMcpServersFromRaw(rawMcpContents);
+        try {
+          await writeMcpBaseline(writeMcpBaselinePath, fp);
+        } catch (err) {
+          process.stderr.write(`audit: 无法写入 MCP 基线文件 ${writeMcpBaselinePath}: ${(err as Error).message}\n`);
+          process.exitCode = 1;
+          return;
+        }
+        process.stdout.write(`audit: 已写入 MCP 漂移基线 ${writeMcpBaselinePath}(${fp.size} 个 server)\n`);
+        return; // exit 0
+      }
+
+      // ── --mcp-baseline:对比当前 MCP server 与基线,将漂移 finding 注入 configs ──
+      if (mcpBaselineCompareActive) {
+        let mcpBaselineMap: Map<string, string>;
+        try {
+          mcpBaselineMap = await loadMcpBaseline(mcpBaselinePath!);
+        } catch (err) {
+          if (err instanceof McpBaselineError) {
+            process.stderr.write(`audit: MCP 基线文件错误 — ${err.message}\n`);
+            process.exitCode = 1;
+            return;
+          }
+          throw err;
+        }
+        const rawMcpContents = await readMcpConfigsRaw(home);
+        const currentFp = fingerprintMcpServersFromRaw(rawMcpContents);
+        const diff = diffMcpBaseline(currentFp, mcpBaselineMap);
+        const driftFindings = mcpDiffToFindings(diff);
+        // 将漂移 finding 注入到第一个 config 结果(或创建一条虚拟结果),
+        // 以便与其它 config finding 走同一输出/退出码路径。
+        if (driftFindings.length > 0 && report.configs !== undefined) {
+          // 追加到 configs 列表中的虚拟条目(file 字段已在 mcpDiffToFindings 中正确设置)
+          report.configs.push({
+            absPath: '',
+            relPath: 'mcp-drift',
+            findings: driftFindings,
+          });
+          // 同步更新 configsBlocked:使用 shouldBlockWithPolicy 确保 --policy suppress 生效。
+          // score:100(虚拟值,不影响阻断判定)
+          const failOnRank = SEVERITY_RANK[policy.failOn];
+          const driftBlocked = driftFindings.some(
+            (f) =>
+              !policy.suppressedRuleIds.has(f.ruleId) &&
+              !baselinedFingerprints.has(fingerprintFinding(f)) &&
+              SEVERITY_RANK[f.severity] <= failOnRank,
+          );
+          (report as { configsBlocked?: boolean }).configsBlocked =
+            (report.configsBlocked === true) || driftBlocked;
+        }
+      }
 
       // ── --write-baseline(home 模式):合并所有 skill + config findings 后写出 ──
       if (writeBaselinePath !== undefined) {

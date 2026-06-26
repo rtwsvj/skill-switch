@@ -81,6 +81,7 @@ function collectInlineRuleIds(): Set<string> {
   const filesToScan = [
     join(ROOT, 'src/core/audit/mcp-audit.ts'),
     join(ROOT, 'src/core/audit/settings-audit.ts'),
+    join(ROOT, 'src/core/audit/mcp-baseline.ts'),
   ];
   for (const f of filesToScan) {
     for (const id of scanSourceFileForRuleIds(f)) {
