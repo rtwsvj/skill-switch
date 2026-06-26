@@ -647,7 +647,7 @@ export function registerAuditCommand(program: Command): void {
       let policyActive: boolean;
       try {
         // commander 的 --no-policy 会把 options.policy 置为 false(boolean)
-        const noPolicyFlag = (options as Record<string, unknown>)['policy'] === false;
+        const noPolicyFlag = (options as Record<string, unknown>).policy === false;
         ({ policy, policyActive } = await resolvePolicy({
           noPolicy: noPolicyFlag,
           policy: typeof options.policy === 'string' ? options.policy : undefined,

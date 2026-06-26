@@ -79,9 +79,9 @@ export function validatePolicyFile(raw: unknown, filePath: string): PolicyFile {
 
   // failOn 校验
   if ('failOn' in obj) {
-    if (typeof obj['failOn'] !== 'string' || !VALID_FAIL_ON.has(obj['failOn'] as string)) {
+    if (typeof obj.failOn !== 'string' || !VALID_FAIL_ON.has(obj.failOn as string)) {
       throw new PolicyFileError(
-        `策略文件 failOn 值非法:"${String(obj['failOn'])}";合法值为 critical | high | medium | low`,
+        `策略文件 failOn 值非法:"${String(obj.failOn)}";合法值为 critical | high | medium | low`,
         filePath,
       );
     }
@@ -89,22 +89,22 @@ export function validatePolicyFile(raw: unknown, filePath: string): PolicyFile {
 
   // suppress 校验
   if ('suppress' in obj) {
-    if (!Array.isArray(obj['suppress'])) {
+    if (!Array.isArray(obj.suppress)) {
       throw new PolicyFileError('策略文件 suppress 必须是数组', filePath);
     }
-    for (let i = 0; i < (obj['suppress'] as unknown[]).length; i++) {
-      const entry = (obj['suppress'] as unknown[])[i];
+    for (let i = 0; i < (obj.suppress as unknown[]).length; i++) {
+      const entry = (obj.suppress as unknown[])[i];
       if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
         throw new PolicyFileError(`策略文件 suppress[${i}] 必须是对象`, filePath);
       }
       const e = entry as Record<string, unknown>;
-      if (typeof e['ruleId'] !== 'string' || e['ruleId'].length === 0) {
+      if (typeof e.ruleId !== 'string' || e.ruleId.length === 0) {
         throw new PolicyFileError(
           `策略文件 suppress[${i}].ruleId 必须是非空字符串`,
           filePath,
         );
       }
-      if ('reason' in e && typeof e['reason'] !== 'string') {
+      if ('reason' in e && typeof e.reason !== 'string') {
         throw new PolicyFileError(
           `策略文件 suppress[${i}].reason 若存在必须是字符串`,
           filePath,
