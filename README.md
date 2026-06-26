@@ -71,6 +71,7 @@ skill-switch --help
 | `scan` | 盘点各工具已装的 skill(只读;坏样本以 `error` 字段呈现)。 | `skill-switch scan` |
 | `init` | 扫描已安装 skill,草拟 `skills.json` 初始声明(已存在则跳过,`--force` 覆盖,`--dry-run` 只看草稿)。 | `skill-switch init --dry-run` |
 | `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。`--format human`(默认)`/json/sarif`(SARIF 2.1.0 接 GitHub code-scanning)。`--configs` 检查 Claude Code、Gemini CLI、Cursor、VS Code、Windsurf、Zed 的 settings/MCP 配置。`.skill-switch-policy.json`(或 `--policy`)可设 `failOn` 阈值 + `suppress` 抑制。`--fix` 预览受控修复、`--fix --apply` 落盘(先备份)。 | `skill-switch audit ./my-skill --format sarif` |
+| `ci` | 一键生成 GitHub Actions 工作流(`.github/workflows/skill-switch.yml`),接入 skill-switch CI 审计。`--format sarif`(默认,上传 code-scanning)或 `--format github`(PR 内联注解);`--pin <ref>` 固定 action 版本;`--baseline` 同时写入 finding 基线让 CI 只报新问题;`--force` 覆盖已有文件。 | `skill-switch ci --format github --baseline` |
 | `install` | 安装本地或 git 来源:装前 audit + 装前快照,写 lock 与声明。 | `skill-switch install ./my-skills --agent claude-code` |
 | `toggle` | 按声明开关单个 skill(同步前自动快照)。 | `skill-switch toggle tidy-notes --off` |
 | `sync` | 把声明应用到磁盘(`--dry-run` 只看计划)。 | `skill-switch sync --dry-run` |
