@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+- **`audit --configs --write-mcp-baseline <file>` / `--mcp-baseline <file>` — MCP 配置漂移检测**:把当前发现的 MCP server 身份（command/args/url/env key 名/header key 名）做 sha256 快照;后续 `--mcp-baseline` 与快照对比——command/args/url 变化 → `mcp/server-config-changed`（high，默认阻断 CI，可能是 rug-pull 或被篡改）；新出现 server → `mcp/server-added`（medium，告警）；移除 server 不产生 finding。secret VALUE 永不进入基线文件（仅存 env/header KEY 名），secret 安全有测试断言。与 `--policy` suppress、`--baseline`、`--format`（json/sarif/github）完整组合；须配合 `--configs` 使用，单独使用产生友好错误。纯静态，无 spawn/网络/新依赖。
+
 ## [0.7.0] — 2026-06-25
 
 v0.7「让审计在真实 CI 里留得下来」——把刚上线的 GitHub Action 从"试一次"变成"团队长期留用"。三件直击安全工具的采用卡点:加进已有仓库不被一墙历史报错劝退(baseline)、findings 直接标在 PR diff 上(`--format github`)、看得清到底查什么(规则目录)。纯增量,CLI/审计行为与 v0.6.x 一致。
