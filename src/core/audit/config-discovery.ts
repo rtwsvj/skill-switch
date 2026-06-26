@@ -166,3 +166,31 @@ export async function readMcpConfigsRaw(home: string): Promise<Map<string, strin
 
   return result;
 }
+
+/**
+ * 读取 home 下所有 kind='settings' 的配置文件原始内容,返回 Map<relPath, rawContent>。
+ * 文件不存在或不可读则静默跳过;符号链接跳过(与 auditConfigFiles 保持一致)。
+ * 供 settings 漂移检测(fingerprintSettingsFilesFromRaw)使用。
+ */
+export async function readSettingsConfigsRaw(home: string): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+
+  for (const descriptor of KNOWN_CONFIGS) {
+    if (descriptor.kind !== 'settings') continue;
+    const absPath = join(home, descriptor.relPath);
+    try {
+      const st = await lstat(absPath);
+      if (st.isSymbolicLink()) continue;
+    } catch {
+      continue;
+    }
+    try {
+      const content = await readFile(absPath, 'utf8');
+      result.set(descriptor.relPath, content);
+    } catch {
+      // 不可读 — 跳过
+    }
+  }
+
+  return result;
+}
