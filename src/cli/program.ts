@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { registerAuditCommand } from './commands/audit.ts';
+import { registerCiCommand } from './commands/ci.ts';
 import { registerDiffCommand } from './commands/diff.ts';
 import { registerDoctorCommand } from './commands/doctor.ts';
 import { registerDriftCommand } from './commands/drift.ts';
@@ -45,6 +46,7 @@ export function buildProgram(): Command {
   registerScanCommand(program);
   registerInitCommand(program);
   registerAuditCommand(program);
+  registerCiCommand(program);
   registerInstallCommand(program);
   registerToggleCommand(program);
   registerSyncCommand(program);

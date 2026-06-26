@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### 新增 Added
+- **`ci` 命令 — 一键接入 CI**:`skill-switch ci` 在仓库内生成 `.github/workflows/skill-switch.yml`,立即可用的 GitHub Actions 工作流;`--format sarif`(默认,上传 code-scanning,包含 `security-events: write` 权限)或 `--format github`(PR 内联注解,无需额外权限);`--pin <ref>` 固定 action 版本(默认 `v0.7.0`);`--baseline` 同时对当前仓库运行 audit、写入 `.skill-switch-baseline.json` 并在工作流 `args` 里自动注入 `--baseline` 参数,让 CI 从第一天起只对新 finding 失败;`--out <path>` 指定输出路径;`--force` 覆盖已存在文件;已存在时不 `--force` 则友好报错 exit 1;`--json` 输出机器可读摘要(含写入文件列表与基线计数)。无网络/无 spawn/无新依赖,仅写 cwd 下的文件。
 - **`audit --configs --write-mcp-baseline <file>` / `--mcp-baseline <file>` — MCP 配置漂移检测**:把当前发现的 MCP server 身份（command/args/url/env key 名/header key 名）做 sha256 快照;后续 `--mcp-baseline` 与快照对比——command/args/url 变化 → `mcp/server-config-changed`（high，默认阻断 CI，可能是 rug-pull 或被篡改）；新出现 server → `mcp/server-added`（medium，告警）；移除 server 不产生 finding。secret VALUE 永不进入基线文件（仅存 env/header KEY 名），secret 安全有测试断言。与 `--policy` suppress、`--baseline`、`--format`（json/sarif/github）完整组合；须配合 `--configs` 使用，单独使用产生友好错误。纯静态，无 spawn/网络/新依赖。
 
 ## [0.7.0] — 2026-06-25
