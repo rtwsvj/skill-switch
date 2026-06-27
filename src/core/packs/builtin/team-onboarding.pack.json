@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "team-onboarding",
+  "displayName": "团队上手套餐",
+  "description": "新人或跨机迁移必备:代码库探索 + 项目初始化 + 文档生成。帮助快速了解陌生项目。",
+  "source": "manual",
+  "skills": [
+    {
+      "name": "init",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main"
+    },
+    {
+      "name": "review",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main"
+    },
+    {
+      "name": "update-config",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main",
+      "optional": true
+    }
+  ],
+  "createdAt": "2026-06-27T00:00:00.000Z"
+}

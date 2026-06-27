@@ -68,6 +68,11 @@ export interface PackSkillRef {
   repo?: string;
   commit?: string;
   ref?: string;
+  /**
+   * 可选标记:true 表示该 skill 装不上时不阻断整体安装(记录为跳过);
+   * false/缺省 = 必须安装,失败则整体报 failed。
+   */
+  optional?: boolean;
 }
 
 /** 套餐清单(pack.json 的结构):手动精选与用法发现汇成此一个模型 */

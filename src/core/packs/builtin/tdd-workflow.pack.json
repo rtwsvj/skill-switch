@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "name": "tdd-workflow",
+  "displayName": "TDD 工作流套餐",
+  "description": "测试驱动开发工作流:先写测试、再实现、再简化。结合代码审查保证质量。",
+  "source": "manual",
+  "skills": [
+    {
+      "name": "run",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main"
+    },
+    {
+      "name": "code-review",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main"
+    },
+    {
+      "name": "simplify",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main"
+    },
+    {
+      "name": "verify",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main",
+      "optional": true
+    }
+  ],
+  "createdAt": "2026-06-27T00:00:00.000Z"
+}

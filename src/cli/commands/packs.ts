@@ -1,11 +1,14 @@
 // packs 子命令:从 Claude Code 对话用法里「发现」常一起用的 skill,组成可携带的套餐。
 // 全程只读真实 transcript、只数 skill 名(不读对话正文、不出本机),只建议、用户确认才落地。
-//   packs suggest        读用法 → 建议套餐(只建议)
-//   packs save <id>      把某条建议固化成 pack.json(source=discovered)
-//   packs save --enrich  写出时从 skills.lock.json 回填来源(repo/commit/ref)
-//   packs show <file>    查看一个 pack.json 里有什么
-//   packs install <file> 安装套餐里所有 skill(reuse installFromSource)
-//   packs list [dir]     列出目录下的 *.pack.json
+//   packs suggest          读用法 → 建议套餐(只建议)
+//   packs save <id>        把某条建议固化成 pack.json(source=discovered)
+//   packs save --enrich    写出时从 skills.lock.json 回填来源(repo/commit/ref)
+//   packs show <file>      查看一个 pack.json 里有什么
+//   packs install <file>   安装套餐里所有 skill(reuse installFromSource)
+//   packs install --lock   安装后写出 *.pack.lock.json(可复现)
+//   packs install <id>     安装内置套餐(通过内置 id)
+//   packs list [dir]       列出目录下的 *.pack.json
+//   packs list --builtin   列出全部内置套餐
 import { readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
@@ -24,6 +27,18 @@ import {
   enrichManifestSkills,
   installPack,
 } from '../../core/packs/install-pack.ts';
+import {
+  buildPackLock,
+  loadPackLock,
+  lockFilePath,
+  resolvedCommitsMap,
+  writePackLock,
+} from '../../core/packs/pack-lock.ts';
+import {
+  isBuiltinId,
+  listBuiltinPacks,
+  resolveBuiltinPackPath,
+} from '../../core/packs/builtin/index.ts';
 
 /** 从子命令向上找全局 --home。 */
 function resolveHome(options: { home?: string }, command: Command): string {
@@ -172,24 +187,36 @@ export function registerPacksCommand(program: Command): void {
       }
     });
 
-  // ── packs install <file> ──────────────────────────────────────────────────
+  // ── packs install <file|builtin-id> ──────────────────────────────────────
   packs
     .command('install')
-    .description('安装套餐清单里的所有 skill(有来源的安装,无来源的跳过并提示)')
-    .argument('<file>', 'pack.json 路径')
+    .description('安装套餐清单里的所有 skill(有来源的安装,无来源的跳过并提示);支持内置 id 或文件路径')
+    .argument('<file>', 'pack.json 路径,或内置套餐 id(security-review / tdd-workflow / team-onboarding)')
     .option('--agent <agent>', '目标 agent(如 claude-code、gemini-cli)', 'claude-code')
     .option('--home <dir>', '覆盖 home 根目录')
     .option('--dry-run', '只显示安装计划,不写任何文件')
+    .option('--lock', '安装后写出 *.pack.lock.json,锁定每个 skill 的精确 commit(可复现)')
     .option('--json', '机器可读 JSON 输出')
     .action(
       async (
         file: string,
-        options: { agent?: string; home?: string; dryRun?: boolean; json?: boolean },
+        options: { agent?: string; home?: string; dryRun?: boolean; lock?: boolean; json?: boolean },
         command: Command,
       ) => {
         const home = resolveHome(options, command);
-        const manifest = await loadPackManifest(file);
         const agent = (options.agent ?? 'claude-code') as AgentType;
+
+        // 解析 file:内置 id 或文件路径
+        let resolvedFile = file;
+        if (isBuiltinId(file)) {
+          const builtinPath = resolveBuiltinPackPath(file);
+          if (!builtinPath) {
+            throw new Error(`找不到内置套餐 id: ${file}`);
+          }
+          resolvedFile = builtinPath;
+        }
+
+        const manifest = await loadPackManifest(resolvedFile);
 
         if (options.dryRun) {
           // dry-run:只显示计划
@@ -198,18 +225,32 @@ export function registerPacksCommand(program: Command): void {
           const plan = buildInstallPlan(resolvedSkills);
 
           if (options.json) {
-            console.log(JSON.stringify({ dryRun: true, file, plan }, null, 2));
+            console.log(JSON.stringify({ dryRun: true, file: resolvedFile, plan }, null, 2));
             return;
           }
           console.log(`📦 ${manifest.displayName ?? manifest.name}  dry-run 计划:`);
           for (const entry of plan) {
+            const optTag = entry.optional ? ' [可选]' : ' [必须]';
             if (entry.action === 'install') {
-              console.log(`  ✓ 将安装:${entry.skill.name}  ← ${entry.skill.repo}`);
+              console.log(`  ✓ 将安装:${entry.skill.name}${optTag}  ← ${entry.skill.repo}`);
             } else {
-              console.log(`  ✗ 跳过:${entry.skill.name}  (${entry.skipReason})`);
+              console.log(`  ✗ 跳过:${entry.skill.name}${optTag}  (${entry.skipReason})`);
             }
           }
           return;
+        }
+
+        // 尝试读取已有 lock 文件(若存在则用锁定 commit 安装,实现可复现)
+        let lockedCommits: Map<string, string> | undefined;
+        const lockPath = lockFilePath(resolvedFile);
+        try {
+          const existingLock = await loadPackLock(lockPath);
+          lockedCommits = resolvedCommitsMap(existingLock);
+          if (!options.json) {
+            console.log(`  发现 lock 文件:${lockPath},将使用锁定的 commit 安装。`);
+          }
+        } catch {
+          // 无 lock 文件是正常情况,忽略
         }
 
         // 真实安装
@@ -217,12 +258,27 @@ export function registerPacksCommand(program: Command): void {
           home,
           agent,
           mode: 'copy',
+          lockedCommits,
         });
 
+        // --lock:写出 lockfile
+        if (options.lock && !result.dryRun) {
+          const skillRepoMap = new Map(
+            manifest.skills.map((s) => [s.name, s.repo ?? '']),
+          );
+          const lock = buildPackLock(manifest.name, result.results, skillRepoMap);
+          await writePackLock(lockPath, lock);
+          if (!options.json) {
+            console.log(`  已写出 lock 文件:${lockPath}`);
+          }
+        }
+
         if (options.json) {
-          console.log(JSON.stringify(result, null, 2));
-          // 有 blocked 时退出码 1
-          if (result.results.some((r) => r.action === 'blocked' || r.action === 'error')) {
+          const jsonOut: Record<string, unknown> = { ...result };
+          if (options.lock) jsonOut.lockFile = lockPath;
+          console.log(JSON.stringify(jsonOut, null, 2));
+          // 整体失败时退出码 1
+          if (result.failed) {
             process.exitCode = 1;
           }
           return;
@@ -231,24 +287,33 @@ export function registerPacksCommand(program: Command): void {
         // 人类可读输出
         console.log(`📦 ${manifest.displayName ?? manifest.name}`);
         for (const r of result.results) {
+          const optTag = r.optional ? ' [可选]' : '';
           switch (r.action) {
             case 'installed': {
               const targets = r.installResult?.installed.map((i) => i.name).join(', ') ?? r.name;
-              console.log(`  ✓ 已安装:${targets}`);
+              console.log(`  ✓ 已安装:${targets}${optTag}`);
               break;
             }
             case 'skipped':
-              console.log(`  ✗ 跳过:${r.name}  (${r.skipReason})`);
+              console.log(`  - 跳过:${r.name}${optTag}  (${r.skipReason})`);
               break;
             case 'blocked':
-              console.log(`  ⛔ 被 audit 拦截:${r.name}(--force 可越过)`);
+              if (r.optional) {
+                console.log(`  - 可选,跳过:${r.name}  (被 audit 拦截)`);
+              } else {
+                console.log(`  ⛔ 被 audit 拦截:${r.name}(--force 可越过)`);
+              }
               break;
             case 'error':
-              console.log(`  ✗ 错误:${r.name}  ${r.error}`);
+              if (r.optional) {
+                console.log(`  - 可选,跳过:${r.name}  (安装出错:${r.error})`);
+              } else {
+                console.log(`  ✗ 错误:${r.name}  ${r.error}`);
+              }
               break;
           }
         }
-        if (result.results.some((r) => r.action === 'blocked' || r.action === 'error')) {
+        if (result.failed) {
           process.exitCode = 1;
         }
       },
@@ -257,10 +322,28 @@ export function registerPacksCommand(program: Command): void {
   // ── packs list [dir] ──────────────────────────────────────────────────────
   packs
     .command('list')
-    .description('列出目录下的 *.pack.json 文件(名称 + skill 数)')
+    .description('列出目录下的 *.pack.json 文件(名称 + skill 数);--builtin 列出内置套餐')
     .argument('[dir]', '目录(默认当前工作目录)')
+    .option('--builtin', '列出全部内置(官方预设)套餐,忽略 dir 参数')
     .option('--json', '机器可读 JSON 输出')
-    .action(async (dir: string | undefined, options: { json?: boolean }) => {
+    .action(async (dir: string | undefined, options: { builtin?: boolean; json?: boolean }) => {
+      // ── --builtin 分支 ──────────────────────────────────────────────────
+      if (options.builtin) {
+        const builtins = listBuiltinPacks();
+        if (options.json) {
+          console.log(JSON.stringify({ builtin: true, packs: builtins }, null, 2));
+          return;
+        }
+        console.log(`内置套餐(${builtins.length} 个):\n`);
+        for (const b of builtins) {
+          console.log(`  📦 ${b.displayName}  [${b.id}]`);
+          console.log(`     ${b.description}`);
+          console.log(`     → 安装:  skill-switch packs install ${b.id}\n`);
+        }
+        return;
+      }
+
+      // ── 默认分支:列出目录下的 *.pack.json ────────────────────────────
       const targetDir = resolve(dir ?? '.');
       let entries: string[];
       try {
