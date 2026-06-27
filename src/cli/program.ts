@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
+import { registerAddCommand } from './commands/add.ts';
 import { registerAuditCommand } from './commands/audit.ts';
 import { registerCiCommand } from './commands/ci.ts';
 import { registerExplainCommand } from './commands/explain.ts';
@@ -49,12 +50,13 @@ QUICK START (快速上手):
     skill-switch scan                      # 盘点磁盘上各工具已装的 skill
     skill-switch audit --configs           # 安全体检(含 ~/.claude 等配置文件)
     skill-switch packs suggest             # 根据对话用法推荐套餐
+    skill-switch add <github链接|安装指令>  # 粘链接/指令 → 自动审计后安装
     skill-switch --home /tmp/sandbox <cmd> # 用假目录演练,不碰真实配置
 
 COMMAND GROUPS (命令分组):
   盘点       status  scan  stats  watch
   安全       audit  lint  ci  explain
-  治理       init  sync  toggle  install  remove  restore  diff  drift  doctor
+  治理       add  init  sync  toggle  install  remove  restore  diff  drift  doctor
   锁与声明   lock  export  import
   套餐       packs
   集成       mcp
@@ -75,6 +77,7 @@ export function buildProgram(): Command {
   registerAuditCommand(program);
   registerCiCommand(program);
   registerExplainCommand(program);
+  registerAddCommand(program);
   registerInstallCommand(program);
   registerToggleCommand(program);
   registerSyncCommand(program);
