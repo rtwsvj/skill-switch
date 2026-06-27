@@ -29,6 +29,10 @@ export interface DriftEntry {
   localModified: boolean;
   lockCommit?: string;
   upstreamCommit?: string;
+  /** 锁内记录的安装产物 SHA-256(不随本地修改变化) */
+  lockSha256?: string;
+  /** 当前磁盘上安装产物的 SHA-256(缺失时 undefined) */
+  localSha256?: string;
   detail: string;
 }
 
@@ -62,11 +66,13 @@ export async function checkDrift(home: string): Promise<DriftEntry[]> {
     // 本地维度:安装产物哈希 vs 锁内 sha256
     let localModified = false;
     let localDetail = '';
+    let localSha256: string | undefined;
     if (!target || !existsSync(target)) {
       localModified = true;
       localDetail = '安装产物缺失';
     } else {
       const actual = await computeSkillFolderHash(target);
+      localSha256 = actual;
       if (actual !== entry.sha256) {
         localModified = true;
         localDetail = '本地内容与锁内哈希不符';
@@ -95,6 +101,8 @@ export async function checkDrift(home: string): Promise<DriftEntry[]> {
       localModified,
       lockCommit: entry.commit,
       upstreamCommit,
+      lockSha256: entry.sha256,
+      localSha256,
       detail: [upstreamDetail, localDetail].filter(Boolean).join(';') || '与锁定基线一致',
     });
   }
