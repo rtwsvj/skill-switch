@@ -84,6 +84,7 @@ skill-switch --help
 | `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。 | `skill-switch drift` |
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
 | `packs` | 从对话用法**发现套餐**:`packs suggest` 读本机对话(只数 skill 名)建议常一起用的 skill 组成套餐;`packs save <id> [--enrich]` 固化成可携带的 `pack.json`(`--enrich` 从 lock 回填来源以便跨机重装);`packs install <pack.json>` 把套餐一键装到新机/另一个 agent;`packs list` 列出套餐;`packs show <file>` 查看;支持 `extends` 继承。 | `skill-switch packs suggest` |
+| `mcp` | 把 skill-switch 跑成 **MCP server**(stdio):让 Cursor / Claude Code 等 agent 实时调用它的**只读**审计工具(`skill_switch_scan` / `status` / `audit`)。零依赖,绝不经此写磁盘。`--list-tools` 查看暴露的工具。 | `skill-switch mcp` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
 | `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |
@@ -158,6 +159,8 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui
 
 - [CHANGELOG.md](./CHANGELOG.md):版本变更。
 - [docs/auditing-ai-agent-skills.md](./docs/auditing-ai-agent-skills.md):安全指南——AI agent skills 与 MCP server 的威胁面、如何审计、如何接入 CI。
+- [docs/mcp-server.md](./docs/mcp-server.md):把 skill-switch 跑成 MCP server,让 Cursor / Claude Code 在对话里实时调用只读审计。
+- [docs/backlog.md](./docs/backlog.md):调研得出的产品 backlog——按优先级排的路线图。
 - [docs/rules.md](./docs/rules.md):审计规则目录——所有 ruleId、严重度与一句话说明（80+ 条规则，按威胁类别分组）。
 - [docs/roadmap.md](./docs/roadmap.md):路线图——近期加固、中期功能、远期探索。
 - [docs/troubleshooting.md](./docs/troubleshooting.md):常见问题与解决方法（Gatekeeper、CLI 路径、audit 拦截、doctor 漂移、备份还原、卸载）。

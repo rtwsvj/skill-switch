@@ -78,6 +78,7 @@ skill-switch --help
 | `drift` | Upstream HEAD / locked commit / local content three-way drift. |
 | `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). |
 | `packs` | **Discover packs from usage:** `packs suggest` reads your local conversations (skill names only) to suggest bundles of skills you use together; `packs save <id> [--enrich]` freezes one into a portable `pack.json` (`--enrich` back-fills sources from the lock for cross-machine reinstall); `packs install <pack.json>` installs a pack onto a new machine / another agent; `packs list` lists packs; `packs show <file>` inspects one; supports `extends` inheritance. |
+| `mcp` | Run skill-switch as an **MCP server** (stdio) so agents like Cursor / Claude Code can call its **read-only** audit tools (`skill_switch_scan` / `status` / `audit`) in real time. Zero-dependency; never writes disk over this path. `--list-tools` to list exposed tools. |
 | `lock` | Inspect the lock; `--verify` re-hashes disk to compare. |
 | `export` | Bundle skills.json + skills.lock.json into a portable .ssp archive (read-only). |
 | `import` | Restore skills.json + skills.lock.json from a .ssp archive (does not sync to disk). |
@@ -111,6 +112,8 @@ The bundled CLI is a **Node SEA sidecar**, so the app runs CLI calls without a s
 ## More docs
 
 - [docs/auditing-ai-agent-skills.md](./docs/auditing-ai-agent-skills.md) — security guide: the threat surface of AI agent skills & MCP servers, how to audit them, and how to gate them in CI.
+- [docs/mcp-server.md](./docs/mcp-server.md) — run skill-switch as an MCP server so Cursor / Claude Code can call its read-only audit tools in chat.
+- [docs/backlog.md](./docs/backlog.md) — research-derived product backlog: a prioritized roadmap.
 - [docs/rules.md](./docs/rules.md) — rule catalog: every ruleId, severity, and a one-line description (80+ rules, grouped by threat category).
 - [docs/roadmap.md](./docs/roadmap.md) — near-term hardening, medium-term features, long-term directions.
 - [docs/troubleshooting.md](./docs/troubleshooting.md) — common problems and fixes (Gatekeeper, CLI PATH, audit blocks, doctor drift kinds, backups, uninstall).

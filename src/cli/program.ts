@@ -13,6 +13,7 @@ import { registerInitCommand } from './commands/init.ts';
 import { registerInstallCommand } from './commands/install.ts';
 import { registerLintCommand } from './commands/lint.ts';
 import { registerLockCommand } from './commands/lock.ts';
+import { registerMcpCommand } from './commands/mcp.ts';
 import { registerPacksCommand } from './commands/packs.ts';
 import { registerRemoveCommand } from './commands/remove.ts';
 import { registerRestoreCommand } from './commands/restore.ts';
@@ -55,6 +56,7 @@ COMMAND GROUPS (命令分组):
   治理       init  sync  toggle  install  remove  restore  diff  drift  doctor
   锁与声明   lock  export  import
   套餐       packs
+  集成       mcp
   其他       uninstall
 `;
 
@@ -82,6 +84,7 @@ export function buildProgram(): Command {
   registerDriftCommand(program);
   registerStatsCommand(program);
   registerPacksCommand(program);
+  registerMcpCommand(program);
   registerLockCommand(program);
   registerExportCommand(program);
   registerImportCommand(program);
