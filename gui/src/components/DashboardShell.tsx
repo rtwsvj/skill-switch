@@ -48,6 +48,7 @@ import { ConfirmationDialog, Header, OperationBanner } from './atoms';
 import { Audit } from './Audit';
 import { ConfigAudit } from './ConfigAudit';
 import { History } from './History';
+import { UndoToastStack, useUndoToast } from './UndoToast';
 import { Overview } from './Overview';
 import { Skills } from './Skills';
 import { Stats } from './Stats';
@@ -94,6 +95,7 @@ export function DashboardShell({
   const [advanced, setAdvanced] = useState(readStoredAdvanced);
   const [onboarded, setOnboarded] = useState(readStoredOnboarded);
   const [confirmation, setConfirmation] = useState<ConfirmationDialogState | null>(null);
+  const { toasts, showUndo, dismissToast } = useUndoToast();
 
   const declaredAgentPairs = useMemo(
     () => new Set((data.doctor.declarations ?? []).flatMap((entry) => entry.agents.map((agent) => skillAgentKey(agent, entry.name)))),
@@ -293,9 +295,20 @@ export function DashboardShell({
           snapshots: [...installSnapshots, ...snapshotPaths(result.data)],
         });
         await onRefresh();
+        // 撤销 toast:点撤销后还原最新备份
+        showUndo(
+          `${enabled ? '已启用' : '已停用'} ${name} — 后悔了？`,
+          () => void runBusy('restore-apply', async () => {
+            const restore = await runRestore({ latest: true });
+            if (!isRestoreList(restore.data)) {
+              setNotice({ tone: 'good', title: '已还原', detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
+              await onRefresh();
+            }
+          }),
+        );
       }),
     });
-  }, [declaredAgentPairs, onRefresh, requestConfirmation, runBusy, t]);
+  }, [declaredAgentPairs, onRefresh, requestConfirmation, runBusy, showUndo, t]);
 
   const handleRemove = useCallback((skill: SkillRecord) => {
     const name = actionSkillName(skill);
@@ -317,9 +330,20 @@ export function DashboardShell({
           snapshots,
         });
         await onRefresh();
+        // 撤销 toast:点撤销后还原最新备份
+        showUndo(
+          `已删除 ${name} — 后悔了？`,
+          () => void runBusy('restore-apply', async () => {
+            const restore = await runRestore({ latest: true });
+            if (!isRestoreList(restore.data)) {
+              setNotice({ tone: 'good', title: '已还原', detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
+              await onRefresh();
+            }
+          }),
+        );
       }),
     });
-  }, [onRefresh, requestConfirmation, runBusy, t]);
+  }, [onRefresh, requestConfirmation, runBusy, showUndo, t]);
 
   const handleSyncDryRun = useCallback(() => {
     void runBusy('sync-dry-run', async () => {
@@ -349,9 +373,20 @@ export function DashboardShell({
           snapshots: snapshotPaths(result.data),
         });
         await onRefresh();
+        // 撤销 toast:点撤销后还原最新备份
+        showUndo(
+          `同步完成(${changedActionCount(result.data)} 项) — 后悔了？`,
+          () => void runBusy('restore-apply', async () => {
+            const restore = await runRestore({ latest: true });
+            if (!isRestoreList(restore.data)) {
+              setNotice({ tone: 'good', title: '已还原', detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
+              await onRefresh();
+            }
+          }),
+        );
       }),
     });
-  }, [onRefresh, requestConfirmation, runBusy, syncPlan, t]);
+  }, [onRefresh, requestConfirmation, runBusy, showUndo, syncPlan, t]);
 
   const handleLoadSnapshots = useCallback(() => {
     void runBusy('restore-list', async () => {
@@ -469,6 +504,8 @@ export function DashboardShell({
       ) : null}
       {active === 'stats' ? <Stats data={mergedData} section={sections.stats} onReload={() => onReloadSection?.('stats')} /> : null}
       <footer className="app-footer">{t('about.privacy')}</footer>
+      {/* 撤销 toast 悬浮层,全局共享,固定在屏幕右下角 */}
+      <UndoToastStack toasts={toasts} onDismiss={dismissToast} />
     </>
   );
 }
