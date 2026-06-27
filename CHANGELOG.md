@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### 新增 Added
+- **GUI 技能页体验升级**:主从布局(左列表 / 右详情面板,点行看详情)、每行状态徽章(已启用 / 已停用 / 有改动 / 被安全拦截,颜色对应语义)、写操作后撤销 toast(如"已停用 X — 后悔了?",6 秒自动消失,点「撤销」还原最新备份)。文案保持大白话、任务导向。
 - **`explain <ruleId>` 命令 — 看懂审计规则**:`skill-switch explain reverse-shell/netcat-exec` 讲清这条规则**查什么 / 为什么危险 / 怎么修 / 误报怎么抑制**(三种抑制方式);未知 ruleId 给近似匹配并 exit 1;`--json` 机器可读。按风险类目(13 类)映射讲解,覆盖全部 80+ 规则。降低"被拦了看不懂"的门槛。只读。
 - **套餐深化(团队/分享/可复现)**:`PackSkillRef.optional?` 可选 skill 标注(`packs install` 时可选 skill 失败只跳过、必需失败才判 `failed`);`packs install --lock` 写出 `*.pack.lock.json` 钉死每个 skill 的精确 commit(已有 lock 时按锁定 commit 装 → 团队可复现);3 个内置 starter 套餐(`security-review`/`tdd-workflow`/`team-onboarding`),`packs list --builtin` 列出、`packs install <内置id>` 直接装;`--dry-run` 标注每个 skill `[必须]`/`[可选]`。
 - **`drift --review` — cargo-vet 式逐条漂移审批**:逐条 approve/reject 已知/有意的漂移,审批存 `~/.skill-switch/drift-approvals.json`(按 `<agent>::<name>::<state>` + 内容哈希绑定;内容再被改动则审批自动失效、重新浮现);`--approve-all` 非交互批量审批、`--json` 机读;已审批的漂移不再计入 `drift --ci` 的 exit 1。无审批文件时 `drift`/`--ci` 行为与既有完全一致。
