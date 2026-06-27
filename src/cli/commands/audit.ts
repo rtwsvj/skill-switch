@@ -59,6 +59,7 @@ import {
 } from '../../core/audit/config-baseline.ts';
 import { runGuidedFix, type GuidedFixSummary } from '../../core/audit/guided-fix.ts';
 import { toGithubAnnotations } from '../../core/audit/github-annotations.ts';
+import { toJunitDocument } from '../../core/audit/junit.ts';
 import { toSarifDocument } from '../../core/audit/sarif.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
 import type { AuditFinding, Severity } from '../../core/audit/types.ts';
@@ -190,6 +191,28 @@ export function applyPolicyAndBaselineToFindings(
   }));
 }
 
+/**
+ * 全量阻断判据:同时考虑策略、基线和行内抑制。
+ * inlineSuppressedSet: 已被行内注释抑制的 finding(通过指纹或引用标识)。
+ * 此处直接接受 finding 列表并检查三重抑制标记。
+ */
+export function shouldBlockWithAll(
+  report: Pick<AuditReport, 'score' | 'findings'>,
+  policy: ResolvedPolicy,
+  baselinedFingerprints: ReadonlySet<string>,
+  inlineSuppressedFindings: ReadonlySet<AuditFinding>,
+): boolean {
+  if (report.score < DANGER_THRESHOLD) return true;
+  const failOnRank = SEVERITY_RANK[policy.failOn];
+  return report.findings.some(
+    (f) =>
+      !policy.suppressedRuleIds.has(f.ruleId) &&
+      !baselinedFingerprints.has(fingerprintFinding(f)) &&
+      !inlineSuppressedFindings.has(f) &&
+      SEVERITY_RANK[f.severity] <= failOnRank,
+  );
+}
+
 /** 默认策略文件在 cwd 的文件名 */
 const POLICY_FILE_NAME = '.skill-switch-policy.json';
 
@@ -278,6 +301,18 @@ export async function auditSkillDir(path: string): Promise<AuditReport & { cover
   return { ...auditContents(allRules, targets, allFileRules), coverage };
 }
 
+/**
+ * 同 auditSkillDir,但额外返回 fileContents Map(用于行内抑制检测)。
+ * 内部使用;不计入公开 API。
+ */
+async function auditSkillDirWithContents(
+  path: string,
+): Promise<AuditReport & { coverage: AuditCoverage; fileContents: Map<string, string> }> {
+  const { targets, coverage } = await collectTextFiles(path);
+  const fileContents = new Map<string, string>(targets.map((t) => [t.file, t.content]));
+  return { ...auditContents(allRules, targets, allFileRules), coverage, fileContents };
+}
+
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'] as const;
 
 /**
@@ -329,6 +364,8 @@ export interface AuditHomeSkillReport extends AuditReport {
   relSkillsDir: string;
   blocked: boolean;
   coverage: AuditCoverage;
+  /** 扫描到的文件内容映射(相对路径 → 文本);用于行内抑制检测。序列化时不输出。 */
+  fileContents?: Map<string, string>;
 }
 
 export interface AuditHomeReport {
@@ -350,7 +387,7 @@ export async function auditHome(home: string, options: { includeConfigs?: boolea
 
   const skills: AuditHomeSkillReport[] = [];
   for (const [dir, record] of uniqueRecords) {
-    const report = await auditSkillDir(dir);
+    const report = await auditSkillDirWithContents(dir);
     skills.push({
       ...report,
       name: record.name ?? record.dirName,
@@ -360,6 +397,7 @@ export async function auditHome(home: string, options: { includeConfigs?: boolea
       agents: record.agents,
       relSkillsDir: record.relSkillsDir,
       blocked: shouldBlock(report),
+      fileContents: report.fileContents,
     });
   }
 
@@ -573,13 +611,91 @@ export function serializeGuidedFix(
 }
 
 // 解析最终输出格式:--format 优先;若无 --format 但有 --json 则等价于 json。
-type OutputFormat = 'human' | 'json' | 'sarif' | 'github';
+type OutputFormat = 'human' | 'json' | 'sarif' | 'github' | 'junit';
 
 function resolveFormat(options: { format?: string; json?: boolean }): OutputFormat {
   if (options.format === 'sarif') return 'sarif';
   if (options.format === 'github') return 'github';
+  if (options.format === 'junit') return 'junit';
   if (options.format === 'json' || options.json === true) return 'json';
   return 'human';
+}
+
+// ── 最低严重度过滤 ────────────────────────────────────────────────────────────
+
+/**
+ * 解析 --min-severity 参数为 Severity 类型。
+ * 无效值时抛出 RangeError(由调用方捕获并 exit 1)。
+ */
+function resolveMinSeverity(raw: string | undefined): Severity | undefined {
+  if (raw === undefined) return undefined;
+  const valid: Severity[] = ['critical', 'high', 'medium', 'low'];
+  const lower = raw.toLowerCase() as Severity;
+  if (!valid.includes(lower)) {
+    throw new RangeError(`--min-severity 无效值 "${raw}";合法值: critical | high | medium | low`);
+  }
+  return lower;
+}
+
+/**
+ * 按最低严重度过滤 findings。
+ * minSeverity=undefined → 全部保留(默认,与旧版行为完全一致)。
+ * minSeverity='high'    → 只保留 critical 和 high。
+ */
+export function filterBySeverity(
+  findings: AuditFinding[],
+  minSeverity: Severity | undefined,
+): AuditFinding[] {
+  if (minSeverity === undefined) return findings;
+  const minRank = SEVERITY_RANK[minSeverity];
+  return findings.filter((f) => SEVERITY_RANK[f.severity] <= minRank);
+}
+
+// ── 行内抑制:skill-switch:suppress ──────────────────────────────────────────
+
+/**
+ * 检测 finding 是否被行内抑制注释抑制。
+ * 抑制条件:finding 所在行或其上一行包含 `skill-switch:suppress` 注释。
+ * 可选的 `[ruleId]` 后缀使抑制只针对特定规则:
+ *   - `# skill-switch:suppress`            → 抑制当前行所有 finding
+ *   - `// skill-switch:suppress[rule/id]`  → 仅抑制 ruleId === 'rule/id'
+ * 无内容(fileContent=undefined)时返回 false。
+ */
+export function isInlineSuppressed(
+  finding: AuditFinding,
+  fileContent: string | undefined,
+): boolean {
+  if (fileContent === undefined) return false;
+  // 将文件内容按行分割(1-based 行号 → 数组下标 line-1)
+  const lines = fileContent.split('\n');
+  // 检查指定行和上一行
+  const checkLines = [finding.line - 1, finding.line - 2].filter((i) => i >= 0);
+  for (const idx of checkLines) {
+    const lineText = lines[idx] ?? '';
+    // 匹配 skill-switch:suppress 注释(含可选 [ruleId])
+    const match = lineText.match(/skill-switch:suppress(?:\[([^\]]*)\])?/);
+    if (!match) continue;
+    const targetRule = match[1]; // undefined → 无 ruleId 限制 → 抑制全部
+    if (targetRule === undefined || targetRule === finding.ruleId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 将 findings 列表按行内抑制注释标注 inlineSuppressed 字段。
+ * fileContents: Map<相对文件路径 → 文件内容字符串>。
+ * 仅补 inlineSuppressed 字段;不过滤;与 applyPolicyToFindings 可链式组合。
+ */
+export function applyInlineSuppression(
+  findings: AuditFinding[],
+  fileContents: Map<string, string>,
+): Array<AuditFinding & { inlineSuppressed: boolean }> {
+  return findings.map((f) => ({
+    ...f,
+    inlineSuppressed: isInlineSuppressed(f, fileContents.get(f.file)),
+  }));
 }
 
 // ── 策略加载辅助 ─────────────────────────────────────────────────────────────
@@ -621,6 +737,8 @@ export function registerAuditCommand(program: Command): void {
     .option('--baseline <path>', '加载基线文件;已基线化的 finding 不影响退出码(仍出现在输出中)')
     .option('--write-config-baseline <path>', '将当前发现的 MCP server + settings 指纹写入配置漂移基线文件,exit 0(须配合 --configs)')
     .option('--config-baseline <path>', '与配置漂移基线对比;MCP server 变化/新增 + settings 文件变化/新增均产生 finding(须配合 --configs)')
+    .option('--exit-code <n>', '覆盖进程退出码(如 --exit-code 0 = 报告但不阻断 CI);不影响 finding 输出。无标志时保持旧版行为。')
+    .option('--min-severity <level>', '只报告并计入阻断的最低严重度(critical|high|medium|low);无标志时全部严重度均有效(旧版行为)。')
     .action(async (
       path: string | undefined,
       options: {
@@ -635,12 +753,38 @@ export function registerAuditCommand(program: Command): void {
         baseline?: string;
         writeConfigBaseline?: string;
         configBaseline?: string;
+        exitCode?: string;
+        minSeverity?: string;
         // commander 将 --no-policy 映射为 options.policy === false
         // 但类型里用 noPolicy 更清晰;实际通过 options['policy'] 判断
       },
       command: Command,
     ) => {
       const fmt = resolveFormat(options);
+
+      // ── --exit-code:解析覆盖退出码(可选) ─────────────────────────────────────
+      // 无标志时 overrideExitCode=undefined,保持旧版行为。
+      let overrideExitCode: number | undefined;
+      if (options.exitCode !== undefined) {
+        const parsed = Number(options.exitCode);
+        if (!Number.isInteger(parsed) || parsed < 0 || parsed > 255) {
+          process.stderr.write(`audit: --exit-code 无效值 "${options.exitCode}";须为 0–255 的整数\n`);
+          process.exitCode = 1;
+          return;
+        }
+        overrideExitCode = parsed;
+      }
+
+      // ── --min-severity:解析最低严重度过滤(可选) ────────────────────────────────
+      // 无标志时 minSeverity=undefined,全部严重度均有效(旧版行为)。
+      let minSeverity: Severity | undefined;
+      try {
+        minSeverity = resolveMinSeverity(options.minSeverity);
+      } catch (err) {
+        process.stderr.write(`audit: ${(err as Error).message}\n`);
+        process.exitCode = 1;
+        return;
+      }
 
       // 加载策略文件;损坏时打印错误并 exit 1
       let policy: ResolvedPolicy;
@@ -698,12 +842,16 @@ export function registerAuditCommand(program: Command): void {
       // 若同时指定两者,--write-config-baseline 优先(写出后 exit 0;不再对比)
       const configBaselineCompareActive = configBaselinePath !== undefined && writeConfigBaselinePath === undefined;
 
+      // ── 辅助:将 findingsActive(过滤后)构建行内抑制 finding Set ──────────────
+      // 仅当 minSeverity 或行内抑制激活时才计算;否则返回空集(零开销)。
+      // 注意:行内抑制标注在输出中可见(suppressed/inlineSuppressed),但不计入退出码。
+
       if (path) {
-        const report = await auditSkillDir(path);
+        const fullReport = await auditSkillDirWithContents(path);
 
         // ── --write-baseline:写出当前 finding 指纹,exit 0 ──────────────────────
         if (writeBaselinePath !== undefined) {
-          const allFindings: AuditFinding[] = report.findings;
+          const allFindings: AuditFinding[] = fullReport.findings;
           const baseline = buildBaselineFile(allFindings);
           try {
             await writeBaselineFile(writeBaselinePath, baseline);
@@ -716,22 +864,60 @@ export function registerAuditCommand(program: Command): void {
           return; // exit 0
         }
 
+        // 按 --min-severity 过滤;无标志时与原始 findings 完全相同(引用相等)。
+        const filteredFindings = filterBySeverity(fullReport.findings, minSeverity);
+
+        // 行内抑制:标注被 skill-switch:suppress 注释抑制的 finding。
+        // 只在 filteredFindings 上做标注(未过滤的不进入输出)。
+        const inlineSuppressedSet = new Set<AuditFinding>(
+          filteredFindings.filter((f) => isInlineSuppressed(f, fullReport.fileContents.get(f.file))),
+        );
+
+        // 使用过滤后的 findings 构建视图报告(分数/verdict 不变;来自原始报告)
+        const report = { ...fullReport, findings: filteredFindings };
+
         if (fmt === 'sarif') {
           // SARIF 模式:被抑制/已基线化的 finding 写入 suppressions
           // --fix 对 SARIF 输出无影响;机器消费者通过 --format json 取修复信息。
-          const doc = toSarifDocument(report.findings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
+          const doc = toSarifDocument(filteredFindings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
           console.log(JSON.stringify(doc, null, 2));
         } else if (fmt === 'github') {
           // GitHub Actions 注解模式:每条 finding 输出一行工作流注解命令。
           // 被抑制/已基线化的 finding 输出为 ::notice,不触发阻断。
           // --fix 对 github 格式输出无影响(同 sarif)。
-          const findings = applyPolicyAndBaselineToFindings(report.findings, policy, baselinedFingerprints);
+          const findings = applyPolicyAndBaselineToFindings(filteredFindings, policy, baselinedFingerprints);
           console.log(toGithubAnnotations(findings));
+        } else if (fmt === 'junit') {
+          // JUnit XML 模式:一个 <testsuite>,每条 finding 一个 <testcase>。
+          // 阻断 finding → <failure>;被抑制/基线化/行内抑制 finding → <system-out>。
+          const junitBlockingSeverities = new Set<Severity>(
+            (Object.keys(SEVERITY_RANK) as Severity[]).filter(
+              (s) => SEVERITY_RANK[s] <= SEVERITY_RANK[policy.failOn],
+            ),
+          );
+          // 行内抑制的 finding 也视为非阻断(合并到 suppressedRuleIds 外部判断)
+          const inlineSuppressedRuleIdsForJunit = new Set<string>(
+            [...inlineSuppressedSet].map((f) => f.ruleId),
+          );
+          const effectiveSuppressedForJunit = new Set<string>([
+            ...policy.suppressedRuleIds,
+            ...inlineSuppressedRuleIdsForJunit,
+          ]);
+          const xml = toJunitDocument(filteredFindings, {
+            suiteName: `skill-switch-audit:${path}`,
+            blockingSeverities: junitBlockingSeverities,
+            suppressedRuleIds: effectiveSuppressedForJunit,
+            baselinedFingerprints,
+            fingerprintFn: fingerprintFinding,
+          });
+          process.stdout.write(xml);
         } else if (fmt === 'json') {
-          // 无策略且无基线时,输出与旧版完全一致(不含 suppressed/baselined 字段)
+          // 无策略且无基线时,输出与旧版完全一致(不含 suppressed/baselined 字段)。
+          // fileContents 是 Map,不可序列化为 JSON;通过解构排除。
+          const { fileContents: _fc, ...reportForJson } = report;
           const findings = (policyActive || baselineActive)
-            ? applyPolicyAndBaselineToFindings(report.findings, policy, baselinedFingerprints)
-            : report.findings;
+            ? applyPolicyAndBaselineToFindings(filteredFindings, policy, baselinedFingerprints)
+            : filteredFindings;
 
           // --fix + json:先跑引导修复(dry-run 或 apply),再把摘要嵌入 JSON 对象一次性输出。
           // 无 --fix 时:不含 guidedFix 键,与旧版逐字节一致。
@@ -739,20 +925,28 @@ export function registerAuditCommand(program: Command): void {
             const doApply = options.apply === true;
             const summary = await runGuidedFix({
               targetRoot: path,
-              skillFindings: report.findings,
+              skillFindings: fullReport.findings,
               configFindings: [],
               apply: doApply,
             });
             const guidedFix = serializeGuidedFix(summary, doApply);
-            console.log(JSON.stringify({ path, ...report, findings, guidedFix }, null, 2));
+            console.log(JSON.stringify({ path, ...reportForJson, findings, guidedFix }, null, 2));
           } else {
-            console.log(JSON.stringify({ path, ...report, findings }, null, 2));
+            console.log(JSON.stringify({ path, ...reportForJson, findings }, null, 2));
           }
         } else {
           // human 格式:基线化的 finding 用括号标注
           console.log(formatAuditReport(path, report, baselinedFingerprints));
         }
-        if (shouldBlockWithPolicy(report, policy, baselinedFingerprints)) process.exitCode = 1;
+
+        // 退出码决策:使用过滤后的 findings + 策略 + 基线 + 行内抑制
+        const blocked = shouldBlockWithAll(report, policy, baselinedFingerprints, inlineSuppressedSet);
+        if (overrideExitCode !== undefined) {
+          // --exit-code 覆盖:无论是否阻断都使用指定退出码
+          if (blocked) process.exitCode = overrideExitCode;
+        } else {
+          if (blocked) process.exitCode = 1;
+        }
 
         // --fix human 格式:打印人类可读差异预览/应用报告(原有行为不变)
         // json 格式已在上方 json 块中处理;sarif 格式 --fix 无输出。
@@ -760,7 +954,7 @@ export function registerAuditCommand(program: Command): void {
           const doApply = options.apply === true;
           const summary = await runGuidedFix({
             targetRoot: path,
-            skillFindings: report.findings,
+            skillFindings: fullReport.findings,
             configFindings: [], // path 模式无 --configs findings
             apply: doApply,
           });
@@ -854,22 +1048,74 @@ export function registerAuditCommand(program: Command): void {
 
       if (fmt === 'sarif') {
         // home 全量模式:合并所有 skill findings(+ configs findings)后序列化
-        const allFindings: AuditFinding[] = [
-          ...report.skills.flatMap((s) => s.findings),
-          ...(report.configs ? flattenConfigFindings(report.configs) : []),
-        ];
+        const allFindings: AuditFinding[] = filterBySeverity(
+          [
+            ...report.skills.flatMap((s) => s.findings),
+            ...(report.configs ? flattenConfigFindings(report.configs) : []),
+          ],
+          minSeverity,
+        );
         const doc = toSarifDocument(allFindings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
         console.log(JSON.stringify(doc, null, 2));
       } else if (fmt === 'github') {
         // GitHub Actions 注解模式(home 全量):合并所有 skill + config findings 后输出注解。
         // 被抑制/已基线化的 finding 输出为 ::notice,不触发阻断。
-        const allFindings: AuditFinding[] = [
-          ...report.skills.flatMap((s) => s.findings),
-          ...(report.configs ? flattenConfigFindings(report.configs) : []),
-        ];
+        const allFindings: AuditFinding[] = filterBySeverity(
+          [
+            ...report.skills.flatMap((s) => s.findings),
+            ...(report.configs ? flattenConfigFindings(report.configs) : []),
+          ],
+          minSeverity,
+        );
         const annotatedFindings = applyPolicyAndBaselineToFindings(allFindings, policy, baselinedFingerprints);
         console.log(toGithubAnnotations(annotatedFindings));
+      } else if (fmt === 'junit') {
+        // JUnit XML 模式(home 全量):合并所有 skill findings 后序列化。
+        const allFindings: AuditFinding[] = filterBySeverity(
+          [
+            ...report.skills.flatMap((s) => s.findings),
+            ...(report.configs ? flattenConfigFindings(report.configs) : []),
+          ],
+          minSeverity,
+        );
+        // 行内抑制:合并各 skill 的 fileContents Map 来标注
+        const combinedFileContents = new Map<string, string>();
+        for (const skill of report.skills) {
+          if (skill.fileContents) {
+            for (const [file, content] of skill.fileContents) {
+              combinedFileContents.set(file, content);
+            }
+          }
+        }
+        const inlineSuppressedSetHome = new Set<AuditFinding>(
+          allFindings.filter((f) => isInlineSuppressed(f, combinedFileContents.get(f.file))),
+        );
+        const inlineSuppressedRuleIdsForJunit = new Set<string>(
+          [...inlineSuppressedSetHome].map((f) => f.ruleId),
+        );
+        const effectiveSuppressedForJunit = new Set<string>([
+          ...policy.suppressedRuleIds,
+          ...inlineSuppressedRuleIdsForJunit,
+        ]);
+        const junitBlockingSeverities = new Set<Severity>(
+          (Object.keys(SEVERITY_RANK) as Severity[]).filter(
+            (s) => SEVERITY_RANK[s] <= SEVERITY_RANK[policy.failOn],
+          ),
+        );
+        const xml = toJunitDocument(allFindings, {
+          suiteName: `skill-switch-audit:${home}`,
+          blockingSeverities: junitBlockingSeverities,
+          suppressedRuleIds: effectiveSuppressedForJunit,
+          baselinedFingerprints,
+          fingerprintFn: fingerprintFinding,
+        });
+        process.stdout.write(xml);
       } else if (fmt === 'json') {
+        // JSON 序列化:fileContents 是 Map,必须从输出中排除以保证向后兼容。
+        // 使用 replacer 过滤掉 Map 实例(序列化时跳过 fileContents 键)。
+        const jsonReplacer = (_key: string, value: unknown) =>
+          value instanceof Map ? undefined : value;
+
         // --fix + json:对每个 skill 跑引导修复(dry-run 或 apply),结果嵌入对应 skill 的 guidedFix 字段。
         // 无 --fix 时:不含任何 guidedFix 键,与旧版逐字节一致。
         if (options.fix) {
@@ -893,7 +1139,7 @@ export function registerAuditCommand(program: Command): void {
               return { ...base, guidedFix: serializeGuidedFix(summary, doApply) };
             }),
           );
-          console.log(JSON.stringify({ ...report, skills: skillsWithFix }, null, 2));
+          console.log(JSON.stringify({ ...report, skills: skillsWithFix }, jsonReplacer, 2));
         } else if (policyActive || baselineActive) {
           // 有策略或基线:每个 skill 的 findings 附带 suppressed/baselined 字段,blocked 按策略+基线重算
           const reportWithAnnotations = {
@@ -904,18 +1150,35 @@ export function registerAuditCommand(program: Command): void {
               blocked: shouldBlockWithPolicy(skill, policy, baselinedFingerprints),
             })),
           };
-          console.log(JSON.stringify(reportWithAnnotations, null, 2));
+          console.log(JSON.stringify(reportWithAnnotations, jsonReplacer, 2));
         } else {
-          // 无策略且无基线:输出与旧版完全一致
-          console.log(JSON.stringify(report, null, 2));
+          // 无策略且无基线:输出与旧版完全一致(fileContents Map 被 replacer 排除)
+          console.log(JSON.stringify(report, jsonReplacer, 2));
         }
       } else {
         console.log(formatAuditHomeTable(report, baselinedFingerprints));
       }
 
-      const skillsBlocked = report.skills.some((skill) => shouldBlockWithPolicy(skill, policy, baselinedFingerprints));
+      // 退出码决策:home 模式下逐 skill 检查(同时支持行内抑制 + --min-severity)
+      const skillsBlocked = report.skills.some((skill) => {
+        const filteredSkillFindings = filterBySeverity(skill.findings, minSeverity);
+        const skillInlineSuppressed = new Set<AuditFinding>(
+          filteredSkillFindings.filter((f) => isInlineSuppressed(f, skill.fileContents?.get(f.file))),
+        );
+        return shouldBlockWithAll(
+          { ...skill, findings: filteredSkillFindings },
+          policy,
+          baselinedFingerprints,
+          skillInlineSuppressed,
+        );
+      });
       const configBlocked = report.configsBlocked === true;
-      if (skillsBlocked || configBlocked) process.exitCode = 1;
+      const anyBlocked = skillsBlocked || configBlocked;
+      if (overrideExitCode !== undefined) {
+        if (anyBlocked) process.exitCode = overrideExitCode;
+      } else {
+        if (anyBlocked) process.exitCode = 1;
+      }
 
       // --fix human 格式:对每个 skill 目录分别跑引导修复,打印人类可读报告。
       // json 格式已在上方 json 块中处理;sarif 格式 --fix 无输出。
