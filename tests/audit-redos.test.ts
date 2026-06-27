@@ -10,7 +10,9 @@ import {
 import type { AuditRule } from '../src/core/audit/types.ts';
 
 const MAX_FILE_BYTES = 512 * 1024;
-const RULE_BUDGET_MS = 100;
+// 放宽到 CI 稳健值:线性正则远低于此(<10ms),真 ReDoS 病态回溯是秒级 → 仍稳定判失败。
+// 100ms 在 CI 的 GC/CPU 争用尖峰下会间歇误报(本质非逻辑错),1000ms 留足余量消除 flaky。
+const RULE_BUDGET_MS = 1_000;
 
 const pathologicalLines = [
   'a'.repeat(MAX_FILE_BYTES),

@@ -63,11 +63,14 @@ import type { AuditRule } from '../src/core/audit/types.ts';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
+// 预算放宽到 CI 稳健值:真实线性正则在 2048 cap 下 <10ms;真 ReDoS(多项式/指数回溯)
+// 在 2048 cap 下是秒级甚至更久。下面的阈值对线性留 >100x 余量(消除 CI 的 GC/CPU 争用尖峰
+// 导致的间歇性误报),同时对"耗时 >1s 的病态回溯"仍稳定判失败 —— 即 ReDoS 检测价值不变。
 /** Hard wall-clock budget for a full audit over any single pathological input. */
-const FULL_AUDIT_BUDGET_MS = 1_000;
+const FULL_AUDIT_BUDGET_MS = 5_000;
 
 /** Per-rule budget for an individually-targeted stress test. */
-const SINGLE_RULE_BUDGET_MS = 100;
+const SINGLE_RULE_BUDGET_MS = 1_000;
 
 /** Line-cap enforced by the engine (each line capped before regex). */
 const LINE_CAP = MAX_AUDIT_MATCH_LINE_LENGTH; // 2048

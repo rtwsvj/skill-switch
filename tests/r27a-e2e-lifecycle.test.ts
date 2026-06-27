@@ -21,7 +21,12 @@ import { mkdtempSync } from 'node:fs';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// 这是 e2e 套件:每个用例会多次 spawn `node --import tsx` 子进程(各 ~1s 起步)。
+// 一个场景 5~6 次 spawn 很容易超过 vitest 默认 5000ms 测试超时 —— 在 CI 负载下尤其如此,
+// 表现为间歇性 flaky(本质是超时,不是逻辑错)。统一给本文件放宽到 60s,稳定第一。
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const ROOT = join(import.meta.dirname, '..');
 const CLI = join(ROOT, 'src', 'cli', 'index.ts');
