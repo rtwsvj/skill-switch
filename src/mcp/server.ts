@@ -9,6 +9,9 @@ import { resolveHomeRoot } from '../core/paths.ts';
 import { scanHome } from '../core/scan.ts';
 import { buildStatus } from '../core/status.ts';
 import { auditHome, auditSkillDir } from '../cli/commands/audit.ts';
+import { analyzeCooccurrence } from '../core/packs/cooccurrence.ts';
+import { suggestPacks } from '../core/packs/suggest.ts';
+import { buildStats } from '../core/stats.ts';
 
 // 我们实现/对话的 MCP 协议版本(广泛被 Claude/Cursor 支持的稳定版)。
 export const MCP_PROTOCOL_VERSION = '2024-11-05';
@@ -136,6 +139,92 @@ export const MCP_TOOLS: McpTool[] = [
       const anyBlocked = report.skills.some((s) => s.blocked) || report.configsBlocked === true;
       return JSON.stringify(
         { mode: 'home', home, total: report.total, anyBlocked, skills },
+        null,
+        2,
+      );
+    },
+  },
+  {
+    name: 'skill_switch_packs_suggest',
+    description:
+      '分析最近对话里 skill 的共现情况,建议把哪些"总是一起用"的 skill 打成套餐(pack)。' +
+      '只读:只看 skill 名 + 出现次数,绝不读对话正文,绝不出本机。' +
+      '返回套餐建议列表(id、建议名、skill 列表、理由、共现强度)。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        home: { type: 'string', description: '可选:覆盖 home 根目录(默认系统 home)。' },
+        windowDays: {
+          type: 'number',
+          description: '可选:只统计最近 N 天内的使用记录(不填 = 全量历史)。',
+        },
+      },
+    },
+    async run(args) {
+      const home = resolveHomeArg(args);
+      const windowDays =
+        typeof args.windowDays === 'number' && Number.isFinite(args.windowDays)
+          ? args.windowDays
+          : undefined;
+      const report = await analyzeCooccurrence(home, windowDays !== undefined ? { windowDays } : {});
+      const suggestions = suggestPacks(report);
+      return JSON.stringify(
+        {
+          home,
+          sessionCount: report.sessionCount,
+          ...(windowDays !== undefined ? { windowDays } : {}),
+          suggestionCount: suggestions.length,
+          suggestions: suggestions.map((s) => ({
+            id: s.id,
+            suggestedName: s.suggestedName,
+            skills: s.skills,
+            rationale: s.rationale,
+            strength: s.strength,
+          })),
+        },
+        null,
+        2,
+      );
+    },
+  },
+  {
+    name: 'skill_switch_stats',
+    description:
+      '统计各 skill 的使用频率,并找出"僵尸 skill"(已安装但近期零触发、白占 token 配额的 skill)。' +
+      '只读:只扫 transcript 文件里的 skill 调用记录,不读对话正文,不写任何文件。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        home: { type: 'string', description: '可选:覆盖 home 根目录(默认系统 home)。' },
+        days: {
+          type: 'number',
+          description: '可选:只统计最近 N 天内的使用记录(不填 = 全量历史)。',
+        },
+      },
+    },
+    async run(args) {
+      const home = resolveHomeArg(args);
+      const days =
+        typeof args.days === 'number' && Number.isFinite(args.days) ? args.days : undefined;
+      const report = await buildStats(home, days);
+      return JSON.stringify(
+        {
+          home,
+          ...(report.since ? { since: report.since } : {}),
+          invocations: report.invocations,
+          scannedFiles: report.scannedFiles,
+          truncated: report.truncated,
+          usage: report.usage.map((u) => ({
+            skill: u.skill,
+            count: u.count,
+            ...(u.lastUsed ? { lastUsed: u.lastUsed } : {}),
+          })),
+          zombieCount: report.zombies.length,
+          zombies: report.zombies.map((z) => ({
+            name: z.name,
+            agents: z.agents,
+          })),
+        },
         null,
         2,
       );
