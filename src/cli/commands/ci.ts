@@ -1,16 +1,21 @@
 // v0.8-2 ci 子命令:一键生成 GitHub Actions 工作流,接入 skill-switch CI 审计。
+// v0.9   新增 --pre-commit:脚手架本地 pre-commit hook。
 //
 // 用法:
-//   skill-switch ci                    # 写 .github/workflows/skill-switch.yml(sarif 格式)
-//   skill-switch ci --format github    # github 注解格式(无需 security-events: write)
-//   skill-switch ci --pin v0.8.0       # 固定 action 版本
-//   skill-switch ci --out path/to.yml  # 指定输出路径
-//   skill-switch ci --force            # 已有文件时覆盖
-//   skill-switch ci --baseline         # 同时运行 audit 写入基线文件
-//   skill-switch ci --json             # 机器可读输出
+//   skill-switch ci                        # 写 .github/workflows/skill-switch.yml(sarif 格式)
+//   skill-switch ci --format github        # github 注解格式(无需 security-events: write)
+//   skill-switch ci --pin v0.8.0           # 固定 action 版本
+//   skill-switch ci --out path/to.yml      # 指定输出路径
+//   skill-switch ci --force                # 已有文件时覆盖
+//   skill-switch ci --baseline             # 同时运行 audit 写入基线文件
+//   skill-switch ci --json                 # 机器可读输出
+//   skill-switch ci --pre-commit           # 写 .pre-commit-config.yaml(本地门控)
+//   skill-switch ci --pre-commit --out x   # 写到自定义路径
+//   skill-switch ci --pre-commit --force   # 覆盖已有的 .pre-commit-config.yaml
+//   skill-switch ci --pre-commit --json    # 机器可读输出
 //
 // 安全边界:
-//   - 仅在 cwd 下写文件(workflow 文件 + 可选基线文件)。
+//   - 仅在 cwd 下写文件(workflow 文件 + 可选基线文件 + 可选 pre-commit 配置)。
 //   - 无网络、无 spawn(基线逻辑直接调模块函数)、无新依赖。
 //   - 已有文件时拒绝覆盖(需 --force)。
 
@@ -23,6 +28,9 @@ import { buildBaselineFile, writeBaselineFile } from '../../core/audit/baseline.
 
 /** 默认 workflow 输出路径(相对 cwd) */
 const DEFAULT_WORKFLOW_PATH = join('.github', 'workflows', 'skill-switch.yml');
+
+/** 默认 pre-commit 配置文件路径(相对 cwd) */
+const DEFAULT_PRECOMMIT_PATH = '.pre-commit-config.yaml';
 
 /** 默认 action 版本引脚 */
 const DEFAULT_PIN = 'v0.7.0';
@@ -78,16 +86,34 @@ jobs:
 `;
 }
 
+/**
+ * 生成 .pre-commit-config.yaml 内容。
+ * 使用 local repo hook,调用 npx @rtwsvj/skill-switch audit --configs 守门提交。
+ * 遵循标准 pre-commit schema:repos → repo: local → hooks。
+ */
+function buildPreCommitConfig(): string {
+  return `repos:
+  - repo: local
+    hooks:
+      - id: skill-switch-audit
+        name: skill-switch audit
+        entry: npx @rtwsvj/skill-switch audit --configs
+        language: system
+        pass_filenames: false
+`;
+}
+
 export function registerCiCommand(program: Command): void {
   program
     .command('ci')
     .description('生成 GitHub Actions 工作流,一键接入 skill-switch CI 审计(已存在则不覆盖,需 --force)')
     .option('--format <fmt>', '工作流输出格式:sarif(默认,上传 code-scanning)/ github(PR 内联注解)', 'sarif')
     .option('--pin <ref>', `Action 版本引脚(默认 ${DEFAULT_PIN})`, DEFAULT_PIN)
-    .option('--out <path>', `工作流文件输出路径(默认 ${DEFAULT_WORKFLOW_PATH})`)
-    .option('--force', '已有工作流文件时强制覆盖')
+    .option('--out <path>', '输出文件路径(workflow 默认 .github/workflows/skill-switch.yml;--pre-commit 默认 .pre-commit-config.yaml)')
+    .option('--force', '已有文件时强制覆盖')
     .option('--baseline', `同时对当前仓库运行 audit 并写入基线文件(${DEFAULT_BASELINE_PATH}),CI 仅对新 finding 报错`)
     .option('--json', '机器可读 JSON 输出')
+    .option('--pre-commit', `脚手架本地 pre-commit hook(写 ${DEFAULT_PRECOMMIT_PATH}),与 GitHub Actions 互补,在提交阶段本地门控`)
     .action(
       async (options: {
         format?: string;
@@ -96,7 +122,53 @@ export function registerCiCommand(program: Command): void {
         force?: boolean;
         baseline?: boolean;
         json?: boolean;
+        preCommit?: boolean;
       }) => {
+
+        // ── pre-commit 路径:完全独立,不触碰 workflow 逻辑 ──────────────────────
+        if (options.preCommit) {
+          const preCommitPath = resolve(options.out ?? join(process.cwd(), DEFAULT_PRECOMMIT_PATH));
+
+          // 防覆盖保护
+          if (!options.force && existsSync(preCommitPath)) {
+            process.stderr.write(
+              `错误: pre-commit 配置文件已存在: ${preCommitPath}\n` +
+              `  用 --force 强制覆盖,或用 --out <path> 指定其他路径。\n`,
+            );
+            process.exitCode = 1;
+            return;
+          }
+
+          // 生成并写入配置
+          const preCommitContent = buildPreCommitConfig();
+          await mkdir(dirname(preCommitPath), { recursive: true });
+          await writeFile(preCommitPath, preCommitContent, 'utf8');
+
+          if (options.json) {
+            console.log(JSON.stringify({
+              status: 'ok',
+              preCommitPath,
+              filesWritten: [preCommitPath],
+            }, null, 2));
+            return;
+          }
+
+          // 人类可读输出 + 下一步提示
+          console.log(`已写入 pre-commit 配置: ${preCommitPath}`);
+          console.log('');
+          console.log('下一步:');
+          console.log('1. 安装 pre-commit 工具(需 Python):');
+          console.log('   pip install pre-commit');
+          console.log('2. 激活 git hook:');
+          console.log('   pre-commit install');
+          console.log('3. 提交以下文件到仓库:');
+          console.log(`   ${preCommitPath}`);
+          console.log('');
+          console.log('之后每次 git commit 均会自动运行 skill-switch audit --configs。');
+          return;
+        }
+
+        // ── 以下为原 workflow 脚手架路径(不含 --pre-commit 时) ─────────────────
         const fmt = options.format ?? 'sarif';
         const pin = options.pin ?? DEFAULT_PIN;
         const workflowPath = resolve(options.out ?? join(process.cwd(), DEFAULT_WORKFLOW_PATH));
