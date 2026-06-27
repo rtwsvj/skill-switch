@@ -75,10 +75,10 @@ skill-switch --help
 | `restore` | List / restore snapshots (`--latest` or `--id`). |
 | `lint` | Spec checks + cross-tool portability + conflict/budget health. |
 | `doctor` | Declared × locked × disk reconciliation (`--ci` exits 1 on drift). Also prints a "Config security:" advisory section summarizing critical/high config findings; `--json` includes a `configAudit` field (advisory only — does not affect exit code). |
-| `diff` | Content drift, file-by-file: disk vs. stored copy. |
-| `drift` | Upstream HEAD / locked commit / local content three-way drift. |
+| `diff` | Content drift, file-by-file: disk vs. stored copy; plus a one-line narrative summary (files changed, +N/−M lines, and whether a new security signal was introduced). |
+| `drift` | Upstream HEAD / locked commit / local content three-way drift. `--review` approves drift one-by-one (cargo-vet style), `--approve-all` batch-approves; approved drift no longer counts toward `--ci` (auto-invalidated when content changes again). |
 | `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). |
-| `packs` | **Discover packs from usage:** `packs suggest` reads your local conversations (skill names only) to suggest bundles of skills you use together; `packs save <id> [--enrich]` freezes one into a portable `pack.json` (`--enrich` back-fills sources from the lock for cross-machine reinstall); `packs install <pack.json>` installs a pack onto a new machine / another agent; `packs list` lists packs; `packs show <file>` inspects one; supports `extends` inheritance. |
+| `packs` | **Discover packs from usage:** `packs suggest` reads your local conversations (skill names only) to suggest bundles of skills you use together; `packs save <id> [--enrich]` freezes one into a portable `pack.json` (`--enrich` back-fills sources from the lock for cross-machine reinstall); `packs install <pack.json|builtin-id>` installs a pack onto a new machine / another agent (`--lock` writes a reproducible lock; optional skills don't block on failure); `packs list [--builtin]` lists packs / builtin starter packs; `packs show <file>` inspects one; supports `extends` inheritance. |
 | `mcp` | Run skill-switch as an **MCP server** (stdio) so agents like Cursor / Claude Code can call its **read-only** audit tools (`skill_switch_scan` / `status` / `audit`) in real time. Zero-dependency; never writes disk over this path. `--list-tools` to list exposed tools. |
 | `lock` | Inspect the lock; `--verify` re-hashes disk to compare. |
 | `export` | Bundle skills.json + skills.lock.json into a portable .ssp archive (read-only). |

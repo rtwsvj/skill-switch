@@ -4,7 +4,18 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+/**
+ * 解析本目录(内置套餐 *.pack.json 所在)。
+ * SEA 打包后 import.meta.url 不可用 → 返回 null(SEA sidecar 不附带这些数据文件,
+ * 内置套餐功能在 SEA 下优雅降级为空,绝不在模块加载时崩掉整个 CLI)。
+ */
+function builtinDir(): string | null {
+  try {
+    return dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return null;
+  }
+}
 
 /** 内置套餐描述(轻量:不加载完整 manifest) */
 export interface BuiltinPackMeta {
@@ -41,9 +52,11 @@ const BUILTIN_ENTRIES: Array<Omit<BuiltinPackMeta, 'path'>> = [
  * 列出全部内置套餐(含绝对路径)。
  */
 export function listBuiltinPacks(): BuiltinPackMeta[] {
+  const dir = builtinDir();
+  if (dir === null) return [];
   return BUILTIN_ENTRIES.map((e) => ({
     ...e,
-    path: join(__dirname, `${e.id}.pack.json`),
+    path: join(dir, `${e.id}.pack.json`),
   }));
 }
 
@@ -54,7 +67,9 @@ export function listBuiltinPacks(): BuiltinPackMeta[] {
 export function resolveBuiltinPackPath(id: string): string | null {
   const entry = BUILTIN_ENTRIES.find((e) => e.id === id);
   if (!entry) return null;
-  return join(__dirname, `${entry.id}.pack.json`);
+  const dir = builtinDir();
+  if (dir === null) return null;
+  return join(dir, `${entry.id}.pack.json`);
 }
 
 /**

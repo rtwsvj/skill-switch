@@ -81,10 +81,10 @@ skill-switch --help
 | `restore` | 列出 / 还原备份(`--latest` 或 `--id`)。 | `skill-switch restore --latest` |
 | `lint` | 规范校验 + 跨工具移植告警 + 冲突 / 预算健康度。 | `skill-switch lint --target codex` |
 | `doctor` | 声明/锁/磁盘三方一致性(`--ci` 不一致即 exit 1)。同时显示「配置安全:」advisory 段落(critical/high 配置问题摘要;`--json` 含 `configAudit` 字段;不影响退出码)。 | `skill-switch doctor` |
-| `diff` | 内容漂移的「改了什么」:磁盘 vs store 副本,逐文件 added/removed/modified。 | `skill-switch diff my-skill` |
-| `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。 | `skill-switch drift` |
+| `diff` | 内容漂移的「改了什么」:磁盘 vs store 副本,逐文件 added/removed/modified;顶部一行**叙述摘要**(动了几个文件、+N/−M 行、是否新引入安全风险)。 | `skill-switch diff my-skill` |
+| `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。`--review` 逐条审批(cargo-vet 式)、`--approve-all` 批量审批,已审批的不再计入 `--ci`(内容再变自动失效)。 | `skill-switch drift --review` |
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
-| `packs` | 从对话用法**发现套餐**:`packs suggest` 读本机对话(只数 skill 名)建议常一起用的 skill 组成套餐;`packs save <id> [--enrich]` 固化成可携带的 `pack.json`(`--enrich` 从 lock 回填来源以便跨机重装);`packs install <pack.json>` 把套餐一键装到新机/另一个 agent;`packs list` 列出套餐;`packs show <file>` 查看;支持 `extends` 继承。 | `skill-switch packs suggest` |
+| `packs` | 从对话用法**发现套餐**:`packs suggest` 读本机对话(只数 skill 名)建议常一起用的 skill 组成套餐;`packs save <id> [--enrich]` 固化成可携带的 `pack.json`(`--enrich` 从 lock 回填来源以便跨机重装);`packs install <pack.json|内置id>` 把套餐一键装到新机/另一个 agent(`--lock` 写可复现锁、可选 skill 失败不阻断);`packs list [--builtin]` 列出套餐/内置 starter 套餐;`packs show <file>` 查看;支持 `extends` 继承。 | `skill-switch packs install security-review` |
 | `mcp` | 把 skill-switch 跑成 **MCP server**(stdio):让 Cursor / Claude Code 等 agent 实时调用它的**只读**审计工具(`skill_switch_scan` / `status` / `audit`)。零依赖,绝不经此写磁盘。`--list-tools` 查看暴露的工具。 | `skill-switch mcp` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
