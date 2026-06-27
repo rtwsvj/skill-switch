@@ -102,7 +102,26 @@
       "found": "发现 {{count}} 个还没纳入管理的技能",
       "action": "一键导入"
     },
-    "empty": "还没有任何技能。点上方「导入已有」,或去「总览 → 安装」添加第一个。"
+    "empty": "还没有任何技能。点上方「导入已有」,或去「总览 → 安装」添加第一个。",
+    "detail": {
+      "directory": "目录",
+      "source": "来源",
+      "tools": "工具",
+      "score": "安全评分",
+      "description": "描述",
+      "error": "错误",
+      "empty": "点击左侧技能查看详情"
+    },
+    "undo": {
+      "action": "撤销",
+      "close": "关闭通知",
+      "region": "操作通知",
+      "restored": "已还原",
+      "enabled": "已启用 {{name}} — 后悔了?",
+      "disabled": "已停用 {{name}} — 后悔了?",
+      "deleted": "已删除 {{name}} — 后悔了?",
+      "synced": "同步完成({{count}} 项) — 后悔了?"
+    }
   },
   "operations": {
     "title": "安装与维护",

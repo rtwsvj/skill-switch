@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface UndoToastItem {
   id: string;
@@ -41,6 +42,7 @@ export function ToastRow({
   onDismiss: (id: string) => void;
 }) {
   const progressRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
 
   // 让进度条动画匹配自动关闭时长
   useEffect(() => {
@@ -68,12 +70,12 @@ export function ToastRow({
               onDismiss(toast.id);
             }}
           >
-            撤销
+            {t('skills.undo.action')}
           </button>
           <button
             type="button"
             className="undo-toast-close ghost-button"
-            aria-label="关闭通知"
+            aria-label={t('skills.undo.close')}
             onClick={() => onDismiss(toast.id)}
           >
             ✕
@@ -93,9 +95,10 @@ export function UndoToastStack({
   toasts: UndoToastItem[];
   onDismiss: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   if (toasts.length === 0) return null;
   return (
-    <section className="undo-toast-stack" aria-label="操作通知">
+    <section className="undo-toast-stack" aria-label={t('skills.undo.region')}>
       {toasts.map((toast: UndoToastItem) =>
         // createElement 用于绕开 @types/react 缺失时 JSX 对 key 的误报
         createElement(ToastRow, { key: toast.id, toast, onDismiss }),

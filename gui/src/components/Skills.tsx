@@ -101,15 +101,15 @@ function SkillDetail({
 
       <dl className="skill-detail-grid">
         <div>
-          <dt>目录</dt>
+          <dt>{t('skills.detail.directory')}</dt>
           <dd className="mono">{skill.dirName}</dd>
         </div>
         <div>
-          <dt>来源</dt>
+          <dt>{t('skills.detail.source')}</dt>
           <dd className="muted">{skill.relSkillsDir || '-'}</dd>
         </div>
         <div>
-          <dt>工具</dt>
+          <dt>{t('skills.detail.tools')}</dt>
           <dd>
             <div className="agent-list">
               {skill.agents.length > 0
@@ -120,7 +120,7 @@ function SkillDetail({
         </div>
         {info.auditReport ? (
           <div>
-            <dt>安全评分</dt>
+            <dt>{t('skills.detail.score')}</dt>
             <dd>
               <span className={cx('skill-score', info.auditReport.score >= 70 ? 'skill-score-ok' : 'skill-score-bad')}>
                 {info.auditReport.score}
@@ -130,13 +130,13 @@ function SkillDetail({
         ) : null}
         {skill.description ? (
           <div className="skill-detail-desc">
-            <dt>描述</dt>
+            <dt>{t('skills.detail.description')}</dt>
             <dd className="muted">{skill.description}</dd>
           </div>
         ) : null}
         {info.hasError ? (
           <div className="skill-detail-error">
-            <dt>错误</dt>
+            <dt>{t('skills.detail.error')}</dt>
             <dd className="skill-detail-error-msg">{skill.error}</dd>
           </div>
         ) : null}
@@ -293,7 +293,7 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
           />
         ) : (
           <div className="skill-detail-panel skill-detail-empty">
-            <p className="muted">点击左侧技能查看详情</p>
+            <p className="muted">{t('skills.detail.empty')}</p>
           </div>
         )}
       </div>

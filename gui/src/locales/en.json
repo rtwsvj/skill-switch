@@ -102,7 +102,26 @@
       "found": "Found {{count}} skills not yet under management",
       "action": "Import all"
     },
-    "empty": "No skills yet. Use “Import all” above, or go to Overview → Install to add your first one."
+    "empty": "No skills yet. Use “Import all” above, or go to Overview → Install to add your first one.",
+    "detail": {
+      "directory": "Folder",
+      "source": "Source",
+      "tools": "Tools",
+      "score": "Security score",
+      "description": "Description",
+      "error": "Error",
+      "empty": "Select a skill on the left to see details"
+    },
+    "undo": {
+      "action": "Undo",
+      "close": "Dismiss",
+      "region": "Notifications",
+      "restored": "Restored",
+      "enabled": "Enabled {{name}} — undo?",
+      "disabled": "Disabled {{name}} — undo?",
+      "deleted": "Deleted {{name}} — undo?",
+      "synced": "Synced {{count}} change(s) — undo?"
+    }
   },
   "operations": {
     "title": "Install and Maintain",

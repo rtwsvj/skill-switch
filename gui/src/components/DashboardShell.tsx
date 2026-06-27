@@ -297,11 +297,11 @@ export function DashboardShell({
         await onRefresh();
         // 撤销 toast:点撤销后还原最新备份
         showUndo(
-          `${enabled ? '已启用' : '已停用'} ${name} — 后悔了？`,
+          t(enabled ? 'skills.undo.enabled' : 'skills.undo.disabled', { name }),
           () => void runBusy('restore-apply', async () => {
             const restore = await runRestore({ latest: true });
             if (!isRestoreList(restore.data)) {
-              setNotice({ tone: 'good', title: '已还原', detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
+              setNotice({ tone: 'good', title: t('skills.undo.restored'), detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
               await onRefresh();
             }
           }),
@@ -332,11 +332,11 @@ export function DashboardShell({
         await onRefresh();
         // 撤销 toast:点撤销后还原最新备份
         showUndo(
-          `已删除 ${name} — 后悔了？`,
+          t('skills.undo.deleted', { name }),
           () => void runBusy('restore-apply', async () => {
             const restore = await runRestore({ latest: true });
             if (!isRestoreList(restore.data)) {
-              setNotice({ tone: 'good', title: '已还原', detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
+              setNotice({ tone: 'good', title: t('skills.undo.restored'), detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
               await onRefresh();
             }
           }),
@@ -375,11 +375,11 @@ export function DashboardShell({
         await onRefresh();
         // 撤销 toast:点撤销后还原最新备份
         showUndo(
-          `同步完成(${changedActionCount(result.data)} 项) — 后悔了？`,
+          t('skills.undo.synced', { count: changedActionCount(result.data) }),
           () => void runBusy('restore-apply', async () => {
             const restore = await runRestore({ latest: true });
             if (!isRestoreList(restore.data)) {
-              setNotice({ tone: 'good', title: '已还原', detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
+              setNotice({ tone: 'good', title: t('skills.undo.restored'), detail: restore.data.target, snapshots: snapshotPaths(restore.data) });
               await onRefresh();
             }
           }),

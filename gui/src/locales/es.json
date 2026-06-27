@@ -102,7 +102,26 @@
       "found": "Se encontraron {{count}} skills aún sin gestionar",
       "action": "Importar todas"
     },
-    "empty": "Aún no hay skills. Usa “Importar todas” arriba, o ve a Resumen → Instalar para añadir la primera."
+    "empty": "Aún no hay skills. Usa “Importar todas” arriba, o ve a Resumen → Instalar para añadir la primera.",
+    "detail": {
+      "directory": "Carpeta",
+      "source": "Origen",
+      "tools": "Herramientas",
+      "score": "Puntuación de seguridad",
+      "description": "Descripción",
+      "error": "Error",
+      "empty": "Selecciona una skill a la izquierda para ver los detalles"
+    },
+    "undo": {
+      "action": "Deshacer",
+      "close": "Cerrar",
+      "region": "Notificaciones",
+      "restored": "Restaurado",
+      "enabled": "{{name}} activada — ¿deshacer?",
+      "disabled": "{{name}} desactivada — ¿deshacer?",
+      "deleted": "{{name}} eliminada — ¿deshacer?",
+      "synced": "Sincronizados {{count}} cambios — ¿deshacer?"
+    }
   },
   "operations": {
     "title": "Instalar y mantener",
