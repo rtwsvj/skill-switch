@@ -2,9 +2,14 @@
 //   - 直接测 handleMcpRequest(协议握手 / tools/list / tools/call / 错误路径)。
 //   - stdio e2e:spawn bin/skill-switch.mjs mcp,喂行分隔 JSON-RPC,断言 stdout 响应。
 //   - 安全:MCP 这条路只读;audit 工具能查出恶意 fixture 的反向 shell。
+//   - 新工具:skill_switch_packs_suggest(共现建议)/ skill_switch_stats(使用统计+僵尸)。
+import { mkdtempSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import {
   handleMcpRequest,
   MCP_PROTOCOL_VERSION,
@@ -61,7 +66,7 @@ describe('MCP server — 协议握手', () => {
 });
 
 describe('MCP server — tools/list', () => {
-  it('列出全部只读工具,每个带 inputSchema', async () => {
+  it('列出全部只读工具(5 个),每个带 inputSchema', async () => {
     const res = await handleMcpRequest(req('tools/list'), VER);
     const tools = (res as { result: { tools: { name: string; inputSchema: unknown }[] } }).result
       .tools;
@@ -69,10 +74,13 @@ describe('MCP server — tools/list', () => {
       'skill_switch_scan',
       'skill_switch_status',
       'skill_switch_audit',
+      'skill_switch_packs_suggest',
+      'skill_switch_stats',
     ]);
     for (const t of tools) {
       expect(t.inputSchema).toMatchObject({ type: 'object' });
     }
+    expect(tools.length).toBe(5);
     expect(tools.length).toBe(MCP_TOOLS.length);
   });
 });
@@ -144,6 +152,200 @@ describe('MCP server — tools/call', () => {
     );
     const result = (res as { result: { isError?: boolean } }).result;
     expect(result.isError).toBe(true);
+  });
+});
+
+// ── 辅助:构建带 transcript 的临时 home(用于 packs_suggest / stats 测试)──────────
+
+/** 构造一行带 Skill tool_use 的 assistant JSONL 行 */
+function skillLine(skill: string, timestamp?: string): string {
+  return JSON.stringify({
+    type: 'assistant',
+    uuid: `u-${skill}-${timestamp ?? 'no-ts'}`,
+    ...(timestamp ? { timestamp } : {}),
+    sessionId: 'irrelevant',
+    message: {
+      role: 'assistant',
+      content: [{ type: 'tool_use', id: 'toolu_x', name: 'Skill', input: { skill } }],
+    },
+  });
+}
+
+/** ISO 字符串:N 天前 */
+function daysAgo(n: number): string {
+  return new Date(Date.now() - n * 86_400_000).toISOString();
+}
+
+/** 写入一个 session 文件(JSONL) */
+async function writeSession(
+  home: string,
+  projDir: string,
+  fileName: string,
+  lines: string[],
+): Promise<void> {
+  const dir = join(home, '.claude', 'projects', projDir);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, fileName), `${lines.join('\n')}\n`);
+}
+
+/** 写一个 SKILL.md 到指定 skills 目录,模拟已安装 skill */
+async function writeSkillMd(home: string, skillName: string): Promise<void> {
+  const dir = join(home, '.claude', 'skills', skillName);
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, 'SKILL.md'),
+    `---\nname: ${skillName}\ndescription: fixture.\n---\nContent.\n`,
+  );
+}
+
+let mcpHome: string;
+
+beforeEach(() => {
+  mcpHome = mkdtempSync(join(tmpdir(), 'ss-mcp-new-'));
+});
+
+describe('MCP server — skill_switch_packs_suggest', () => {
+  it('无 transcript 时返回空建议列表,不抛', async () => {
+    const res = await handleMcpRequest(
+      req('tools/call', { name: 'skill_switch_packs_suggest', arguments: { home: mcpHome } }),
+      VER,
+    );
+    const data = JSON.parse(callText(res)) as {
+      sessionCount: number;
+      suggestionCount: number;
+      suggestions: unknown[];
+    };
+    expect(data.sessionCount).toBe(0);
+    expect(data.suggestionCount).toBe(0);
+    expect(data.suggestions).toEqual([]);
+  });
+
+  it('两 skill 高频共现 → 产出套餐建议(含 id/suggestedName/skills/rationale/strength)', async () => {
+    // 写 5 个 session,每个都包含 alpha + beta,满足 minSessionsTogether=3 阈值
+    for (let i = 0; i < 5; i++) {
+      await writeSession(mcpHome, 'p', `s${i}.jsonl`, [
+        skillLine('alpha', daysAgo(1)),
+        skillLine('beta', daysAgo(1)),
+      ]);
+    }
+    const res = await handleMcpRequest(
+      req('tools/call', { name: 'skill_switch_packs_suggest', arguments: { home: mcpHome } }),
+      VER,
+    );
+    const data = JSON.parse(callText(res)) as {
+      sessionCount: number;
+      suggestionCount: number;
+      suggestions: { id: string; suggestedName: string; skills: string[]; rationale: string; strength: number }[];
+    };
+    expect(data.sessionCount).toBe(5);
+    expect(data.suggestionCount).toBeGreaterThan(0);
+    const s = data.suggestions[0]!;
+    expect(s.id).toMatch(/^pack-/);
+    expect(s.suggestedName).toMatch(/工作流$/);
+    expect(s.skills).toContain('alpha');
+    expect(s.skills).toContain('beta');
+    expect(typeof s.rationale).toBe('string');
+    expect(s.rationale.length).toBeGreaterThan(0);
+    expect(s.strength).toBeGreaterThan(0);
+    expect(s.strength).toBeLessThanOrEqual(1);
+    // 内容安全:不含对话内容或 fileContents 等内部字段
+    const raw = callText(res);
+    expect(raw).not.toContain('fileContents');
+    expect(raw).not.toContain('dialog');
+  });
+
+  it('windowDays 参数生效:窗口外触发被排除不产生建议', async () => {
+    // 写 5 个 session,但时间戳是 40 天前(超出 windowDays=7)
+    for (let i = 0; i < 5; i++) {
+      await writeSession(mcpHome, 'p', `old${i}.jsonl`, [
+        skillLine('alpha', daysAgo(40)),
+        skillLine('beta', daysAgo(40)),
+      ]);
+    }
+    const res = await handleMcpRequest(
+      req('tools/call', {
+        name: 'skill_switch_packs_suggest',
+        arguments: { home: mcpHome, windowDays: 7 },
+      }),
+      VER,
+    );
+    const data = JSON.parse(callText(res)) as {
+      windowDays: number;
+      suggestionCount: number;
+    };
+    expect(data.windowDays).toBe(7);
+    expect(data.suggestionCount).toBe(0);
+  });
+});
+
+describe('MCP server — skill_switch_stats', () => {
+  it('无 transcript 无 skill 时返回空报告,不抛', async () => {
+    const res = await handleMcpRequest(
+      req('tools/call', { name: 'skill_switch_stats', arguments: { home: mcpHome } }),
+      VER,
+    );
+    const data = JSON.parse(callText(res)) as {
+      invocations: number;
+      usage: unknown[];
+      zombieCount: number;
+      zombies: unknown[];
+    };
+    expect(data.invocations).toBe(0);
+    expect(data.usage).toEqual([]);
+    expect(data.zombieCount).toBe(0);
+    expect(data.zombies).toEqual([]);
+  });
+
+  it('有 transcript + 已安装 skill → 报告 usage 计数和僵尸 skill', async () => {
+    // 安装两个 skill:used-skill 有触发,zombie-skill 零触发
+    await writeSkillMd(mcpHome, 'used-skill');
+    await writeSkillMd(mcpHome, 'zombie-skill');
+    // 写 transcript:used-skill 近期 3 次触发
+    await writeSession(mcpHome, 'proj', 'sess.jsonl', [
+      skillLine('used-skill', daysAgo(1)),
+      skillLine('used-skill', daysAgo(2)),
+      skillLine('used-skill', daysAgo(3)),
+    ]);
+    const res = await handleMcpRequest(
+      req('tools/call', { name: 'skill_switch_stats', arguments: { home: mcpHome } }),
+      VER,
+    );
+    const data = JSON.parse(callText(res)) as {
+      invocations: number;
+      usage: { skill: string; count: number }[];
+      zombieCount: number;
+      zombies: { name: string }[];
+    };
+    expect(data.invocations).toBe(3);
+    const usedEntry = data.usage.find((u) => u.skill === 'used-skill');
+    expect(usedEntry).toBeDefined();
+    expect(usedEntry!.count).toBe(3);
+    expect(data.zombieCount).toBe(1);
+    expect(data.zombies.map((z) => z.name)).toContain('zombie-skill');
+    // 内容安全:不含对话正文或 fileContents
+    const raw = callText(res);
+    expect(raw).not.toContain('fileContents');
+  });
+
+  it('days 参数生效:窗口外触发被排除', async () => {
+    await writeSkillMd(mcpHome, 'used-skill');
+    await writeSession(mcpHome, 'proj', 'sess.jsonl', [
+      skillLine('used-skill', daysAgo(1)),   // 窗口内
+      skillLine('used-skill', daysAgo(40)),  // 窗口外
+    ]);
+    const res = await handleMcpRequest(
+      req('tools/call', { name: 'skill_switch_stats', arguments: { home: mcpHome, days: 7 } }),
+      VER,
+    );
+    const data = JSON.parse(callText(res)) as {
+      since: string;
+      invocations: number;
+      usage: { skill: string; count: number }[];
+    };
+    expect(data.since).toBeTruthy();
+    expect(data.invocations).toBe(1);
+    const entry = data.usage.find((u) => u.skill === 'used-skill');
+    expect(entry!.count).toBe(1);
   });
 });
 
