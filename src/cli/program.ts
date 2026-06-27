@@ -13,6 +13,7 @@ import { registerInitCommand } from './commands/init.ts';
 import { registerInstallCommand } from './commands/install.ts';
 import { registerLintCommand } from './commands/lint.ts';
 import { registerLockCommand } from './commands/lock.ts';
+import { registerPacksCommand } from './commands/packs.ts';
 import { registerRemoveCommand } from './commands/remove.ts';
 import { registerRestoreCommand } from './commands/restore.ts';
 import { registerScanCommand } from './commands/scan.ts';
@@ -57,6 +58,7 @@ export function buildProgram(): Command {
   registerDiffCommand(program);
   registerDriftCommand(program);
   registerStatsCommand(program);
+  registerPacksCommand(program);
   registerLockCommand(program);
   registerExportCommand(program);
   registerImportCommand(program);

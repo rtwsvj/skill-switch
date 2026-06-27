@@ -114,20 +114,18 @@ function avgStrength(
   return count === 0 ? 0 : total / count;
 }
 
-// ── 工具:组内总共现 session 数(所有有效对的 sessionsTogether 之和) ────────────
-
-function totalSessionsTogether(
-  skills: string[],
-  pairs: CooccurrenceReport['pairs'],
-): number {
+// ── 工具:组内"成组共现"的保守下界 = 组内有效对里最小的 sessionsTogether ──────────
+// 用最小值而非求和:它是"这些 skill 至少在多少次对话里成组出现"的可信下界,
+// 不会像求和那样把 N 段对话夸大成 N×对数(例:4 段对话、3 对 → 求和=12 会误导)。
+function minPairSessions(skills: string[], pairs: CooccurrenceReport['pairs']): number {
   const skillSet = new Set(skills);
-  let total = 0;
+  let min = Number.POSITIVE_INFINITY;
   for (const p of pairs) {
     if (skillSet.has(p.a) && skillSet.has(p.b)) {
-      total += p.sessionsTogether;
+      min = Math.min(min, p.sessionsTogether);
     }
   }
-  return total;
+  return Number.isFinite(min) ? min : 0;
 }
 
 // ── 主函数 ────────────────────────────────────────────────────────────────────
@@ -206,13 +204,13 @@ export function suggestPacks(
     const id = stableId(skills);
     const strength = Number(avgStrength(skills, report.pairs).toFixed(4));
 
-    // rationale 里的数字:组内有效对的 sessionsTogether 之和(反映"一起出现"规模)
-    const sessionsNum = totalSessionsTogether(skills, report.pairs);
+    // rationale 里的数字:组内最弱一对的共现 session 数 = 成组共现的可信下界
+    const sessionsNum = minPairSessions(skills, report.pairs);
     const strengthDisplay = strength.toFixed(2);
     const windowPart =
       report.windowDays !== undefined ? `过去${report.windowDays}天,` : '';
     const rationale =
-      `${windowPart}这${skills.length}个 skill 在 ${sessionsNum} 次对话里一起出现` +
+      `${windowPart}这${skills.length}个 skill 至少在 ${sessionsNum} 次对话里一起出现` +
       `(平均共现强度 ${strengthDisplay})`;
 
     suggestions.push({ id, suggestedName, skills, strength, rationale });

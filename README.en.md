@@ -76,6 +76,7 @@ skill-switch --help
 | `diff` | Content drift, file-by-file: disk vs. stored copy. |
 | `drift` | Upstream HEAD / locked commit / local content three-way drift. |
 | `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). |
+| `packs` | **Discover packs from usage:** `packs suggest` reads your local conversations (skill names only) to suggest bundles of skills you use together; `packs save <id>` freezes one into a portable `pack.json`; `packs show <file>` inspects it. |
 | `lock` | Inspect the lock; `--verify` re-hashes disk to compare. |
 | `export` | Bundle skills.json + skills.lock.json into a portable .ssp archive (read-only). |
 | `import` | Restore skills.json + skills.lock.json from a .ssp archive (does not sync to disk). |

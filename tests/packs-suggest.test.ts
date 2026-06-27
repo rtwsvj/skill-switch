@@ -108,12 +108,12 @@ describe('suggestPacks — 三角团', () => {
     expect(pack!.strength).toBeCloseTo(0.8433, 3);
   });
 
-  it('rationale 应含 skill 数量 + sessionsTogether 总和 + strength', () => {
+  it('rationale 应含 skill 数量 + 最小共现下界 + strength', () => {
     const [pack] = suggestPacks(makeTriangle(30));
-    // sessions: 12+10+9 = 31
+    // pairs sessionsTogether: 12/10/9 → 下界用最小值 9(不夸大成求和 31)
     expect(pack!.rationale).toContain('过去30天');
     expect(pack!.rationale).toContain('3个 skill');
-    expect(pack!.rationale).toContain('31 次对话');
+    expect(pack!.rationale).toContain('至少在 9 次对话');
     expect(pack!.rationale).toContain('平均共现强度');
   });
 
@@ -233,8 +233,8 @@ describe('suggestPacks — 确定性', () => {
 
   it('rationale 中的数字与 fixture 数据一致', () => {
     const [pack] = suggestPacks(makeTriangle(30));
-    // 总 sessionsTogether: 12+10+9 = 31
-    expect(pack!.rationale).toMatch(/31 次对话/);
+    // pairs sessionsTogether 12/10/9 → 下界取最小 9(不夸大成求和 31)
+    expect(pack!.rationale).toMatch(/至少在 9 次对话/);
     // skill 数
     expect(pack!.rationale).toMatch(/3个 skill/);
     // windowDays
