@@ -66,6 +66,7 @@ skill-switch --help
 | `scan` | Inventory installed skills per tool (read-only). |
 | `init` | Scan installed skills and draft an initial `skills.json` (skips if one exists; `--force` to overwrite, `--dry-run` to preview). |
 | `audit` | Security audit; any critical/high or score < 70 → exit 1. Add `--configs` to also audit agent config files (settings.json / MCP), covering Claude Code, Gemini CLI, Cursor, and VS Code. `--format junit` (Jenkins/GitLab/CircleCI), `--min-severity <level>` filter, `--exit-code <n>` (e.g. `0` for report-only), and inline `# skill-switch:suppress[ruleId]`. |
+| `explain` | Explain an audit rule: what it detects, why it's dangerous, how to fix it, and the three suppression methods. `--json` for machine-readable output; unknown ruleId → exit 1 with suggestions. |
 | `ci` | Scaffold a GitHub Actions workflow (`.github/workflows/skill-switch.yml`) in one command. `--format sarif` (default, uploads to code-scanning) or `--format github` (inline PR annotations); `--pin <ref>` to pin the action version; `--baseline` to also write a finding baseline so CI only fails on new findings; `--force` to overwrite an existing file; `--pre-commit` instead scaffolds a local `.pre-commit-config.yaml` gate. |
 | `install` | Install from a local or git source (audits + snapshots first). |
 | `toggle` | Enable/disable a single skill per the declaration. |

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { registerAuditCommand } from './commands/audit.ts';
 import { registerCiCommand } from './commands/ci.ts';
+import { registerExplainCommand } from './commands/explain.ts';
 import { registerDiffCommand } from './commands/diff.ts';
 import { registerDoctorCommand } from './commands/doctor.ts';
 import { registerDriftCommand } from './commands/drift.ts';
@@ -52,7 +53,7 @@ QUICK START (快速上手):
 
 COMMAND GROUPS (命令分组):
   盘点       status  scan  stats  watch
-  安全       audit  lint  ci
+  安全       audit  lint  ci  explain
   治理       init  sync  toggle  install  remove  restore  diff  drift  doctor
   锁与声明   lock  export  import
   套餐       packs
@@ -73,6 +74,7 @@ export function buildProgram(): Command {
   registerInitCommand(program);
   registerAuditCommand(program);
   registerCiCommand(program);
+  registerExplainCommand(program);
   registerInstallCommand(program);
   registerToggleCommand(program);
   registerSyncCommand(program);
