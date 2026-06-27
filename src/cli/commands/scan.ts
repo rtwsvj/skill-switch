@@ -18,7 +18,9 @@ function agentsCell(record: SkillRecord): string {
 }
 
 export function formatScanTable(records: SkillRecord[]): string {
-  if (records.length === 0) return '未发现任何 skill。';
+  if (records.length === 0) {
+    return '未发现任何 skill。\n提示:试试 `skill-switch install <source>` 安装第一个,或 `skill-switch packs suggest` 获取推荐。';
+  }
 
   const header = ['DIR', 'SKILL', 'NAME', 'AGENTS', 'STATUS'];
   const rows = records.map((record) => [
