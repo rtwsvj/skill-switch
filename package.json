@@ -1,6 +1,6 @@
 {
   "name": "@rtwsvj/skill-switch",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "description": "Security audit for AI agent skills & MCP configs (reverse shells, exfiltration, dangerous MCP servers, hardcoded secrets) → SARIF/code-scanning; plus cross-agent skill governance for Claude Code, Cursor, Gemini CLI, Windsurf, Zed.",
   "license": "MIT",

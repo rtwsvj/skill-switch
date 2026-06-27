@@ -33,7 +33,7 @@ const DEFAULT_WORKFLOW_PATH = join('.github', 'workflows', 'skill-switch.yml');
 const DEFAULT_PRECOMMIT_PATH = '.pre-commit-config.yaml';
 
 /** 默认 action 版本引脚 */
-const DEFAULT_PIN = 'v0.7.0';
+const DEFAULT_PIN = 'v0.8.0';
 
 /** 默认基线文件路径(相对 cwd) */
 const DEFAULT_BASELINE_PATH = '.skill-switch-baseline.json';

@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-27
+
 ### 新增 Added
 - **`add` 命令 — 一键安装(粘链接/指令即装)**:`skill-switch add "<粘贴内容>"` 把一段 **GitHub 链接 / `git clone` / `npx·npm` 安装指令** 自动解析成 git 来源 → 克隆(只读)→ 逐个审计 → 列出候选 skill + 安全裁决(SAFE/REVIEW/DANGER)→ 安装(单个非危险源直接装,多个用 `--skill`/`--all`/`--yes` 选)。**安全姿态:绝不执行粘贴的命令** —— `curl … | bash`、`bash <(…)`、含 sudo/eval 的片段一律拒绝并解释;npm 包名只**只读**查一次 registry 拿到源码仓库地址再克隆审计(并提示「npm 发布内容可能 ≠ 源码仓库」);危险源(被安全闸门拦下)默认不装,需 `--force --force-reason`。支持 GitHub 子目录链接(`/tree/<ref>/<subdir>`、`/blob/...`)。`--dry-run` 只预览;`--json` 机读。新模块 `src/core/add/`(parse-source/resolve-npm/preview,纯解析零执行 + 复用现有 clone/audit/install 管线)。**GUI 也有同款入口**:「安装与维护」面板顶部一个粘贴框 → 「解析」→ 显示来源 + 可信度提示 + 候选 skill(彩色裁决,危险源禁止勾选)→ 「安装选中」→ 复用确认/快照/撤销 toast(4 语言 i18n)。
 - **GUI 技能页体验升级**:主从布局(左列表 / 右详情面板,点行看详情)、每行状态徽章(已启用 / 已停用 / 有改动 / 被安全拦截,颜色对应语义)、写操作后撤销 toast(如"已停用 X — 后悔了?",6 秒自动消失,点「撤销」还原最新备份)。文案保持大白话、任务导向。

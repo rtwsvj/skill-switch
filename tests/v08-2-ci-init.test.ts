@@ -83,11 +83,11 @@ describe('skill-switch ci 默认用法', () => {
     expect(existsSync(join(dir, '.github', 'workflows', 'skill-switch.yml'))).toBe(true);
   });
 
-  it('写出的文件含正确 uses: 引脚(默认 v0.7.0)', () => {
+  it('写出的文件含正确 uses: 引脚(默认 v0.8.0)', () => {
     const dir = makeTmpDir();
     runBin(['ci'], dir);
     const content = readFileSync(join(dir, '.github', 'workflows', 'skill-switch.yml'), 'utf8');
-    expect(content).toContain('rtwsvj/skill-switch@v0.7.0');
+    expect(content).toContain('rtwsvj/skill-switch@v0.8.0');
   });
 
   it('sarif 格式含 security-events: write 权限', () => {
@@ -154,7 +154,7 @@ describe('skill-switch ci --format github', () => {
     const dir = makeTmpDir();
     runBin(['ci', '--format', 'github'], dir);
     const content = readFileSync(join(dir, '.github', 'workflows', 'skill-switch.yml'), 'utf8');
-    expect(content).toContain('rtwsvj/skill-switch@v0.7.0');
+    expect(content).toContain('rtwsvj/skill-switch@v0.8.0');
   });
 });
 
@@ -252,7 +252,7 @@ describe('--json 输出', () => {
     expect(result.status).toBe('ok');
     expect(typeof result.workflowPath).toBe('string');
     expect(result.format).toBe('sarif');
-    expect(result.pin).toBe('v0.7.0');
+    expect(result.pin).toBe('v0.8.0');
     expect(Array.isArray(result.filesWritten)).toBe(true);
     expect(result.filesWritten.length).toBeGreaterThan(0);
   });
