@@ -121,6 +121,29 @@
       "disabled": "{{name}} desactivada — ¿deshacer?",
       "deleted": "{{name}} eliminada — ¿deshacer?",
       "synced": "Sincronizados {{count}} cambios — ¿deshacer?"
+    },
+    "paste": {
+      "title": "Instalación con un clic",
+      "hint": "Pega un enlace de GitHub, git clone o un comando npx/npm — se audita antes de instalar (el comando pegado nunca se ejecuta)",
+      "placeholder": "Pega un enlace o comando de instalación…",
+      "parse": "Analizar",
+      "parsing": "Analizando…",
+      "install": "Instalar selección",
+      "installing": "Instalando…",
+      "sourceLabel": "Origen",
+      "selectAgent": "Instalar en",
+      "found": "{{count}} skill(s) encontrada(s)",
+      "blockedNote": "Origen peligroso — para instalarlo de todos modos, usa la CLI: add … --force",
+      "unsupported": "Es un comando de «descargar y ejecutar» que no se puede auditar de forma estática. Pega un enlace de GitHub o una URL de git clone.",
+      "npmProvenance": "Es un paquete npm: se encontró y auditó su repositorio de origen, pero lo publicado en npm puede diferir del repositorio.",
+      "failed": "Error al analizar — revisa la entrada.",
+      "verdict": {
+        "safe": "Seguro",
+        "review": "Revisar",
+        "danger": "Peligro"
+      },
+      "installedDone": "Instalado {{names}}",
+      "undo": "Instalados {{count}} — ¿deshacer?"
     }
   },
   "operations": {

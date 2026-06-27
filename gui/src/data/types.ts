@@ -258,3 +258,48 @@ export interface DashboardData {
   /** 某些区块加载失败时记录(section → 错误信息);整体仍可用安全默认值渲染,不白屏。 */
   loadErrors?: Record<string, string>;
 }
+
+// ── 「一键安装」(add)— 粘贴链接/指令 → 解析 → 审计 → 选装 ──────────────────────
+/** 解析出的来源(镜像 src/core/add/types.ts 的 ParsedSource)。 */
+export interface AddParsedSource {
+  kind: string;
+  raw: string;
+  gitSource?: string;
+  ref?: string;
+  subdir?: string;
+  npmPackage?: string;
+  note?: string;
+  provenanceWarning?: string;
+}
+/** 一个候选 skill(已审计)。 */
+export interface AddSkillCandidate {
+  name: string;
+  relPath: string;
+  verdict: AuditVerdict;
+  score: number;
+  blocked: boolean;
+  findings: Array<{ ruleId: string; severity: string; message: string }>;
+}
+/** 解析+审计预览(不含写动作)。 */
+export interface AddPreview {
+  parsed: AddParsedSource;
+  candidates: AddSkillCandidate[];
+  error?: string;
+}
+/** `add --json` 的整体输出(预览或安装后)。 */
+export interface AddCliResult {
+  preview: AddPreview;
+  installed: Array<{ name: string; targetPath: string }>;
+  blocked?: Array<{ name: string; score: number }>;
+  error?: string;
+  note?: string;
+}
+/** GUI 发起安装选中 skill 的请求。 */
+export interface AddInstallRequest {
+  raw: string;
+  skills: string[];
+  agent: string;
+  mode?: InstallMode;
+  force?: boolean;
+  forceReason?: string;
+}

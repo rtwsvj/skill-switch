@@ -121,6 +121,29 @@
       "disabled": "已停用 {{name}} — 后悔了?",
       "deleted": "已删除 {{name}} — 后悔了?",
       "synced": "同步完成({{count}} 项) — 后悔了?"
+    },
+    "paste": {
+      "title": "一键安装",
+      "hint": "粘贴 GitHub 链接、git clone 或 npx/npm 安装指令 —— 自动审计后再装(绝不执行粘贴的命令)",
+      "placeholder": "粘贴链接或安装指令…",
+      "parse": "解析",
+      "parsing": "解析中…",
+      "install": "安装选中",
+      "installing": "安装中…",
+      "sourceLabel": "来源",
+      "selectAgent": "安装到",
+      "found": "发现 {{count}} 个 skill",
+      "blockedNote": "危险源:如确需安装,请用命令行 add … --force",
+      "unsupported": "这是一条会「下载并执行」的命令,无法静态审计。请改贴 GitHub 链接或 git clone 地址。",
+      "npmProvenance": "这是 npm 包:已查到它的源码仓库来审计,但发布到 npm 的内容可能与源码仓库不完全一致。",
+      "failed": "解析失败,请检查输入。",
+      "verdict": {
+        "safe": "安全",
+        "review": "待核",
+        "danger": "危险"
+      },
+      "installedDone": "已安装 {{names}}",
+      "undo": "已安装 {{count}} 个 — 后悔了?"
     }
   },
   "operations": {

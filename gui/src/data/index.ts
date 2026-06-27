@@ -48,6 +48,14 @@ export async function runInstall(...args: Parameters<typeof fixtures.runInstall>
   return (await activeAdapter()).runInstall(...args);
 }
 
+export async function previewAdd(...args: Parameters<typeof fixtures.previewAdd>) {
+  return (await activeAdapter()).previewAdd(...args);
+}
+
+export async function runAdd(...args: Parameters<typeof fixtures.runAdd>) {
+  return (await activeAdapter()).runAdd(...args);
+}
+
 export async function runToggle(...args: Parameters<typeof fixtures.runToggle>) {
   return (await activeAdapter()).runToggle(...args);
 }

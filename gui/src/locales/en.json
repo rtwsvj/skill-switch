@@ -121,6 +121,29 @@
       "disabled": "Disabled {{name}} — undo?",
       "deleted": "Deleted {{name}} — undo?",
       "synced": "Synced {{count}} change(s) — undo?"
+    },
+    "paste": {
+      "title": "One-click install",
+      "hint": "Paste a GitHub link, git clone, or npx/npm command — audited before install (the pasted command is never executed)",
+      "placeholder": "Paste a link or install command…",
+      "parse": "Parse",
+      "parsing": "Parsing…",
+      "install": "Install selected",
+      "installing": "Installing…",
+      "sourceLabel": "Source",
+      "selectAgent": "Install to",
+      "found": "Found {{count}} skill(s)",
+      "blockedNote": "Dangerous source — to install anyway, use the CLI: add … --force",
+      "unsupported": "This is a \"download and run\" command that cannot be statically audited. Paste a GitHub link or git clone URL instead.",
+      "npmProvenance": "This is an npm package: its source repo was found and audited, but what is published to npm may differ from the source repo.",
+      "failed": "Parsing failed — check the input.",
+      "verdict": {
+        "safe": "Safe",
+        "review": "Review",
+        "danger": "Danger"
+      },
+      "installedDone": "Installed {{names}}",
+      "undo": "Installed {{count}} — undo?"
     }
   },
   "operations": {

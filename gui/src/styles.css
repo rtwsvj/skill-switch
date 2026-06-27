@@ -1219,3 +1219,36 @@ td {
     padding-inline: 10px;
   }
 }
+
+/* 一键安装(粘贴框)*/
+.paste-install {
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: var(--panel-bg, rgba(255, 255, 255, 0.02));
+}
+.paste-install h3 { margin: 0 0 4px; }
+.paste-box {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: var(--mono-font, ui-monospace, monospace);
+  font-size: 13px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border, #2a2f3a);
+  background: var(--input-bg, rgba(0, 0, 0, 0.2));
+  color: inherit;
+}
+.paste-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.paste-agent { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.paste-error { color: var(--danger, #ff6b6b); margin: 8px 0; }
+.paste-warn { color: var(--warn, #e0a800); margin: 8px 0; font-size: 13px; }
+.paste-source { margin: 8px 0 4px; font-size: 12px; word-break: break-all; }
+.paste-candidates { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+.paste-cand { display: flex; flex-direction: column; gap: 2px; }
+.paste-cand-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.paste-cand.blocked .paste-cand-label { opacity: 0.7; cursor: not-allowed; }
+.paste-blocked-note { font-size: 12px; margin-left: 26px; }

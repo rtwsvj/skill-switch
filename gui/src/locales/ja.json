@@ -121,6 +121,29 @@
       "disabled": "{{name}} を無効化 — 元に戻す?",
       "deleted": "{{name}} を削除 — 元に戻す?",
       "synced": "同期完了({{count}} 件) — 元に戻す?"
+    },
+    "paste": {
+      "title": "ワンクリックインストール",
+      "hint": "GitHub リンク、git clone、npx/npm コマンドを貼り付け — 監査してからインストール(貼り付けたコマンドは実行しません)",
+      "placeholder": "リンクまたはインストールコマンドを貼り付け…",
+      "parse": "解析",
+      "parsing": "解析中…",
+      "install": "選択をインストール",
+      "installing": "インストール中…",
+      "sourceLabel": "ソース",
+      "selectAgent": "インストール先",
+      "found": "{{count}} 個の skill を発見",
+      "blockedNote": "危険なソース — それでも入れる場合は CLI: add … --force",
+      "unsupported": "これは「ダウンロードして実行」するコマンドで、静的監査できません。GitHub リンクか git clone URL を貼ってください。",
+      "npmProvenance": "これは npm パッケージです:ソースリポジトリを見つけて監査しましたが、npm に公開された内容はソースと異なる場合があります。",
+      "failed": "解析に失敗しました。入力を確認してください。",
+      "verdict": {
+        "safe": "安全",
+        "review": "要確認",
+        "danger": "危険"
+      },
+      "installedDone": "{{names}} をインストールしました",
+      "undo": "{{count}} 個インストール — 元に戻す?"
     }
   },
   "operations": {

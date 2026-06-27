@@ -1,5 +1,7 @@
 import { Command } from '@tauri-apps/plugin-shell';
 import type {
+  AddCliResult,
+  AddInstallRequest,
   AuditReport,
   CliJsonResult,
   ConfigAuditReport,
@@ -20,7 +22,15 @@ import type {
   ToggleRequest,
   ToggleRunResult,
 } from './types';
-import { installArgs, removeArgs, restoreArgs, syncArgs, toggleArgs } from './cli-args';
+import {
+  addInstallArgs,
+  addPreviewArgs,
+  installArgs,
+  removeArgs,
+  restoreArgs,
+  syncArgs,
+  toggleArgs,
+} from './cli-args';
 import { assembleDashboard, emptyStats } from './dashboard';
 import { runWithTimeout, type SpawnHandle } from './run-with-timeout';
 
@@ -158,6 +168,17 @@ export async function runInstall(
   request: InstallRequest,
 ): Promise<CliJsonResult<InstallRunResult>> {
   return runCliJson<InstallRunResult>(installArgs(request), 'install', true);
+}
+
+/** 一键安装:解析+审计预览(不安装)。绝不执行粘贴的命令——逻辑全在 CLI 的 `add` 里。 */
+export async function previewAdd(raw: string): Promise<AddCliResult> {
+  // add --dry-run 在 unsupported / 出错时 exit 1 但仍打印 JSON,故 allowNonZero
+  return runCli<AddCliResult>(addPreviewArgs(raw), 'add-preview', true);
+}
+
+/** 一键安装:安装选中的候选 skill(危险源被拦时 exit 1 但仍打印 JSON)。 */
+export async function runAdd(request: AddInstallRequest): Promise<CliJsonResult<AddCliResult>> {
+  return runCliJson<AddCliResult>(addInstallArgs(request), 'add', true);
 }
 
 export async function runToggle(

@@ -85,6 +85,8 @@ export interface WriteOperationsProps {
   blockedReason: string;
   onBlockedReasonChange: (value: string) => void;
   onForceInstall: () => void;
+  /** 一键安装(粘贴框)装好后回调:刷新 + 撤销 toast。 */
+  onPasteInstalled: (installedNames: string[]) => void | Promise<void>;
 }
 
 export interface SkillActionsProps {

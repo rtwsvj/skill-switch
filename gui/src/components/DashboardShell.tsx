@@ -432,6 +432,30 @@ export function DashboardShell({
     }
   }, [active, restoreList, busy, handleLoadSnapshots]);
 
+  // 一键安装(粘贴框)装好后:刷新仪表盘 + 撤销 toast(复用还原最新备份)。
+  const handlePasteInstalled = useCallback(
+    async (names: string[]) => {
+      await onRefresh();
+      if (names.length === 0) return;
+      setNotice({ tone: 'good', title: t('skills.paste.installedDone', { names: names.join(', ') }) });
+      showUndo(t('skills.paste.undo', { count: names.length }), () =>
+        void runBusy('restore-apply', async () => {
+          const restore = await runRestore({ latest: true });
+          if (!isRestoreList(restore.data)) {
+            setNotice({
+              tone: 'good',
+              title: t('skills.undo.restored'),
+              detail: restore.data.target,
+              snapshots: snapshotPaths(restore.data),
+            });
+            await onRefresh();
+          }
+        }),
+      );
+    },
+    [onRefresh, showUndo, t, runBusy],
+  );
+
   const operations: WriteOperationsProps = {
     data: mergedData,
     busy,
@@ -448,6 +472,7 @@ export function DashboardShell({
     blockedReason,
     onBlockedReasonChange: setBlockedReason,
     onForceInstall: handleForceInstall,
+    onPasteInstalled: handlePasteInstalled,
   };
 
   const skillActions: SkillActionsProps = {

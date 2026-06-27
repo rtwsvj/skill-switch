@@ -5,6 +5,8 @@ import stats from '../../fixtures/stats.json';
 import lockVerify from '../../fixtures/lock-verify.json';
 import { assembleDashboard, emptyStats } from './dashboard';
 import type {
+  AddCliResult,
+  AddInstallRequest,
   AuditReport,
   CliJsonResult,
   ConfigAuditReport,
@@ -173,5 +175,56 @@ export async function runRestore(
   return fixtureResult({
     store: '/fixtures/.skill-switch/backups',
     snapshots: [{ id: '1', path: '/fixtures/backups/snapshot.tar.gz', label: 'pre-toggle', createdAt: new Date().toISOString(), sourceDir: '/fixtures/.claude/skills' }],
+  });
+}
+
+// ── 「一键安装」(add)demo:演示模式给假数据,不联网、不写盘 ──────────────────
+export async function previewAdd(raw: string): Promise<AddCliResult> {
+  const trimmed = raw.trim();
+  // 演示:危险执行形态 → 拒绝
+  if (/\|\s*(ba)?sh\b|<\(\s*(curl|wget)|\bsudo\b|\beval\b/.test(trimmed) || /^(curl|wget|bash|sh)\b/.test(trimmed)) {
+    return {
+      preview: {
+        parsed: { kind: 'unsupported', raw: trimmed },
+        candidates: [],
+        error: '这是一条会「下载并执行」的命令。skill-switch 绝不执行任意命令(演示模式)。',
+      },
+      installed: [],
+      error: '这是一条会「下载并执行」的命令。skill-switch 绝不执行任意命令(演示模式)。',
+    };
+  }
+  // 演示:任何看起来像来源的输入 → 给两个候选(一安全一危险)
+  return {
+    preview: {
+      parsed: {
+        kind: 'github-url',
+        raw: trimmed,
+        gitSource: 'https://github.com/example/skills.git',
+      },
+      candidates: [
+        { name: 'tidy-notes', relPath: 'tidy-notes', verdict: 'SAFE', score: 100, blocked: false, findings: [] },
+        {
+          name: 'remote-debug',
+          relPath: 'remote-debug',
+          verdict: 'DANGER',
+          score: 20,
+          blocked: true,
+          findings: [{ ruleId: 'reverse-shell/dev-tcp', severity: 'critical', message: '反向 shell:/dev/tcp 重定向' }],
+        },
+      ],
+    },
+    installed: [],
+    note: 'preview-only',
+  };
+}
+
+export async function runAdd(request: AddInstallRequest): Promise<CliJsonResult<AddCliResult>> {
+  const installable = request.skills.filter((s) => s !== 'remote-debug' || request.force);
+  const blocked = request.skills.filter((s) => s === 'remote-debug' && !request.force);
+  const preview = (await previewAdd(request.raw)).preview;
+  return fixtureResult({
+    preview,
+    installed: installable.map((name) => ({ name, targetPath: `/fixtures/${request.agent}/${name}` })),
+    blocked: blocked.map((name) => ({ name, score: 20 })),
   });
 }

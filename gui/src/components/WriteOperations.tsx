@@ -3,6 +3,7 @@ import type { InstallMode } from '../data';
 import { agentOptions, changedActionCount, cx, isWriteBusy, severityLabel } from '../lib/helpers';
 import type { WriteOperationsProps } from '../lib/types';
 import { StatusPill } from './atoms';
+import { PasteInstall } from './PasteInstall';
 
 export function WriteOperations({
   data,
@@ -20,6 +21,7 @@ export function WriteOperations({
   blockedReason,
   onBlockedReasonChange,
   onForceInstall,
+  onPasteInstalled,
 }: WriteOperationsProps) {
   const { t } = useTranslation();
   const agents = agentOptions(data);
@@ -33,6 +35,11 @@ export function WriteOperations({
         <h2>{t('operations.title')}</h2>
         <StatusPill tone="warn">{t('operations.writeEnabled')}</StatusPill>
       </div>
+      <PasteInstall
+        agentOptions={agents}
+        defaultAgent={installDraft.agent || agents[0] || 'claude-code'}
+        onInstalled={onPasteInstalled}
+      />
       <div className="write-grid">
         <form
           className="operation-form"
