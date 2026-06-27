@@ -56,17 +56,19 @@ function deriveSkillBadges(skill: SkillRecord, auditReports: AuditReport[]): Ski
 // ──────────────────────────────────────────────────────────
 
 function SkillBadges({ info }: { info: SkillBadgeInfo }) {
+  const { t } = useTranslation();
   const enabled = info.statuses.includes('enabled');
   const disabled = info.statuses.includes('disabled');
   const drift = info.statuses.includes('drift');
   const blocked = info.statuses.includes('blocked');
   return (
     <div className="status-stack">
-      {enabled ? <StatusPill tone="good">已启用</StatusPill> : null}
-      {disabled ? <StatusPill tone="warn">已停用</StatusPill> : null}
-      {drift ? <StatusPill tone="warn">有改动</StatusPill> : null}
-      {blocked ? <StatusPill tone="danger">被安全拦截</StatusPill> : null}
-      {info.hasError ? <StatusPill tone="danger">读取失败</StatusPill> : null}
+      {enabled ? <StatusPill tone="good">{t('status.enabled')}</StatusPill> : null}
+      {/* 停用徽章明示「未删除」,避免用户误以为东西没了(大白话要求) */}
+      {disabled ? <StatusPill tone="warn">{t('status.disabledKept')}</StatusPill> : null}
+      {drift ? <StatusPill tone="warn">{t('status.drift')}</StatusPill> : null}
+      {blocked ? <StatusPill tone="danger">{t('status.auditBlocks')}</StatusPill> : null}
+      {info.hasError ? <StatusPill tone="danger">{t('status.parseError')}</StatusPill> : null}
     </div>
   );
 }

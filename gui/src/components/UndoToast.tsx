@@ -95,11 +95,11 @@ export function UndoToastStack({
 }) {
   if (toasts.length === 0) return null;
   return (
-    <div className="undo-toast-stack" role="region" aria-label="操作通知">
+    <section className="undo-toast-stack" aria-label="操作通知">
       {toasts.map((toast: UndoToastItem) =>
         // createElement 用于绕开 @types/react 缺失时 JSX 对 key 的误报
         createElement(ToastRow, { key: toast.id, toast, onDismiss }),
       )}
-    </div>
+    </section>
   );
 }
