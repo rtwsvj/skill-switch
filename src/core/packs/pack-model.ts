@@ -106,6 +106,16 @@ export function validatePackManifest(raw: unknown, path = '<unknown>'): PackMani
     }
   }
 
+  // extends:若存在必须是字符串数组(父套餐清单路径)
+  if ('extends' in obj && obj.extends !== undefined) {
+    if (
+      !Array.isArray(obj.extends) ||
+      obj.extends.some((p) => typeof p !== 'string' || p.trim().length === 0)
+    ) {
+      throw new PackManifestError('套餐清单 extends 若存在必须是非空字符串数组', path);
+    }
+  }
+
   return obj as unknown as PackManifest;
 }
 

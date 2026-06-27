@@ -12,13 +12,6 @@ import { installFromSource, type InstallMode, type InstallResult } from '../inst
 import type { PackManifest, PackSkillRef } from './types.ts';
 import type { SkillsLockFile } from '../lock.ts';
 
-// ── PackManifest 的扩展:支持 extends 字段(类型层只在本模块使用) ─────────────
-// types.ts 由编排人统一落字段;这里局部扩展避免 PR 冲突。
-
-interface PackManifestWithExtends extends PackManifest {
-  extends?: string[];
-}
-
 // ── 1. resolvePackSkills ─────────────────────────────────────────────────────
 
 /**
@@ -40,7 +33,7 @@ export async function resolvePackSkills(
   loadParent: (path: string) => Promise<PackManifest>,
   visited: Set<string> = new Set(),
 ): Promise<PackSkillRef[]> {
-  const ext = (manifest as PackManifestWithExtends).extends;
+  const ext = manifest.extends;
 
   // 用 Map 按 name 去重,先插入 = 先出现;子 skill 覆盖父(后 set 覆盖)
   const byName = new Map<string, PackSkillRef>();

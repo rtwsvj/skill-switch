@@ -79,6 +79,8 @@ export interface PackManifest {
   /** 两个入口汇成一个模型:manual=手动精选,discovered=从对话用法发现 */
   source: 'manual' | 'discovered';
   skills: PackSkillRef[];
+  /** 继承:父套餐清单的路径数组,按声明顺序展开;父在前,子同名 skill 覆盖父。安装/show 时解析。 */
+  extends?: string[];
   /** ISO 时间;discovered 包可记录基于哪段窗口的用法 */
   createdAt?: string;
 }

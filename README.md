@@ -71,8 +71,8 @@ skill-switch --help
 | `status` | 一眼看现状:技能总数、agent 列表、声明/锁健康度(只读,首次上手先跑这个)。 | `skill-switch status` |
 | `scan` | 盘点各工具已装的 skill(只读;坏样本以 `error` 字段呈现)。 | `skill-switch scan` |
 | `init` | 扫描已安装 skill,草拟 `skills.json` 初始声明(已存在则跳过,`--force` 覆盖,`--dry-run` 只看草稿)。 | `skill-switch init --dry-run` |
-| `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。`--format human`(默认)`/json/sarif`(SARIF 2.1.0 接 GitHub code-scanning)。`--configs` 检查 Claude Code、Gemini CLI、Cursor、VS Code、Windsurf、Zed 的 settings/MCP 配置。`.skill-switch-policy.json`(或 `--policy`)可设 `failOn` 阈值 + `suppress` 抑制。`--fix` 预览受控修复、`--fix --apply` 落盘(先备份)。 | `skill-switch audit ./my-skill --format sarif` |
-| `ci` | 一键生成 GitHub Actions 工作流(`.github/workflows/skill-switch.yml`),接入 skill-switch CI 审计。`--format sarif`(默认,上传 code-scanning)或 `--format github`(PR 内联注解);`--pin <ref>` 固定 action 版本;`--baseline` 同时写入 finding 基线让 CI 只报新问题;`--force` 覆盖已有文件。 | `skill-switch ci --format github --baseline` |
+| `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。`--format human`(默认)`/json/sarif`(SARIF 2.1.0 接 GitHub code-scanning)。`--configs` 检查 Claude Code、Gemini CLI、Cursor、VS Code、Windsurf、Zed 的 settings/MCP 配置。`.skill-switch-policy.json`(或 `--policy`)可设 `failOn` 阈值 + `suppress` 抑制。`--fix` 预览受控修复、`--fix --apply` 落盘(先备份)。`--format junit`(供 Jenkins/GitLab/CircleCI)、`--min-severity <级别>` 过滤、`--exit-code <n>`(如 `0` 做 report-only)、行内 `# skill-switch:suppress[ruleId]` 抑制。 | `skill-switch audit ./my-skill --format sarif` |
+| `ci` | 一键生成 GitHub Actions 工作流(`.github/workflows/skill-switch.yml`),接入 skill-switch CI 审计。`--format sarif`(默认,上传 code-scanning)或 `--format github`(PR 内联注解);`--pin <ref>` 固定 action 版本;`--baseline` 同时写入 finding 基线让 CI 只报新问题;`--force` 覆盖已有文件;`--pre-commit` 改为生成本地 `.pre-commit-config.yaml` 提交门控。 | `skill-switch ci --format github --baseline` |
 | `install` | 安装本地或 git 来源:装前 audit + 装前快照,写 lock 与声明。 | `skill-switch install ./my-skills --agent claude-code` |
 | `toggle` | 按声明开关单个 skill(同步前自动快照)。 | `skill-switch toggle tidy-notes --off` |
 | `sync` | 把声明应用到磁盘(`--dry-run` 只看计划)。 | `skill-switch sync --dry-run` |
@@ -83,7 +83,7 @@ skill-switch --help
 | `diff` | 内容漂移的「改了什么」:磁盘 vs store 副本,逐文件 added/removed/modified。 | `skill-switch diff my-skill` |
 | `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。 | `skill-switch drift` |
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
-| `packs` | 从对话用法**发现套餐**:`packs suggest` 读本机对话(只数 skill 名)建议常一起用的 skill 组成套餐;`packs save <id>` 固化成可携带的 `pack.json`;`packs show <file>` 查看。 | `skill-switch packs suggest` |
+| `packs` | 从对话用法**发现套餐**:`packs suggest` 读本机对话(只数 skill 名)建议常一起用的 skill 组成套餐;`packs save <id> [--enrich]` 固化成可携带的 `pack.json`(`--enrich` 从 lock 回填来源以便跨机重装);`packs install <pack.json>` 把套餐一键装到新机/另一个 agent;`packs list` 列出套餐;`packs show <file>` 查看;支持 `extends` 继承。 | `skill-switch packs suggest` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
 | `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |

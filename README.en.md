@@ -65,8 +65,8 @@ skill-switch --help
 | `status` | One-glance overview: skill counts, agents detected, declaration/lock health (read-only; start here). |
 | `scan` | Inventory installed skills per tool (read-only). |
 | `init` | Scan installed skills and draft an initial `skills.json` (skips if one exists; `--force` to overwrite, `--dry-run` to preview). |
-| `audit` | Security audit; any critical/high or score < 70 → exit 1. Add `--configs` to also audit agent config files (settings.json / MCP), covering Claude Code, Gemini CLI, Cursor, and VS Code. |
-| `ci` | Scaffold a GitHub Actions workflow (`.github/workflows/skill-switch.yml`) in one command. `--format sarif` (default, uploads to code-scanning) or `--format github` (inline PR annotations); `--pin <ref>` to pin the action version; `--baseline` to also write a finding baseline so CI only fails on new findings; `--force` to overwrite an existing file. |
+| `audit` | Security audit; any critical/high or score < 70 → exit 1. Add `--configs` to also audit agent config files (settings.json / MCP), covering Claude Code, Gemini CLI, Cursor, and VS Code. `--format junit` (Jenkins/GitLab/CircleCI), `--min-severity <level>` filter, `--exit-code <n>` (e.g. `0` for report-only), and inline `# skill-switch:suppress[ruleId]`. |
+| `ci` | Scaffold a GitHub Actions workflow (`.github/workflows/skill-switch.yml`) in one command. `--format sarif` (default, uploads to code-scanning) or `--format github` (inline PR annotations); `--pin <ref>` to pin the action version; `--baseline` to also write a finding baseline so CI only fails on new findings; `--force` to overwrite an existing file; `--pre-commit` instead scaffolds a local `.pre-commit-config.yaml` gate. |
 | `install` | Install from a local or git source (audits + snapshots first). |
 | `toggle` | Enable/disable a single skill per the declaration. |
 | `sync` | Apply the declaration to disk (`--dry-run` to preview). |
@@ -77,7 +77,7 @@ skill-switch --help
 | `diff` | Content drift, file-by-file: disk vs. stored copy. |
 | `drift` | Upstream HEAD / locked commit / local content three-way drift. |
 | `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). |
-| `packs` | **Discover packs from usage:** `packs suggest` reads your local conversations (skill names only) to suggest bundles of skills you use together; `packs save <id>` freezes one into a portable `pack.json`; `packs show <file>` inspects it. |
+| `packs` | **Discover packs from usage:** `packs suggest` reads your local conversations (skill names only) to suggest bundles of skills you use together; `packs save <id> [--enrich]` freezes one into a portable `pack.json` (`--enrich` back-fills sources from the lock for cross-machine reinstall); `packs install <pack.json>` installs a pack onto a new machine / another agent; `packs list` lists packs; `packs show <file>` inspects one; supports `extends` inheritance. |
 | `lock` | Inspect the lock; `--verify` re-hashes disk to compare. |
 | `export` | Bundle skills.json + skills.lock.json into a portable .ssp archive (read-only). |
 | `import` | Restore skills.json + skills.lock.json from a .ssp archive (does not sync to disk). |
