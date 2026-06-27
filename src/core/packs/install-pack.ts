@@ -75,6 +75,8 @@ export interface InstallPlanEntry {
   action: 'install' | 'skip';
   /** action='skip' 时的跳过原因(人类可读) */
   skipReason?: string;
+  /** true = 该 skill 可选(装失败不影响整体) */
+  optional?: boolean;
 }
 
 /**
@@ -86,13 +88,15 @@ export interface InstallPlanEntry {
  */
 export function buildInstallPlan(skills: PackSkillRef[]): InstallPlanEntry[] {
   return skills.map((skill) => {
+    const optional = skill.optional === true;
     if (typeof skill.repo === 'string' && skill.repo.trim().length > 0) {
-      return { skill, action: 'install' };
+      return { skill, action: 'install', optional };
     }
     return {
       skill,
       action: 'skip',
       skipReason: '无来源信息——发现的套餐需先补充来源,运行 `packs save --enrich` 回填',
+      optional,
     };
   });
 }
@@ -106,6 +110,11 @@ export interface InstallPackOptions {
   mode: InstallMode;
   /** true 时只打印计划,不写任何文件 */
   dryRun?: boolean;
+  /**
+   * 若传入 lock 条目 Map(name→commit),则优先用 lock 里锁定的 commit 安装,
+   * 实现可复现安装。key = skill 名, value = locked commit SHA。
+   */
+  lockedCommits?: Map<string, string>;
 }
 
 /** packs install 单个 skill 的结果 */
@@ -118,6 +127,8 @@ export interface PackSkillInstallResult {
   installResult?: InstallResult;
   /** action='error' 时的错误消息 */
   error?: string;
+  /** true = 该 skill 是可选的(blocked/error 时记录为非致命跳过) */
+  optional?: boolean;
 }
 
 /** packs install 整体结果 */
@@ -126,6 +137,11 @@ export interface InstallPackResult {
   dryRun: boolean;
   plan: InstallPlanEntry[];
   results: PackSkillInstallResult[];
+  /**
+   * 整体是否失败:只有必须(非 optional)skill 出现 blocked/error 才为 true。
+   * 可选 skill 的 blocked/error 只记录为跳过,不置 failed。
+   */
+  failed?: boolean;
 }
 
 /**
@@ -164,24 +180,30 @@ export async function installPack(
   const results: PackSkillInstallResult[] = [];
 
   for (const entry of plan) {
+    const optional = entry.optional === true;
+
     if (entry.action === 'skip') {
       results.push({
         name: entry.skill.name,
         action: 'skipped',
         skipReason: entry.skipReason,
+        optional,
       });
       continue;
     }
 
     // action === 'install'
     const source = entry.skill.repo!;
+    // 若有 lockfile 锁定的 commit,则优先用它覆盖 ref(可复现安装)
+    const lockedCommit = options.lockedCommits?.get(entry.skill.name);
+    const effectiveRef = lockedCommit ?? entry.skill.ref;
     try {
       const installResult = await installFromSource(source, {
         home: options.home,
         agent: options.agent,
         mode: options.mode,
         skill: entry.skill.name,
-        ref: entry.skill.ref,
+        ref: effectiveRef,
       });
 
       if (installResult.blocked.length > 0) {
@@ -189,12 +211,16 @@ export async function installPack(
           name: entry.skill.name,
           action: 'blocked',
           installResult,
+          optional,
+          // 可选 skill 被 audit 拦截时附提示
+          ...(optional ? { skipReason: '可选,跳过(被 audit 拦截)' } : {}),
         });
       } else {
         results.push({
           name: entry.skill.name,
           action: 'installed',
           installResult,
+          optional,
         });
       }
     } catch (err) {
@@ -202,11 +228,19 @@ export async function installPack(
         name: entry.skill.name,
         action: 'error',
         error: (err as Error).message,
+        optional,
+        // 可选 skill 出错时附提示
+        ...(optional ? { skipReason: '可选,跳过(安装出错)' } : {}),
       });
     }
   }
 
-  return { dryRun: false, plan, results };
+  // 只有必须(非 optional)skill 的 blocked/error 才算整体失败
+  const failed = results.some(
+    (r) => !r.optional && (r.action === 'blocked' || r.action === 'error'),
+  );
+
+  return { dryRun: false, plan, results, failed };
 }
 
 // ── 4. enrichManifestSkills ──────────────────────────────────────────────────

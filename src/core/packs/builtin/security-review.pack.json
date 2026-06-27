@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "security-review",
+  "displayName": "安全审查套餐",
+  "description": "代码安全审查工作流:静态分析 + 依赖漏洞扫描 + 密钥泄露检测。适合在 PR 合并前或发版前运行。",
+  "source": "manual",
+  "skills": [
+    {
+      "name": "security-review",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main"
+    },
+    {
+      "name": "code-review",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main"
+    },
+    {
+      "name": "fewer-permission-prompts",
+      "repo": "https://github.com/anthropics/claude-code-skills",
+      "ref": "main",
+      "optional": true
+    }
+  ],
+  "createdAt": "2026-06-27T00:00:00.000Z"
+}

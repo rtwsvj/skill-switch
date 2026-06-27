@@ -94,6 +94,13 @@ export function validatePackManifest(raw: unknown, path = '<unknown>'): PackMani
         );
       }
     }
+    // optional:若存在必须是布尔值
+    if ('optional' in e && typeof e.optional !== 'boolean') {
+      throw new PackManifestError(
+        `套餐清单 skills[${i}].optional 若存在必须是布尔值`,
+        path,
+      );
+    }
   }
 
   // 可选顶层字符串字段
