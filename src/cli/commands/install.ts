@@ -57,6 +57,9 @@ export function registerInstallCommand(program: Command): void {
         if (result.snapshotPath) console.log(`  快照: ${result.snapshotPath}`);
         if (result.lockPath) console.log(`  锁: ${result.lockPath}`);
         if (result.declarationPath) console.log(`  声明: ${result.declarationPath}`);
+        if (result.installed.length > 0) {
+          console.log(`✓ 已安装 ${result.installed.length} 个 skill;跑 \`skill-switch doctor\` 校验三方一致性。`);
+        }
       }
       if (result.blocked.length > 0) process.exitCode = 1;
     });

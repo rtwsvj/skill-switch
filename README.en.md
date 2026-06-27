@@ -62,6 +62,7 @@ skill-switch --help
 
 | Command | Purpose |
 |---|---|
+| `status` | One-glance overview: skill counts, agents detected, declaration/lock health (read-only; start here). |
 | `scan` | Inventory installed skills per tool (read-only). |
 | `init` | Scan installed skills and draft an initial `skills.json` (skips if one exists; `--force` to overwrite, `--dry-run` to preview). |
 | `audit` | Security audit; any critical/high or score < 70 → exit 1. Add `--configs` to also audit agent config files (settings.json / MCP), covering Claude Code, Gemini CLI, Cursor, and VS Code. |
@@ -87,7 +88,7 @@ Common options: `--json`, `--home <dir>`, `--agent <tool>` (claude-code / codex 
 
 ## Safety model
 
-- **Read-only commands never write:** `scan`, `audit`, `lint`, `doctor`, `drift`, `stats`, `lock`.
+- **Read-only commands never write:** `status`, `scan`, `audit`, `lint`, `doctor`, `drift`, `stats`, `lock`.
 - **Write commands snapshot first:** `install`, `toggle`, `sync`, `remove`, `restore` write a `tar.gz` to `~/.skill-switch/backups/` before changing anything; everything is reversible.
 - **Audit before install:** anything matching reverse shells, sensitive-file exfiltration, credential phishing, unofficial package registries (`supply-chain/unofficial-registry`), or hidden/prompt-injection is blocked; you must `--force` (and leave a recorded reason) to override.
 - **Config-file audit:** `audit --configs` scans Claude Code, Gemini CLI, Cursor, and VS Code config files (settings.json / MCP configs) for credential-path access (`mcp/credential-path-access`), hardcoded secrets, and dangerous MCP server patterns. `doctor` also surfaces the same findings as an advisory summary in its output.

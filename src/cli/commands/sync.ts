@@ -40,6 +40,18 @@ function printSyncResult(result: SyncCliResult): void {
   for (const snap of result.snapshots) {
     console.log(`  快照: ${snap.path}`);
   }
+  // 操作后汇总:非 dry-run 时打印一行完成摘要 + 下一步提示
+  if (!result.dryRun) {
+    const created = result.actions.filter((a) => a.kind === 'create').length;
+    const removed = result.actions.filter((a) => a.kind === 'remove').length;
+    const snapshotted = result.snapshots.length > 0;
+    const parts: string[] = [];
+    if (created > 0) parts.push(`启用 ${created}`);
+    if (removed > 0) parts.push(`停用/移除 ${removed}`);
+    const tally = parts.length > 0 ? parts.join('、') : '无变更';
+    const snapHint = snapshotted ? '已快照;' : '';
+    console.log(`✓ 同步完成:${tally}。${snapHint}跑 \`skill-switch doctor\` 校验三方一致性。`);
+  }
 }
 
 export function registerSyncCommand(program: Command): void {

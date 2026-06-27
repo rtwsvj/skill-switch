@@ -68,6 +68,7 @@ skill-switch --help
 
 | Command | Purpose | Example |
 |---|---|---|
+| `status` | 一眼看现状:技能总数、agent 列表、声明/锁健康度(只读,首次上手先跑这个)。 | `skill-switch status` |
 | `scan` | 盘点各工具已装的 skill(只读;坏样本以 `error` 字段呈现)。 | `skill-switch scan` |
 | `init` | 扫描已安装 skill,草拟 `skills.json` 初始声明(已存在则跳过,`--force` 覆盖,`--dry-run` 只看草稿)。 | `skill-switch init --dry-run` |
 | `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。`--format human`(默认)`/json/sarif`(SARIF 2.1.0 接 GitHub code-scanning)。`--configs` 检查 Claude Code、Gemini CLI、Cursor、VS Code、Windsurf、Zed 的 settings/MCP 配置。`.skill-switch-policy.json`(或 `--policy`)可设 `failOn` 阈值 + `suppress` 抑制。`--fix` 预览受控修复、`--fix --apply` 落盘(先备份)。 | `skill-switch audit ./my-skill --format sarif` |
@@ -118,7 +119,7 @@ skill-switch uninstall
 
 ## Safety Model(为什么可以放心点)
 
-- **只读命令永不写盘**:`scan`、`audit`、`lint`、`doctor`、`drift`、`stats`、`lock`。
+- **只读命令永不写盘**:`status`、`scan`、`audit`、`lint`、`doctor`、`drift`、`stats`、`lock`。
 - **写命令先做装前快照再动手**:`install`、`toggle`、`sync`、`remove`、`restore` 修改前在 `~/.skill-switch/backups/` 拍 tar.gz 快照,`restore` 还原前再拍一份;任何一步都能回滚。
 - **安装前安全体检**:任何 skill 装进来前先 audit,命中反弹 shell、外传敏感文件、钓鱼式索要凭据、非官方 registry 安装(`supply-chain/unofficial-registry`)等会被拦,需 `--force` / 勾「遇到拦截也继续」才放行。
 - **配置文件审查**:`audit --configs` 检查 Claude Code、Gemini CLI、Cursor、VS Code、Windsurf、Zed 的 settings.json / MCP 配置,检测配置凭据路径访问(`mcp/credential-path-access`)、硬编码密钥、危险 MCP server 等;并做静态运行时能力分析——明文 `http://` 远程传输、`autoApprove`/`alwaysAllow` 全量/批量自动批准、根/家目录范围参数、`--no-sandbox` 等危险权限标志(全程零进程 / 零网络)。`doctor` 也会在输出中附上同类发现的 advisory 摘要。

@@ -18,6 +18,7 @@ import { registerRemoveCommand } from './commands/remove.ts';
 import { registerRestoreCommand } from './commands/restore.ts';
 import { registerScanCommand } from './commands/scan.ts';
 import { registerStatsCommand } from './commands/stats.ts';
+import { registerStatusCommand } from './commands/status.ts';
 import { registerSyncCommand } from './commands/sync.ts';
 import { registerToggleCommand } from './commands/toggle.ts';
 import { registerUninstallCommand } from './commands/uninstall.ts';
@@ -37,13 +38,35 @@ function readCliVersion(): string {
   }
 }
 
+// 快速上手示例块:拼在帮助末尾,帮用户跳过"看了半天不知从哪开始"困境。
+// 注意缩进用 4 空格:cli-help.test 的 cliCommands() 正则 /^\s{2}([a-z][a-z-]*)/ 匹配
+// 恰好 2 空格开头的行作为子命令名;4 空格开头的示例行不会被误识别为命令。
+const QUICK_START = `
+QUICK START (快速上手):
+    skill-switch status                    # 先看现状:装了什么、健不健康
+    skill-switch scan                      # 盘点磁盘上各工具已装的 skill
+    skill-switch audit --configs           # 安全体检(含 ~/.claude 等配置文件)
+    skill-switch packs suggest             # 根据对话用法推荐套餐
+    skill-switch --home /tmp/sandbox <cmd> # 用假目录演练,不碰真实配置
+
+COMMAND GROUPS (命令分组):
+  盘点       status  scan  stats  watch
+  安全       audit  lint  ci
+  治理       init  sync  toggle  install  remove  restore  diff  drift  doctor
+  锁与声明   lock  export  import
+  套餐       packs
+  其他       uninstall
+`;
+
 export function buildProgram(): Command {
   const program = new Command('skill-switch');
   program
     .description('跨 Agent skill 治理工具(治理层,与各家 CRUD 工具共存分工)')
     .version(readCliVersion(), '-V, --version', '输出版本号')
-    .option('--home <dir>', '覆盖 home 根目录(默认取系统 home;测试与演练请指向假目录)');
+    .option('--home <dir>', '覆盖 home 根目录(默认取系统 home;测试与演练请指向假目录)')
+    .addHelpText('after', QUICK_START);
 
+  registerStatusCommand(program);
   registerScanCommand(program);
   registerInitCommand(program);
   registerAuditCommand(program);
