@@ -1,12 +1,19 @@
 // D2:`diff <name>` —— 显示内容漂移的技能「改了哪些文件」(磁盘 vs store 耐久副本)。
 // 纯只读。--agent 限定单个 agent;省略则对所有该技能在磁盘上的 agent 各对比一次。
 // --format text (默认) 显示每文件摘要;--format unified 输出标准 unified diff。
+// DF-diff-narrative:在文字输出顶部追加一行叙述摘要;--json 中追加 narrative 字段(纯加字段,不改现有结构)。
 import type { Command } from 'commander';
 import {
   buildUnifiedDiffText,
   diffSkillWithContents,
   type SkillDiff,
 } from '../../core/skill-diff.ts';
+import {
+  bufferMapToStringMap,
+  computeLineCounts,
+  summarizeDiff,
+  type DiffNarrative,
+} from '../../core/diff-narrative.ts';
 import { getAgentSkillsLocations, resolveHomeRoot } from '../../core/paths.ts';
 import type { AgentType } from '../../vendor/vercel-skills/types.ts';
 
@@ -67,6 +74,30 @@ export function registerDiffCommand(program: Command): void {
 
         const diffs = results.map((r) => r.diff);
 
+        // ── 叙述摘要:汇总所有 comparable agent 的改动行数 + 安全信号 ──────────────
+        // 只在至少一个 agent 可对比时才计算;若全不可对比则跳过(无内容可分析)。
+        const comparableResults = results.filter((r) => r.diff.comparable);
+        let narrative: DiffNarrative | null = null;
+        if (comparableResults.length > 0) {
+          // 合并所有 agent 的 disk/store 文件 Map
+          const mergedDisk = new Map<string, Buffer>();
+          const mergedStore = new Map<string, Buffer>();
+          let totalFilesChanged = 0;
+          for (const r of comparableResults) {
+            totalFilesChanged += r.diff.files.length;
+            for (const [p, buf] of r.diskFiles) mergedDisk.set(p, buf);
+            for (const [p, buf] of r.storeFiles) mergedStore.set(p, buf);
+          }
+          const { linesAdded, linesRemoved } = computeLineCounts(mergedDisk, mergedStore);
+          narrative = summarizeDiff({
+            filesChanged: totalFilesChanged,
+            linesAdded,
+            linesRemoved,
+            afterContents: bufferMapToStringMap(mergedDisk),
+            beforeContents: bufferMapToStringMap(mergedStore),
+          });
+        }
+
         if (options.json) {
           if (format === 'unified') {
             // Include unified diff text per agent entry in JSON output
@@ -77,9 +108,11 @@ export function registerDiffCommand(program: Command): void {
                 : null;
               return { ...diff, unifiedDiff: unifiedText };
             });
-            console.log(JSON.stringify({ name, format: 'unified', diffs: withUnified }, null, 2));
+            // narrative 作为附加字段;不改变 diffs 数组结构
+            console.log(JSON.stringify({ name, format: 'unified', diffs: withUnified, ...(narrative ? { narrative } : {}) }, null, 2));
           } else {
-            console.log(JSON.stringify({ name, diffs }, null, 2));
+            // narrative 作为附加字段;name/diffs 键顺序不变
+            console.log(JSON.stringify({ name, diffs, ...(narrative ? { narrative } : {}) }, null, 2));
           }
           return;
         }
@@ -87,6 +120,11 @@ export function registerDiffCommand(program: Command): void {
         if (diffs.length === 0) {
           console.log(`未在任何 agent 的磁盘上找到技能「${name}」。`);
           return;
+        }
+
+        // 叙述摘要行:在所有具体文件改动条目之前打印
+        if (narrative) {
+          console.log(narrative.summary);
         }
 
         if (format === 'unified') {
