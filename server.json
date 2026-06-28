@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/refs/heads/main/schema/registry-entry.schema.json",
+  "name": "io.github.rtwsvj/skill-switch",
+  "description": "skill-switch MCP server — 让 Cursor / Claude Code / Claude Desktop 等 agent 实时审计、盘点、统计本机 AI agent skill。零依赖手写 MCP stdio,只读,不修改磁盘。",
+  "homepage": "https://github.com/rtwsvj/skill-switch",
+  "license": "MIT",
+  "categories": ["security", "developer-tools"],
+  "tags": ["skill", "audit", "security", "claude-code", "cursor", "agent"],
+  "isVerified": false,
+  "packages": [
+    {
+      "registry": "npm",
+      "name": "@rtwsvj/skill-switch",
+      "version": "latest",
+      "runtime": "node",
+      "startCommand": {
+        "type": "npx",
+        "command": "npx",
+        "args": ["-y", "@rtwsvj/skill-switch", "mcp"]
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "skill_switch_scan",
+      "description": "盘点本机各 agent(Claude Code / Codex / Gemini CLI / Cursor …)已安装的 skill。只读,不改任何文件。"
+    },
+    {
+      "name": "skill_switch_status",
+      "description": "一眼看清现状:磁盘/声明/启用/锁定 skill 数、检测到的 agent、声明↔锁↔磁盘的健康状态。只读。"
+    },
+    {
+      "name": "skill_switch_audit",
+      "description": "AI agent skill 安全审计(80+ 规则):反向 shell、数据外泄、凭据钓鱼、危险 MCP server、明文传输、硬编码密钥等。只读。"
+    },
+    {
+      "name": "skill_switch_packs_suggest",
+      "description": "分析 skill 共现情况,建议把哪些\"总是一起用\"的 skill 打成套餐(pack)。只读。"
+    },
+    {
+      "name": "skill_switch_stats",
+      "description": "统计 skill 使用频率并找出\"僵尸 skill\"(已安装但近期零触发)。只读。"
+    }
+  ]
+}
