@@ -9,6 +9,7 @@ import {
 } from './data';
 import type { SectionName, SectionState, SectionStates } from './lib/types';
 import { DashboardShell } from './components/DashboardShell';
+import { UpdateChecker } from './components/UpdateChecker';
 import {
   useCoreDashboardQuery,
   useAuditQuery,
@@ -136,6 +137,7 @@ export default function App() {
 
   return (
     <main className="app-shell">
+      <UpdateChecker />
       <DashboardShell
         data={data}
         configAudit={configAuditValue ?? null}

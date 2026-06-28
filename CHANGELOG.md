@@ -5,9 +5,12 @@
 
 ## [Unreleased]
 
-> 本轮:11 路并行的「开源对标」实现(见 [docs/oss-comparison.md](docs/oss-comparison.md))。全部 additive、零新依赖,需新依赖的项(re2 线性正则引擎、bun compile、TanStack Query、tauri 自动更新、i18next-cli、stryker 等)留待批准后再上。
+> 本轮:11 路并行的「开源对标」实现(见 [docs/oss-comparison.md](docs/oss-comparison.md))。第二波再上 5 项获批新依赖(下方「质量&GUI 增强」)。仍留:re2 线性正则引擎、bun compile(待批)。
 
 ### 新增 Added
+- **质量门禁(第二波)**:`recheck` ReDoS 静态守卫——遍历全部审计规则正则,写规则时即拦下会回溯灾难的 evil 正则(测试门禁,无需 eslint);`stryker` 变异测试配置(`pnpm mutate`,收敛到 audit engine/score,衡量测试有效性);`i18next-cli` GUI 漏译检测进 CI(`pnpm --dir gui i18n:check`,漏译即失败,当前四语言 100%)。
+- **GUI 数据层 → TanStack Query(第二波)**:App 手写的 sections 加载状态机替换为 `@tanstack/react-query`(`staleTime` 5min / `retry` 1 / 不随窗口聚焦重取,贴合 Tauri 本地 IPC);写操作后精细 `invalidateQueries`(toggle/remove/install/sync 后不重跑 stats),取代全量刷新;DashboardShell 对外接口不变。
+- **GUI 自动更新(第二波)**:接入 `tauri-plugin-updater` + `tauri-plugin-process`,`UpdateChecker` 横幅组件(有更新提示版本+一键更新+重启,非 Tauri 运行时优雅 no-op),四语言 `update.*` 文案;更新源指向 GitHub Releases 的 `latest.json`,发布前需 `tauri signer generate` 填真实 pubkey(已占位+注释)。
 - **审计引擎/SARIF 增强**:SARIF result 加 `partialFingerprints`(GitHub code-scanning 跨 run 去重)+ `suppression.status="accepted"` + rule `helpUri`;Unicode 同形字表 18 → **140+**(Cyrillic 全集 / 希腊 / 全角 / Latin lookalike);Markdown 围栏代码块内的 finding 加 `inCodeBlock` 标注(additive,不改 severity);SARIF rule 加 OWASP LLM Top10 标签。
 - **审计输出 & CI 适配**:`audit --format codeclimate`(GitLab Code Quality)、`--format rdjson`(reviewdog PR 内联)、`--diff-from <commit>`(只报 PR 改动文件的 finding)、`.skill-switch-ignore`(.gitignore 风格忽略);`ci --format codeclimate|rdjson` 生成对应工作流。
 - **MCP/配置安全**:`mcp/tool-name-collision` 跨文件同名 server 影子化检测(2025 高危向量);密钥检测加 Shannon 熵 + 示例白名单降误报;Claude Desktop(`~/Library/Application Support/Claude/…` 等)路径纳入深扫。
