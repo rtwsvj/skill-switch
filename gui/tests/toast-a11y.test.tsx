@@ -45,10 +45,10 @@ describe('UndoToast a11y', () => {
     expect(html).toContain('undo-toast-stack');
   });
 
-  it('toast 区域有 role="region" landmark 可导航', async () => {
+  it('toast 区域是有名 landmark(section + aria-label,隐含 region 角色)', async () => {
     const { html, i18n } = await renderStack([mockToast]);
-    expect(html).toContain('role="region"');
-    // aria-label 让 landmark 有语义描述
+    // <section> + aria-label 即构成可导航的 region landmark(无需显式 role="region",避免 biome 冗余告警)
+    expect(html).toContain('<section');
     expect(html).toContain(i18n.t('skills.undo.region'));
   });
 

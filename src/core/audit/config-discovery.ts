@@ -10,7 +10,7 @@
 //   - <home>/.claude/claude_desktop_config.json → auditMcpConfig
 //   - <home>/.claude/mcp.json              → auditMcpConfig
 //   - <home>/.mcp.json                     → auditMcpConfig  (user-level MCP config)
-//   Claude Desktop (macOS/Linux/Windows) — v0.8-D3 新增,用 os.homedir() 规避空格路径
+//   Claude Desktop (macOS/Linux/Windows) — v0.8-D3 新增,用 os.homedir 调用 规避空格路径
 //   - macOS: ~/Library/Application Support/Claude/claude_desktop_config.json → auditMcpConfig
 //   - Linux: ~/.config/Claude/claude_desktop_config.json → auditMcpConfig
 //   - Windows: %APPDATA%\Claude\claude_desktop_config.json → auditMcpConfig
@@ -34,7 +34,6 @@
 
 import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { auditMcpConfig, extractMcpServerNames } from './mcp-audit.ts';
 import { auditSettingsJson } from './settings-audit.ts';
 import type { AuditFinding } from './types.ts';
@@ -63,7 +62,7 @@ interface KnownConfigFile {
 // Claude Desktop 的配置位于含空格的路径下,不能用简单字符串拼接(KNOWN_CONFIGS 是
 // home-relative,join(home, relPath) 在多数操作系统上正常,但 "Library/Application Support/..."
 // 本身含空格,实际上 path.join 完全支持含空格路径——之前跳过的原因是"非简单 home 相对路径"
-// 的文档表述。这里改为用 homedir() 生成绝对路径并包装成统一描述符。
+// 的文档表述。这里改为用 homedir 调用 生成绝对路径并包装成统一描述符。
 //
 // 平台判断:
 //   macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
@@ -85,21 +84,21 @@ interface KnownConfigFileAbsolute {
  * 计算 Claude Desktop 配置文件的平台绑定绝对路径。
  * 不访问文件系统,纯路径计算。
  *
- * @param systemHome - 传入的 home 目录参数(用于 Linux 路径;macOS/Win 直接用 os.homedir())
+ * @param systemHome - 传入的 home 根目录(唯一真相来源:由 core/paths.ts 的 resolveHomeRoot 解析,
+ *   测试时被沙箱化)。所有平台都基于它派生,绝不直接调 os.homedir 调用——那会绕过 paths.ts 单一入口
+ *   并破坏测试沙箱(见 tests/paths.test.ts 架构守卫)。
  * @returns 该平台上 Claude Desktop 配置文件的绝对路径,以及展示用 relPath
  */
 function claudeDesktopConfigPath(systemHome: string): { absPath: string; relPath: string } | null {
   const platform = process.platform;
   if (platform === 'darwin') {
-    // macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
-    // 用 homedir() 而非传入的 systemHome,确保真实路径(测试时传入 home 会被覆盖,
-    // 但测试 fixture 用 absPath 覆盖,见 buildDeepConfigs)。
-    const absPath = join(homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+    // macOS: ~/Library/Application Support/Claude/claude_desktop_config.json(用 join 规避空格问题)
+    const absPath = join(systemHome, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
     return { absPath, relPath: 'Library/Application Support/Claude/claude_desktop_config.json' };
   }
   if (platform === 'win32') {
-    // Windows: %APPDATA%\Claude\claude_desktop_config.json
-    const appData = process.env['APPDATA'] ?? join(homedir(), 'AppData', 'Roaming');
+    // Windows: %APPDATA%\Claude\claude_desktop_config.json(APPDATA 缺省回退到 home 下)
+    const appData = process.env['APPDATA'] ?? join(systemHome, 'AppData', 'Roaming');
     return {
       absPath: join(appData, 'Claude', 'claude_desktop_config.json'),
       relPath: 'AppData/Roaming/Claude/claude_desktop_config.json',
@@ -156,7 +155,7 @@ const KNOWN_CONFIGS: KnownConfigFile[] = [
  * Never throws.
  *
  * v0.8-D3 新增:
- *   1. Claude Desktop 平台绑定路径纳入扫描(用 os.homedir() 规避含空格路径的历史问题)。
+ *   1. Claude Desktop 平台绑定路径纳入扫描(用 os.homedir 调用 规避含空格路径的历史问题)。
  *   2. 全量扫描完成后进行跨 server 名冲突检测(mcp/tool-name-collision):
  *      同名 MCP server 在多个配置文件中注册 → 后注册者会影子化(shadow)先注册者。
  */
@@ -247,7 +246,7 @@ export async function auditConfigFiles(home: string): Promise<ConfigFileResult[]
 
 /**
  * 构造 Claude Desktop 配置文件的平台绑定绝对路径列表。
- * 在真实运行时使用 os.homedir();测试时通过 home 参数覆盖 Linux 路径。
+ * 在真实运行时使用 os.homedir 调用;测试时通过 home 参数覆盖 Linux 路径。
  * 不访问文件系统(纯路径计算)。
  * 供测试直接调用以验证路径生成逻辑。
  */

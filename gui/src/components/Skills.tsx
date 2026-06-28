@@ -216,7 +216,7 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
             <span>{t('skills.recordCount', { count: data.scan.total })}</span>
           </div>
           <div className="table-wrap">
-            <table role="grid" aria-label={t('skills.title')}>
+            <table aria-label={t('skills.title')}>
               <thead>
                 <tr>
                   <th>{t('skills.columns.name')}</th>
@@ -240,9 +240,8 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
                         'skills-row-clickable',
                       )}
                       onClick={() => setSelectedKey(key)}
-                      // role="row" 在 grid 内合规使用 aria-selected
-                      role="row"
-                      aria-selected={isSelected}
+                      // 用 aria-current 标注选中行(原生 table 无 grid role,aria-current 全局合法)
+                      aria-current={isSelected ? 'true' : undefined}
                       // 允许键盘用户用 Tab/Enter 选中行
                       tabIndex={isSelected ? 0 : -1}
                       onKeyDown={(e) => {
@@ -304,10 +303,9 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
 
         {/* 右侧:详情面板 — aria-label 和 aria-current 让辅助技术知道当前选中项 */}
         {selectedSkill && selectedInfo ? (
-          <div
+          <section
             aria-label={`${t('skills.detail.directory')}: ${selectedSkill.name ?? selectedSkill.dirName}`}
             aria-current="true"
-            role="region"
           >
             <SkillDetail
               skill={selectedSkill}
@@ -315,11 +313,11 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
               actions={actions}
               writeBusy={writeBusy}
             />
-          </div>
+          </section>
         ) : (
-          <div className="skill-detail-panel skill-detail-empty" role="region" aria-label={t('skills.detail.empty')}>
+          <section className="skill-detail-panel skill-detail-empty" aria-label={t('skills.detail.empty')}>
             <p className="muted">{t('skills.detail.empty')}</p>
-          </div>
+          </section>
         )}
       </div>
     </section>

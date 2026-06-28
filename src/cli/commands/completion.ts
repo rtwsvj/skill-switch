@@ -53,12 +53,12 @@ _skill_switch_completions() {
   local flags="--json --home --agent --help --version"
 
   if [[ \${COMP_CWORD} -eq 1 ]]; then
-    COMPREPLY=( \$(compgen -W "\${cmds} \${flags}" -- "\${cur}") )
+    COMPREPLY=( $(compgen -W "\${cmds} \${flags}" -- "\${cur}") )
     return 0
   fi
 
   # 子命令后继续补全公共 flag
-  COMPREPLY=( \$(compgen -W "\${flags}" -- "\${cur}") )
+  COMPREPLY=( $(compgen -W "\${flags}" -- "\${cur}") )
 }
 complete -F _skill_switch_completions skill-switch
 `;
@@ -93,7 +93,7 @@ ${cmdEntries}
     "1: :->command" \\
     "*:: :->args" \\
     \${global_flags}
-  case \$state in
+  case $state in
     command)
       _describe '命令' commands
       ;;

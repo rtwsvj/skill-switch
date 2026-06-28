@@ -119,8 +119,6 @@ export function UndoToastStack({
   return (
     <section
       className={toasts.length === 0 ? 'undo-toast-stack undo-toast-stack-empty' : 'undo-toast-stack'}
-      // landmark role:让键盘用户可以用"跳到 landmark"快捷键直接导航到 toast 区
-      role="region"
       aria-label={t('skills.undo.region')}
       // aria-live=polite:插入新消息时屏幕阅读器在空闲时机朗读,不打断当前操作
       aria-live="polite"

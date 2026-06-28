@@ -5,7 +5,20 @@
 
 ## [Unreleased]
 
+> 本轮:11 路并行的「开源对标」实现(见 [docs/oss-comparison.md](docs/oss-comparison.md))。全部 additive、零新依赖,需新依赖的项(re2 线性正则引擎、bun compile、TanStack Query、tauri 自动更新、i18next-cli、stryker 等)留待批准后再上。
+
 ### 新增 Added
+- **审计引擎/SARIF 增强**:SARIF result 加 `partialFingerprints`(GitHub code-scanning 跨 run 去重)+ `suppression.status="accepted"` + rule `helpUri`;Unicode 同形字表 18 → **140+**(Cyrillic 全集 / 希腊 / 全角 / Latin lookalike);Markdown 围栏代码块内的 finding 加 `inCodeBlock` 标注(additive,不改 severity);SARIF rule 加 OWASP LLM Top10 标签。
+- **审计输出 & CI 适配**:`audit --format codeclimate`(GitLab Code Quality)、`--format rdjson`(reviewdog PR 内联)、`--diff-from <commit>`(只报 PR 改动文件的 finding)、`.skill-switch-ignore`(.gitignore 风格忽略);`ci --format codeclimate|rdjson` 生成对应工作流。
+- **MCP/配置安全**:`mcp/tool-name-collision` 跨文件同名 server 影子化检测(2025 高危向量);密钥检测加 Shannon 熵 + 示例白名单降误报;Claude Desktop(`~/Library/Application Support/Claude/…` 等)路径纳入深扫。
+- **供应链 & 漂移**:`drift --osv`(opt-in,POST OSV.dev querybatch 查 skill 依赖的已知 CVE,默认关、仅 flag 时联网)、审批 `--criteria safe-to-run|safe-to-deploy` 分级、`drift --upstream-summary`(本地 git log 拼上游新增 commit 摘要)。
+- **套餐 & 用法挖掘**:共现分析加 `lift`/`confidence` 关联规则指标(过滤"高频 skill 与谁都共现"的假关联);transcript adapter 架构 + 内置 **Codex CLI** 解析器(`~/.codex/sessions/`);内置套餐改 readdir 自动发现。
+- **MCP server 深化**:协议升级 `2025-06-18`;5 个只读工具加 `readOnlyHint` 注解(客户端可免确认弹窗);实现 `resources`(规则知识库 / 最近审计报告)、`prompts`(3 条审计模板)、audit 工具 `outputSchema`;新增 `server.json` + `package.json` `mcpName`(MCP Registry 上架)。
+- **`completion` 命令 + CLI 分发**:`skill-switch completion [bash|zsh|fish]` 输出 shell 自动补全;`--help` 用 Commander 原生 helpGroup 分组;新增 `release.yml`(tauri-action 跨平台构建 DMG/AppImage/deb/MSI)+ Homebrew Formula + Scoop manifest + [docs/distribution.md](docs/distribution.md)。
+- **GUI 无障碍加固**:撤销 toast 升为有名 landmark + 关闭后焦点恢复;技能列表行 `aria-current` + 键盘 Enter/Space 选中;写操作按钮带技能名 `aria-label`。
+- **质量门禁**:CI 加 coverage 阈值门禁(保守下限,防倒退);audit/doctor/add 的 golden snapshot 扩面;零依赖安全自检(查自身 shell 注入/path traversal 等)。
+- **文档**:[docs/oss-comparison.md](docs/oss-comparison.md)(11 领域 × 开源对标的产品路线图,带来源 URL);[docs/auditing-ai-agent-skills.md](docs/auditing-ai-agent-skills.md) 加「静态装前审计 ≠ 运行时防护」诚实定位节(指向 garak/mcp-scan 等互补工具)。
+- **GUI i18n 修复**:数据层超时/取消/JSON 错误改结构化 `LocalizedCommandError`(英文兜底 + UI 按语言渲染),窗口标题 `skill-switch Governance` → `skill-switch`,英文/日/西模式不再泄漏中文。
 - **`sync --out <file>` / `sync --plan <file>` — plan artifact 持久化(对标 Terraform plan -out)**:`sync --out <file>` 把 planSync 结果 + 声明文件 sha256 摘要 + 时间戳序列化写盘;`sync --plan <file>` 读回后先校验声明 sha256 未变(变了则拒绝并提示重 plan),校验通过再执行——保证"看到的 plan"和"实际执行的 plan"完全一致。现有 `sync` / `sync --dry-run` 行为零改变。
 - **`doctor --fix` — 漂移自修复(对标 chezmoi apply)**:doctor 已产结构化 finding,`--fix` 按 kind 映射:`content-drift` → 从声明 source 重铺(copy/symlink);`extra-locked` → removeLockEntries 清孤儿锁条目;`missing`/`stale-lock` → 提示手动跑 sync/install。写操作前自动先快照受影响的 agent 目录。无 `--fix` 时只报告,行为不变。
 - **`restore prune` — 快照生命周期清理(对标 Nix expire-generations)**:`restore prune --keep-last <N>` 保留最近 N 个快照删除其余;`--older-than <Nd>` 删除 N 天前的快照;两者可组合;`--dry-run` 只列将删不执行。基于 listSnapshots 的 epochMs 排序,.tar.gz 与 .json sidecar 一并删除。
