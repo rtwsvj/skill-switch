@@ -148,7 +148,10 @@ function SkillDetail({
           className={enabled ? undefined : 'primary-action'}
           onClick={() => actions.onToggle(skill, !enabled)}
           disabled={actions.busy === `toggle-${name}` || writeBusy}
-          title={enabled ? t('skills.actions.disableHint') : undefined}
+          aria-label={enabled
+            ? `${t('skills.actions.disable')} ${name}`
+            : `${t('skills.actions.enable')} ${name}`}
+          title={enabled ? t('skills.actions.disableHint') : t('skills.actions.disableHint')}
         >
           {actions.busy === `toggle-${name}`
             ? t('operations.busy')
@@ -159,6 +162,7 @@ function SkillDetail({
           className="danger-action"
           onClick={() => actions.onRemove(skill)}
           disabled={actions.busy === `remove-${name}` || writeBusy}
+          aria-label={`${t('skills.actions.delete')} ${name}`}
           title={t('skills.actions.deleteHint')}
         >
           {actions.busy === `remove-${name}` ? t('operations.busy') : t('skills.actions.delete')}
@@ -196,6 +200,7 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
             className="primary-action"
             onClick={actions.onImportExisting}
             disabled={actions.busy === 'import' || writeBusy}
+            aria-label={t('skills.import.action')}
           >
             {actions.busy === 'import' ? t('operations.busy') : t('skills.import.action')}
           </button>
@@ -204,14 +209,14 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
 
       {/* 主从布局容器 */}
       <div className="skills-master-detail">
-        {/* 左侧:技能列表 */}
+        {/* 左侧:技能列表 — role="grid" 允许行上使用 aria-selected */}
         <section className="panel table-panel skills-master">
           <div className="panel-title">
             <h2>{t('skills.title')}</h2>
             <span>{t('skills.recordCount', { count: data.scan.total })}</span>
           </div>
           <div className="table-wrap">
-            <table>
+            <table role="grid" aria-label={t('skills.title')}>
               <thead>
                 <tr>
                   <th>{t('skills.columns.name')}</th>
@@ -235,7 +240,17 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
                         'skills-row-clickable',
                       )}
                       onClick={() => setSelectedKey(key)}
+                      // role="row" 在 grid 内合规使用 aria-selected
+                      role="row"
                       aria-selected={isSelected}
+                      // 允许键盘用户用 Tab/Enter 选中行
+                      tabIndex={isSelected ? 0 : -1}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedKey(key);
+                        }
+                      }}
                     >
                       <td>
                         <div className="skill-row-name">
@@ -255,6 +270,9 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
                             className={enabled ? undefined : 'primary-action'}
                             onClick={(e: { stopPropagation: () => void }) => { e.stopPropagation(); actions.onToggle(skill, !enabled); }}
                             disabled={actions.busy === `toggle-${name}` || writeBusy}
+                            aria-label={enabled
+                              ? `${t('skills.actions.disable')} ${name}`
+                              : `${t('skills.actions.enable')} ${name}`}
                             title={enabled ? t('skills.actions.disableHint') : undefined}
                           >
                             {enabled ? t('skills.actions.disable') : t('skills.actions.enable')}
@@ -264,6 +282,7 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
                             className="danger-action"
                             onClick={(e: { stopPropagation: () => void }) => { e.stopPropagation(); actions.onRemove(skill); }}
                             disabled={actions.busy === `remove-${name}` || writeBusy}
+                            aria-label={`${t('skills.actions.delete')} ${name}`}
                             title={t('skills.actions.deleteHint')}
                           >
                             {t('skills.actions.delete')}
@@ -283,16 +302,22 @@ export function Skills({ data, actions }: { data: DashboardData; actions: SkillA
           </div>
         </section>
 
-        {/* 右侧:详情面板 */}
+        {/* 右侧:详情面板 — aria-label 和 aria-current 让辅助技术知道当前选中项 */}
         {selectedSkill && selectedInfo ? (
-          <SkillDetail
-            skill={selectedSkill}
-            info={selectedInfo}
-            actions={actions}
-            writeBusy={writeBusy}
-          />
+          <div
+            aria-label={`${t('skills.detail.directory')}: ${selectedSkill.name ?? selectedSkill.dirName}`}
+            aria-current="true"
+            role="region"
+          >
+            <SkillDetail
+              skill={selectedSkill}
+              info={selectedInfo}
+              actions={actions}
+              writeBusy={writeBusy}
+            />
+          </div>
         ) : (
-          <div className="skill-detail-panel skill-detail-empty">
+          <div className="skill-detail-panel skill-detail-empty" role="region" aria-label={t('skills.detail.empty')}>
             <p className="muted">{t('skills.detail.empty')}</p>
           </div>
         )}
