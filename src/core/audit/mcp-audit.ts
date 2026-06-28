@@ -107,6 +107,83 @@ const SECRET_VALUE_PATTERNS: Array<{ re: RegExp; ruleId: string; message: string
   },
 ];
 
+// ── 密钥 entropy 过滤 + 白名单 ────────────────────────────────────────────────
+//
+// 目标:SECRET_VALUE_PATTERNS 命中后,对捕获的密钥子串再做二次验证:
+//   1. 白名单:已知文档示例/占位符字符串直接跳过(零误报)。
+//   2. Shannon 熵:低熵(像 UUID/示例值/重复字符)降级跳过,仅高熵字符串才出 finding。
+//
+// Shannon 熵公式:H = -Σ p_i * log2(p_i),以字节频率计算。
+// 经验阈值(BASE64_CHARSET ≈ 6 bit/char,真实 key ≥ 3.5 bit/char):
+//   sk- 前缀系:真实 key 通常 ≥ 3.8;占位符如 "sk-xxxx…" ≈ 2.0
+//   AWS AKIA:真实 20 位随机大写+数字,熵 ≈ 4.0+;示例"EXAMPLE…" ≈ 2.8
+// 阈值设为 3.0 bit/char:低于此值视为低熵占位符,跳过。
+
+/**
+ * 已知文档示例 / 占位符密钥白名单(完整字符串匹配)。
+ * 这些字符串出现在 AWS、OpenAI 等官方文档和 SDK 测试中,
+ * 永远不会是真实凭据。
+ */
+const KNOWN_EXAMPLE_SECRETS: ReadonlySet<string> = new Set([
+  // AWS 官方文档示例 Access Key ID
+  'AKIAIOSFODNN7EXAMPLE',
+  // AWS 官方文档示例 Secret Access Key(常与上配对)
+  'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+  // OpenAI 文档示例
+  'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+  'sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+  // GitHub 文档示例
+  'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+  'ghp_xxxxxxxxxxxxxxxxxxxxxxxx',
+]);
+
+/**
+ * 计算字符串的 Shannon 熵(bit/char)。
+ * 纯函数,无外部依赖;字符串为空时返回 0。
+ *
+ * @param s - 待计算字符串(UTF-16 code unit 粒度)
+ * @returns Shannon 熵,单位 bit/char
+ */
+function shannonEntropy(s: string): number {
+  if (s.length === 0) return 0;
+  // 统计各字符出现频率
+  const freq = new Map<string, number>();
+  for (const ch of s) {
+    freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  }
+  let entropy = 0;
+  const len = s.length;
+  for (const count of freq.values()) {
+    const p = count / len;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+
+/**
+ * 最低 Shannon 熵阈值(bit/char)。
+ * 低于此值的字符串被视为示例/占位符/UUID,跳过或降级。
+ * 3.0 bit/char:正常英文约 4.0,随机 base62 ≥ 5.0;占位符通常 < 2.5。
+ */
+const MIN_SECRET_ENTROPY = 3.0;
+
+/**
+ * 判断一个疑似密钥值是否通过 entropy + 白名单双重验证。
+ * 返回 true 表示"可信为真实密钥,应产生 finding";
+ * 返回 false 表示"低熵/白名单占位符,应跳过"。
+ *
+ * @param val - 原始密钥字符串值
+ */
+function isHighEntropySecret(val: string): boolean {
+  // 1. 白名单精确匹配:已知示例值直接跳过
+  if (KNOWN_EXAMPLE_SECRETS.has(val)) return false;
+  // 2. 从值中提取"密钥体"(去除已知前缀后计算熵)
+  //    前缀本身熵低,去掉后评估随机部分。
+  const secretBody = val.replace(/^(?:sk-(?:proj-)?|ghp_|AKIA)/i, '');
+  // 3. Shannon 熵检测
+  return shannonEntropy(secretBody) >= MIN_SECRET_ENTROPY;
+}
+
 /** Key-name heuristic: env key ending in _TOKEN / _SECRET / _KEY / _PASSWORD with a literal value. */
 const SECRET_KEY_SUFFIX_RE = /(?:_TOKEN|_SECRET|_KEY|_PASSWORD)$/i;
 
@@ -430,9 +507,12 @@ function auditServerEntry(
     // Skip variable references — not literal secrets
     if (ENV_REF_RE.test(val)) continue;
 
-    // Check known secret patterns
+    // Check known secret patterns — 命中后再做 entropy + 白名单双重验证,
+    // 过滤掉文档示例 / 低熵占位符,降低误报率。
     for (const { re, ruleId, message } of SECRET_VALUE_PATTERNS) {
       if (re.test(val)) {
+        // isHighEntropySecret: 白名单精确匹配或 Shannon 熵 < MIN_SECRET_ENTROPY 则跳过
+        if (!isHighEntropySecret(val)) continue;
         findings.push(
           finding(ruleId, 'high', message, `${ctx} env.${key}=<redacted>`, 1),
         );
@@ -782,9 +862,10 @@ function auditServerEntry(
         if (ENV_REF_RE.test(headerVal) || EMBEDDED_VAR_RE.test(headerVal)) continue;
 
         // Check A: value matches a known secret pattern (pattern-based detection)
+        // 命中后同样经 entropy + 白名单过滤:低熵占位符不产生 finding。
         let firedByValue = false;
         for (const { re } of SECRET_VALUE_PATTERNS) {
-          if (re.test(headerVal)) {
+          if (re.test(headerVal) && isHighEntropySecret(headerVal)) {
             findings.push(
               finding(
                 'mcp/header-literal-secret',
@@ -910,6 +991,34 @@ function auditServerEntry(
       }
     }
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 跨文件 server 名冲突检测辅助(任务1)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 从单个 MCP 配置 JSON 字符串中提取 mcpServers 的 key 名集合(server 名列表)。
+ * 用于跨文件聚合后检测同名 server 的冲突(shadow-MCP / tool-name-collision)。
+ *
+ * 容错:无效 JSON / 无 mcpServers / 非对象 → 返回空数组。
+ * 纯静态,不 spawn 进程,不访问网络。
+ *
+ * @param content - MCP 配置 JSON 字符串
+ * @returns MCP server 名称数组(可能为空)
+ */
+export function extractMcpServerNames(content: string): string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return [];
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+  const cfg = parsed as McpConfig;
+  const servers = cfg.mcpServers;
+  if (!servers || typeof servers !== 'object' || Array.isArray(servers)) return [];
+  return Object.keys(servers);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

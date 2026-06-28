@@ -207,14 +207,21 @@ describe('.vscode/mcp.json (VS Code / GitHub Copilot agent mode)', () => {
 describe('R16-a expanded discovery — combined', () => {
   it('all four new paths + original four paths are all discovered when present', async () => {
     const home = tmpHome();
+    // 使用不同 server 名,避免触发跨文件 mcp/tool-name-collision 检测
+    // (v0.8-D3 新增:同名 server 跨文件注册 → high finding)
+    const benignMcpClaude = JSON.stringify({ mcpServers: { 'claude-mcp': { command: 'node', args: ['dist/server.js'] } } });
+    const benignMcpUser = JSON.stringify({ mcpServers: { 'user-mcp': { command: 'node', args: ['dist/server.js'] } } });
+    const benignMcpCursor = JSON.stringify({ mcpServers: { 'cursor-mcp': { command: 'node', args: ['dist/server.js'] } } });
+    const benignMcpVscode = JSON.stringify({ mcpServers: { 'vscode-mcp': { command: 'node', args: ['dist/server.js'] } } });
+
     // Original paths
     await writeAt(join(home, '.claude', 'settings.json'), BENIGN_SETTINGS);
-    await writeAt(join(home, '.claude', 'mcp.json'), BENIGN_MCP);
+    await writeAt(join(home, '.claude', 'mcp.json'), benignMcpClaude);
     // New paths
-    await writeAt(join(home, '.mcp.json'), BENIGN_MCP);
+    await writeAt(join(home, '.mcp.json'), benignMcpUser);
     await writeAt(join(home, '.gemini', 'settings.json'), BENIGN_SETTINGS);
-    await writeAt(join(home, '.cursor', 'mcp.json'), BENIGN_MCP);
-    await writeAt(join(home, '.vscode', 'mcp.json'), BENIGN_MCP);
+    await writeAt(join(home, '.cursor', 'mcp.json'), benignMcpCursor);
+    await writeAt(join(home, '.vscode', 'mcp.json'), benignMcpVscode);
 
     const results = await auditConfigFiles(home);
     const relPaths = results.map((r) => r.relPath);
@@ -227,7 +234,7 @@ describe('R16-a expanded discovery — combined', () => {
     expect(relPaths).toContain('.gemini/settings.json');
     expect(relPaths).toContain('.cursor/mcp.json');
     expect(relPaths).toContain('.vscode/mcp.json');
-    // All benign → zero findings
+    // All benign with unique server names → zero findings
     expect(flattenConfigFindings(results)).toHaveLength(0);
   });
 
