@@ -41,4 +41,10 @@ export interface AuditFinding {
   /** 命中行原文(截断到 200 字符) */
   excerpt: string;
   message: string;
+  /**
+   * 可选:当 finding 落在 Markdown ``` 围栏代码块内时为 true。
+   * 纯标注字段,不影响 severity/阻断逻辑;供 UI 灰显或 policy 决策使用。
+   * 字段缺省(undefined)与 false 含义相同。
+   */
+  inCodeBlock?: boolean;
 }
