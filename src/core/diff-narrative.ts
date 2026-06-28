@@ -1,15 +1,70 @@
 // diff-narrative.ts — 为 `skill-switch diff` 生成一句话叙述摘要 + 安全信号。
+// P3-D4 扩展:新增 buildUpstreamCommitSummary — 对 upstream-ahead 漂移生成上游 commit 前导摘要。
 //
 // 设计原则:
-//   1. 纯函数 — 无 IO,无副作用,易于测试。
+//   1. 纯函数(原有部分) — 无 IO,无副作用,易于测试。
 //   2. 复用已有审计引擎 (auditContents / allRules / allFileRules) — 不造新探测器,不引入新依赖。
 //   3. Diff 信号而非绝对信号 — 只报告「after 有、before 没有」的 findings,
 //      即「在此次改动中新引入」的风险;删掉恶意行不算新引入。
 //   4. 内容安全 — riskySignals 只暴露 ruleId/category/数量,绝不输出匹配到的原文片段。
+//
+// buildUpstreamCommitSummary:
+//   - 纯本地 git log,无网络请求。
+//   - 上游不可达或 git 失败时静默跳过,返回 undefined。
+//   - 供 drift.ts 命令在 --upstream-summary 时调用(opt-in)。
 
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { auditContents } from './audit/engine.ts';
 import type { AuditFinding } from './audit/types.ts';
 import { allFileRules, allRules } from '../../rules/index.ts';
+
+const execFileAsync = promisify(execFile);
+
+// ─── 上游 commit 摘要(P3-D4 新增) ───────────────────────────────────────────
+
+/**
+ * 利用本地 git log 拼出"上游新增 N 个 commit:…"前导摘要行。
+ *
+ * 使用场景:drift 报告中的 upstream-ahead 条目,用于降低审批认知负担。
+ * 实现:git log --oneline <lockCommit>..<upstreamCommit>(纯本地,无网络)。
+ *
+ * 上游不可达(git 未 fetch 到本地)、任何 git 错误、或参数缺失时均返回 undefined,
+ * 调用方直接跳过前导行即可。
+ *
+ * @param repoDir      包含 .git 的本地仓库路径(clone 后的临时目录或已 fetch 过的本地 bare repo)
+ * @param lockCommit   锁定时的 commit SHA(范围起点,不含)
+ * @param upstreamCommit 上游当前 HEAD commit SHA(范围终点,含)
+ * @param maxLines     最多展示的 commit 条数(默认 5,超出显示"…还有 N 条")
+ */
+export async function buildUpstreamCommitSummary(
+  repoDir: string,
+  lockCommit: string,
+  upstreamCommit: string,
+  maxLines = 5,
+): Promise<string | undefined> {
+  if (!repoDir || !lockCommit || !upstreamCommit) return undefined;
+  if (lockCommit === upstreamCommit) return undefined;
+
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['log', '--oneline', `${lockCommit}..${upstreamCommit}`],
+      { cwd: repoDir, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
+    );
+    const lines = stdout.trim().split('\n').filter(Boolean);
+    if (lines.length === 0) return undefined;
+
+    const shown = lines.slice(0, maxLines);
+    const extra = lines.length - shown.length;
+    const preview = shown.map((l) => l.slice(0, 72)).join('; ');
+    const suffix = extra > 0 ? `…还有 ${extra} 条` : '';
+    return `上游新增 ${lines.length} 个 commit:${preview}${suffix}`;
+  } catch {
+    // git 失败(上游未本地化、commit 不存在等):静默跳过
+    return undefined;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 公共类型
