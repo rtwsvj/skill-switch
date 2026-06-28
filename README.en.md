@@ -86,6 +86,7 @@ skill-switch --help
 | `import` | Restore skills.json + skills.lock.json from a .ssp archive (does not sync to disk). |
 | `uninstall` | One-command uninstall of skill-switch itself. |
 | `watch` | Detect skills on disk that bypass the governance layer (on disk but not declared); `--once` for a single pass, default is live watch. |
+| `completion` | Print a bash / zsh / fish shell completion script. `eval "$(skill-switch completion bash)"` enables Tab completion immediately; or specify `zsh`/`fish`. |
 
 Common options: `--json`, `--home <dir>`, `--agent <tool>` (claude-code / codex / gemini-cli / cursor / copilot …). Run any command with `--help` for the rest.
 

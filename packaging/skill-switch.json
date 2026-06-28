@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ScoopInstaller/Scoop/master/schema.json",
+  "version": "0.8.0",
+  "description": "AI agent skills 和 MCP/agent 配置的安全审计与治理工具",
+  "homepage": "https://github.com/rtwsvj/skill-switch",
+  "license": "MIT",
+  "notes": [
+    "skill-switch CLI 已安装。快速上手:",
+    "  skill-switch --help",
+    "  skill-switch audit --configs",
+    "",
+    "Shell 自动补全(PowerShell,可选):",
+    "  skill-switch completion bash 在 Windows 上不适用;",
+    "  建议直接用 npx @rtwsvj/skill-switch <command> 或安装 MSI。"
+  ],
+  "url": "https://github.com/rtwsvj/skill-switch/releases/download/v0.8.0/skill-switch_0.8.0_x64_en-US.msi",
+  "hash": "PLACEHOLDER_MSI_SHA256",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/rtwsvj/skill-switch/releases/download/v0.8.0/skill-switch_0.8.0_x64_en-US.msi",
+      "hash": "PLACEHOLDER_MSI_SHA256"
+    }
+  },
+  "installer": {
+    "args": ["/quiet", "/norestart"]
+  },
+  "bin": [
+    ["skill-switch.exe", "skill-switch"]
+  ],
+  "shortcuts": [
+    ["skill-switch.exe", "skill-switch"]
+  ],
+  "checkver": {
+    "github": "https://github.com/rtwsvj/skill-switch"
+  },
+  "autoupdate": {
+    "url": "https://github.com/rtwsvj/skill-switch/releases/download/v$version/skill-switch_$version_x64_en-US.msi",
+    "hash": {
+      "url": "https://github.com/rtwsvj/skill-switch/releases/download/v$version/skill-switch_$version_x64_en-US.msi.sha256"
+    }
+  }
+}
