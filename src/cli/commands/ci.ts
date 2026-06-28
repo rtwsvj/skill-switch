@@ -87,6 +87,57 @@ jobs:
 }
 
 /**
+ * 生成 codeclimate 格式的 GitHub Actions 工作流 YAML。
+ * codeclimate JSON 可上传为 GitLab Code Quality artifact 或直接消费。
+ * 无需特殊权限。
+ */
+function buildCodeClimateWorkflow(pin: string, baselinePath?: string): string {
+  const baselineArgs = baselinePath ? ` --baseline ${baselinePath}` : '';
+  return `name: skill-switch audit
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rtwsvj/skill-switch@${pin}
+        with:
+          format: codeclimate
+          args: --configs${baselineArgs}
+`;
+}
+
+/**
+ * 生成 rdjson 格式的 GitHub Actions 工作流 YAML。
+ * rdjson 供 reviewdog 消费,转为 PR 内联评论。
+ * 需要 pull-requests: write 权限(由用户在 reviewdog 步骤自行配置)。
+ */
+function buildRdJsonWorkflow(pin: string, baselinePath?: string): string {
+  const baselineArgs = baselinePath ? ` --baseline ${baselinePath}` : '';
+  return `name: skill-switch audit
+on: [push, pull_request]
+
+permissions:
+  contents: read
+  pull-requests: write   # reviewdog 发布 PR 评论必需
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rtwsvj/skill-switch@${pin}
+        with:
+          format: rdjson
+          args: --configs${baselineArgs}
+`;
+}
+
+/**
  * 生成 .pre-commit-config.yaml 内容。
  * 使用 local repo hook,调用 npx @rtwsvj/skill-switch audit --configs 守门提交。
  * 遵循标准 pre-commit schema:repos → repo: local → hooks。
@@ -107,7 +158,7 @@ export function registerCiCommand(program: Command): void {
   program
     .command('ci')
     .description('生成 GitHub Actions 工作流,一键接入 skill-switch CI 审计(已存在则不覆盖,需 --force)')
-    .option('--format <fmt>', '工作流输出格式:sarif(默认,上传 code-scanning)/ github(PR 内联注解)', 'sarif')
+    .option('--format <fmt>', '工作流输出格式:sarif(默认,上传 code-scanning)/ github(PR 内联注解)/ codeclimate(GitLab Code Quality)/ rdjson(reviewdog)', 'sarif')
     .option('--pin <ref>', `Action 版本引脚(默认 ${DEFAULT_PIN})`, DEFAULT_PIN)
     .option('--out <path>', '输出文件路径(workflow 默认 .github/workflows/skill-switch.yml;--pre-commit 默认 .pre-commit-config.yaml)')
     .option('--force', '已有文件时强制覆盖')
@@ -177,8 +228,8 @@ export function registerCiCommand(program: Command): void {
           : undefined;
 
         // 校验 format 参数
-        if (fmt !== 'sarif' && fmt !== 'github') {
-          process.stderr.write(`错误: --format 仅支持 sarif 或 github,收到: ${fmt}\n`);
+        if (fmt !== 'sarif' && fmt !== 'github' && fmt !== 'codeclimate' && fmt !== 'rdjson') {
+          process.stderr.write(`错误: --format 仅支持 sarif / github / codeclimate / rdjson,收到: ${fmt}\n`);
           process.exitCode = 1;
           return;
         }
@@ -217,7 +268,11 @@ export function registerCiCommand(program: Command): void {
         const workflowContent =
           fmt === 'github'
             ? buildGithubWorkflow(pin, baselineRelPath)
-            : buildSarifWorkflow(pin, baselineRelPath);
+            : fmt === 'codeclimate'
+              ? buildCodeClimateWorkflow(pin, baselineRelPath)
+              : fmt === 'rdjson'
+                ? buildRdJsonWorkflow(pin, baselineRelPath)
+                : buildSarifWorkflow(pin, baselineRelPath);
 
         // 确保父目录存在
         await mkdir(dirname(workflowPath), { recursive: true });

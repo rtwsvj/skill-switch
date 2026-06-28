@@ -29,8 +29,10 @@
 //   对比时:drift finding 与其它 config finding 走同一输出/退出码路径。
 import { readFileSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
-import { dirname, extname, join, relative } from 'node:path';
+import { execFile } from 'node:child_process';
+import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import type { Command } from 'commander';
 import { allFileRules, allRules } from '../../../rules/index.ts';
 import { auditContents, type AuditReport, type AuditTarget } from '../../core/audit/engine.ts';
@@ -58,8 +60,10 @@ import {
   ConfigBaselineError,
 } from '../../core/audit/config-baseline.ts';
 import { runGuidedFix, type GuidedFixSummary } from '../../core/audit/guided-fix.ts';
+import { toCodeClimateEntries } from '../../core/audit/codeclimate.ts';
 import { toGithubAnnotations } from '../../core/audit/github-annotations.ts';
 import { toJunitDocument } from '../../core/audit/junit.ts';
+import { toRdJsonDocument } from '../../core/audit/rdjson.ts';
 import { toSarifDocument } from '../../core/audit/sarif.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
 import type { AuditFinding, Severity } from '../../core/audit/types.ts';
@@ -216,7 +220,90 @@ export function shouldBlockWithAll(
 /** 默认策略文件在 cwd 的文件名 */
 const POLICY_FILE_NAME = '.skill-switch-policy.json';
 
-async function collectTextFiles(root: string): Promise<{ targets: AuditTarget[]; coverage: AuditCoverage }> {
+/** 默认忽略文件名 */
+const IGNORE_FILE_NAME = '.skill-switch-ignore';
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * 用 `git diff --name-only <commit>...HEAD` 取出改动文件集合(相对仓库根的路径)。
+ * 失败时返回 null(调用方视同未指定 --diff-from,全量审计)。
+ */
+async function getChangedFiles(commit: string, cwd: string): Promise<Set<string> | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['diff', '--name-only', `${commit}...HEAD`],
+      { cwd },
+    );
+    const files = stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    return new Set(files);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 解析 .gitignore 风格忽略文件,返回逐行 glob/前缀列表。
+ * 忽略空行和 # 注释行。文件不存在时返回空列表。
+ */
+async function loadIgnorePatterns(ignoreFilePath: string): Promise<string[]> {
+  try {
+    const content = await readFile(ignoreFilePath, 'utf8');
+    return content
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith('#'));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 判断相对路径 rel 是否被忽略模式列表中的某条规则命中。
+ * 支持:
+ *   - 精确路径匹配(e.g. `foo/bar.md`)
+ *   - 前缀目录匹配(e.g. `vendor` → 匹配 `vendor/...`)
+ *   - 简单 glob:`*` 匹配任意非 `/` 字符;`**` 匹配任意字符(含 `/`)
+ * 不引入外部依赖,纯 JS 实现。
+ */
+export function isPathIgnored(rel: string, patterns: readonly string[]): boolean {
+  for (const pattern of patterns) {
+    if (matchGlob(pattern, rel)) return true;
+  }
+  return false;
+}
+
+/**
+ * 简单 glob 匹配:将 pattern 转为正则,匹配 path。
+ * `**` → 任意字符串(含 /);`*` → 任意非 / 字符串。
+ * 模式不含 `/` 时同时匹配任意子路径中的文件名(类似 .gitignore)。
+ */
+function matchGlob(pattern: string, path: string): boolean {
+  // 精确前缀目录匹配:pattern 是 path 的前缀目录
+  if (!pattern.includes('*') && (path === pattern || path.startsWith(`${pattern}/`))) {
+    return true;
+  }
+  // 将 glob 转为正则:先把 ** 占位替换为罕见占位符,再逐步展开
+  const DOUBLE_STAR_PLACEHOLDER = 'DSTAR';
+  const regexStr = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // 转义正则特殊字符(保留 * 和 ?)
+    .replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER) // 先把 ** 占位
+    .replace(/\*/g, '[^/]*') // * → 非 / 任意
+    .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), '.*'); // ** → 任意(含 /)
+  // 若 pattern 不含 / → 也尝试匹配文件名部分
+  if (!pattern.includes('/')) {
+    const nameRe = new RegExp(`(?:^|/)${regexStr}$`);
+    if (nameRe.test(path)) return true;
+  }
+  const fullRe = new RegExp(`^${regexStr}$`);
+  return fullRe.test(path);
+}
+
+async function collectTextFiles(
+  root: string,
+  ignorePatterns: readonly string[] = [],
+): Promise<{ targets: AuditTarget[]; coverage: AuditCoverage }> {
   const targets: AuditTarget[] = [];
   const skippedExt = new Set<string>();
   let scannedBytes = 0;
@@ -251,21 +338,32 @@ async function collectTextFiles(root: string): Promise<{ targets: AuditTarget[];
         return;
       }
       const full = join(dir, entry.name);
+      const rel = relative(root, full);
       if (entry.isDirectory()) {
         if (entry.name === '.git' || entry.name === 'node_modules') continue;
+        // 忽略文件过滤:目录路径命中 → 跳过整个目录
+        if (ignorePatterns.length > 0 && isPathIgnored(rel, ignorePatterns)) {
+          skippedFiles += 1;
+          continue;
+        }
         if (depth >= MAX_AUDIT_WALK_DEPTH) {
           depthLimitReached = true;
           continue;
         }
         await walk(full, depth + 1);
       } else if (entry.isFile()) {
+        // 忽略文件过滤:文件路径命中 → 统计为 skipped
+        if (ignorePatterns.length > 0 && isPathIgnored(rel, ignorePatterns)) {
+          skippedFiles += 1;
+          continue;
+        }
         if (!isScannableFile(entry.name)) {
           skippedFiles += 1;
           skippedExt.add(extname(entry.name).toLowerCase() || '(none)');
           continue;
         }
         const info = await lstat(full);
-        await readTarget(full, relative(root, full), info.size);
+        await readTarget(full, rel, info.size);
       }
     }
   }
@@ -296,8 +394,11 @@ async function collectTextFiles(root: string): Promise<{ targets: AuditTarget[];
   };
 }
 
-export async function auditSkillDir(path: string): Promise<AuditReport & { coverage: AuditCoverage }> {
-  const { targets, coverage } = await collectTextFiles(path);
+export async function auditSkillDir(
+  path: string,
+  ignorePatterns: readonly string[] = [],
+): Promise<AuditReport & { coverage: AuditCoverage }> {
+  const { targets, coverage } = await collectTextFiles(path, ignorePatterns);
   return { ...auditContents(allRules, targets, allFileRules), coverage };
 }
 
@@ -307,8 +408,9 @@ export async function auditSkillDir(path: string): Promise<AuditReport & { cover
  */
 async function auditSkillDirWithContents(
   path: string,
+  ignorePatterns: readonly string[] = [],
 ): Promise<AuditReport & { coverage: AuditCoverage; fileContents: Map<string, string> }> {
-  const { targets, coverage } = await collectTextFiles(path);
+  const { targets, coverage } = await collectTextFiles(path, ignorePatterns);
   const fileContents = new Map<string, string>(targets.map((t) => [t.file, t.content]));
   return { ...auditContents(allRules, targets, allFileRules), coverage, fileContents };
 }
@@ -611,12 +713,14 @@ export function serializeGuidedFix(
 }
 
 // 解析最终输出格式:--format 优先;若无 --format 但有 --json 则等价于 json。
-type OutputFormat = 'human' | 'json' | 'sarif' | 'github' | 'junit';
+type OutputFormat = 'human' | 'json' | 'sarif' | 'github' | 'junit' | 'codeclimate' | 'rdjson';
 
 function resolveFormat(options: { format?: string; json?: boolean }): OutputFormat {
   if (options.format === 'sarif') return 'sarif';
   if (options.format === 'github') return 'github';
   if (options.format === 'junit') return 'junit';
+  if (options.format === 'codeclimate') return 'codeclimate';
+  if (options.format === 'rdjson') return 'rdjson';
   if (options.format === 'json' || options.json === true) return 'json';
   return 'human';
 }
@@ -727,7 +831,7 @@ export function registerAuditCommand(program: Command): void {
     .argument('[path]', 'skill 目录或 SKILL.md 路径;省略时扫描 --home 下全部已装 skill')
     .option('--home [dir]', '启用 home 全量模式;可选覆盖 home 根目录(默认取系统 home)')
     .option('--json', '机器可读 JSON 输出(等价于 --format json;保留向后兼容)')
-    .option('--format <fmt>', '输出格式:human(默认)/ json / sarif / github', 'human')
+    .option('--format <fmt>', '输出格式:human(默认)/ json / sarif / github / junit / codeclimate / rdjson', 'human')
     .option('--configs', '同时审查 home 下的 agent 配置文件(settings.json / MCP 等)')
     .option('--policy <path>', '指定策略文件路径(默认: ./.skill-switch-policy.json)')
     .option('--no-policy', '忽略策略文件,使用默认阻断行为(等同于无策略文件)')
@@ -739,6 +843,8 @@ export function registerAuditCommand(program: Command): void {
     .option('--config-baseline <path>', '与配置漂移基线对比;MCP server 变化/新增 + settings 文件变化/新增均产生 finding(须配合 --configs)')
     .option('--exit-code <n>', '覆盖进程退出码(如 --exit-code 0 = 报告但不阻断 CI);不影响 finding 输出。无标志时保持旧版行为。')
     .option('--min-severity <level>', '只报告并计入阻断的最低严重度(critical|high|medium|low);无标志时全部严重度均有效(旧版行为)。')
+    .option('--diff-from <commit>', '仅报告落在 git diff <commit>...HEAD 改动文件内的 finding(PR 增量模式);无此标志 → 全量(旧版行为不变)')
+    .option('--ignore-file <path>', `路径忽略列表文件(.gitignore 格式;默认: ./${IGNORE_FILE_NAME})`)
     .action(async (
       path: string | undefined,
       options: {
@@ -755,6 +861,8 @@ export function registerAuditCommand(program: Command): void {
         configBaseline?: string;
         exitCode?: string;
         minSeverity?: string;
+        diffFrom?: string;
+        ignoreFile?: string;
         // commander 将 --no-policy 映射为 options.policy === false
         // 但类型里用 noPolicy 更清晰;实际通过 options['policy'] 判断
       },
@@ -842,12 +950,41 @@ export function registerAuditCommand(program: Command): void {
       // 若同时指定两者,--write-config-baseline 优先(写出后 exit 0;不再对比)
       const configBaselineCompareActive = configBaselinePath !== undefined && writeConfigBaselinePath === undefined;
 
+      // ── --ignore-file / .skill-switch-ignore:加载路径忽略规则 ──────────────────
+      // 无标志时尝试读取默认忽略文件;文件不存在 → 空规则列表(行为不变)。
+      const ignoreFilePath = options.ignoreFile
+        ? resolve(options.ignoreFile)
+        : join(process.cwd(), IGNORE_FILE_NAME);
+      const ignorePatterns: string[] = await loadIgnorePatterns(ignoreFilePath);
+
+      // ── --diff-from:取 git 改动文件集合(供后续 finding 过滤) ────────────────
+      // 无标志时 changedFiles=null → 全量(不变)。
+      let changedFiles: Set<string> | null = null;
+      if (options.diffFrom !== undefined) {
+        changedFiles = await getChangedFiles(options.diffFrom, process.cwd());
+        // git 失败时 changedFiles 仍为 null → 降级全量(不退出,只提示)
+        if (changedFiles === null) {
+          process.stderr.write(
+            `audit: --diff-from 无法运行 git diff(非 git 仓库或 ${options.diffFrom} 不存在?);降级为全量审计\n`,
+          );
+        }
+      }
+
+      /**
+       * 将 findings 列表按 --diff-from 的改动文件集合过滤。
+       * changedFiles=null(无此标志 / git 失败) → 原样返回(全量,旧版行为不变)。
+       */
+      function filterByDiff<T extends AuditFinding>(findings: T[]): T[] {
+        if (changedFiles === null) return findings;
+        return findings.filter((f) => changedFiles!.has(f.file));
+      }
+
       // ── 辅助:将 findingsActive(过滤后)构建行内抑制 finding Set ──────────────
       // 仅当 minSeverity 或行内抑制激活时才计算;否则返回空集(零开销)。
       // 注意:行内抑制标注在输出中可见(suppressed/inlineSuppressed),但不计入退出码。
 
       if (path) {
-        const fullReport = await auditSkillDirWithContents(path);
+        const fullReport = await auditSkillDirWithContents(path, ignorePatterns);
 
         // ── --write-baseline:写出当前 finding 指纹,exit 0 ──────────────────────
         if (writeBaselinePath !== undefined) {
@@ -865,7 +1002,8 @@ export function registerAuditCommand(program: Command): void {
         }
 
         // 按 --min-severity 过滤;无标志时与原始 findings 完全相同(引用相等)。
-        const filteredFindings = filterBySeverity(fullReport.findings, minSeverity);
+        // 再按 --diff-from 改动文件过滤;无此标志 → 全量(旧版行为不变)。
+        const filteredFindings = filterByDiff(filterBySeverity(fullReport.findings, minSeverity));
 
         // 行内抑制:标注被 skill-switch:suppress 注释抑制的 finding。
         // 只在 filteredFindings 上做标注(未过滤的不进入输出)。
@@ -876,7 +1014,13 @@ export function registerAuditCommand(program: Command): void {
         // 使用过滤后的 findings 构建视图报告(分数/verdict 不变;来自原始报告)
         const report = { ...fullReport, findings: filteredFindings };
 
-        if (fmt === 'sarif') {
+        if (fmt === 'codeclimate') {
+          // GitLab Code Quality JSON 数组
+          console.log(JSON.stringify(toCodeClimateEntries(filteredFindings), null, 2));
+        } else if (fmt === 'rdjson') {
+          // reviewdog Diagnostic Format JSON
+          console.log(JSON.stringify(toRdJsonDocument(filteredFindings), null, 2));
+        } else if (fmt === 'sarif') {
           // SARIF 模式:被抑制/已基线化的 finding 写入 suppressions
           // --fix 对 SARIF 输出无影响;机器消费者通过 --format json 取修复信息。
           const doc = toSarifDocument(filteredFindings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
@@ -1046,38 +1190,58 @@ export function registerAuditCommand(program: Command): void {
         return; // exit 0
       }
 
-      if (fmt === 'sarif') {
-        // home 全量模式:合并所有 skill findings(+ configs findings)后序列化
-        const allFindings: AuditFinding[] = filterBySeverity(
+      if (fmt === 'codeclimate') {
+        // GitLab Code Quality JSON 数组(home 全量):合并所有 skill findings 后序列化
+        const allFindings: AuditFinding[] = filterByDiff(filterBySeverity(
           [
             ...report.skills.flatMap((s) => s.findings),
             ...(report.configs ? flattenConfigFindings(report.configs) : []),
           ],
           minSeverity,
-        );
+        ));
+        console.log(JSON.stringify(toCodeClimateEntries(allFindings), null, 2));
+      } else if (fmt === 'rdjson') {
+        // reviewdog Diagnostic Format(home 全量)
+        const allFindings: AuditFinding[] = filterByDiff(filterBySeverity(
+          [
+            ...report.skills.flatMap((s) => s.findings),
+            ...(report.configs ? flattenConfigFindings(report.configs) : []),
+          ],
+          minSeverity,
+        ));
+        console.log(JSON.stringify(toRdJsonDocument(allFindings), null, 2));
+      } else if (fmt === 'sarif') {
+        // home 全量模式:合并所有 skill findings(+ configs findings)后序列化
+        const allFindings: AuditFinding[] = filterByDiff(filterBySeverity(
+          [
+            ...report.skills.flatMap((s) => s.findings),
+            ...(report.configs ? flattenConfigFindings(report.configs) : []),
+          ],
+          minSeverity,
+        ));
         const doc = toSarifDocument(allFindings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
         console.log(JSON.stringify(doc, null, 2));
       } else if (fmt === 'github') {
         // GitHub Actions 注解模式(home 全量):合并所有 skill + config findings 后输出注解。
         // 被抑制/已基线化的 finding 输出为 ::notice,不触发阻断。
-        const allFindings: AuditFinding[] = filterBySeverity(
+        const allFindings: AuditFinding[] = filterByDiff(filterBySeverity(
           [
             ...report.skills.flatMap((s) => s.findings),
             ...(report.configs ? flattenConfigFindings(report.configs) : []),
           ],
           minSeverity,
-        );
+        ));
         const annotatedFindings = applyPolicyAndBaselineToFindings(allFindings, policy, baselinedFingerprints);
         console.log(toGithubAnnotations(annotatedFindings));
       } else if (fmt === 'junit') {
         // JUnit XML 模式(home 全量):合并所有 skill findings 后序列化。
-        const allFindings: AuditFinding[] = filterBySeverity(
+        const allFindings: AuditFinding[] = filterByDiff(filterBySeverity(
           [
             ...report.skills.flatMap((s) => s.findings),
             ...(report.configs ? flattenConfigFindings(report.configs) : []),
           ],
           minSeverity,
-        );
+        ));
         // 行内抑制:合并各 skill 的 fileContents Map 来标注
         const combinedFileContents = new Map<string, string>();
         for (const skill of report.skills) {
