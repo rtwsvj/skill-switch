@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  localizedErrorDetail,
   runInstall,
   runRemove,
   runRestore,
@@ -139,7 +140,7 @@ export function DashboardShell({
       setNotice({
         tone: 'danger',
         title: t('operations.notice.failed'),
-        detail: reason instanceof Error ? reason.message : String(reason),
+        detail: localizedErrorDetail(reason, t),
       });
     } finally {
       setBusy(null);

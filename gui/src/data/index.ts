@@ -1,6 +1,8 @@
 import * as fixtures from './fixtures';
 import type { DashboardData } from './types';
 
+export { LocalizedCommandError, localizedErrorDetail } from './errors';
+
 function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }

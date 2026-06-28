@@ -5,6 +5,7 @@ import {
   loadConfigAudit,
   loadCoreDashboard,
   loadStats,
+  localizedErrorDetail,
   type AuditReport,
   type ConfigAuditReport,
   type DashboardData,
@@ -49,10 +50,10 @@ export default function App() {
     } catch (reason) {
       setSections((prev) => ({
         ...prev,
-        [name]: { status: 'error', error: reason instanceof Error ? reason.message : String(reason) },
+        [name]: { status: 'error', error: localizedErrorDetail(reason, t) },
       }));
     }
-  }, []);
+  }, [t]);
 
   // 进入消费某区块的屏时调用:仅当该区块还没触发过(idle)才加载,避免重复跑。
   const ensureSections = useCallback(
@@ -80,12 +81,12 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     reloadCore().catch((reason: unknown) => {
-      if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
+      if (!cancelled) setError(localizedErrorDetail(reason, t));
     });
     return () => {
       cancelled = true;
     };
-  }, [reloadCore]);
+  }, [reloadCore, t]);
 
   const data = useMemo<DashboardData | null>(
     () => (core ? { ...core, audit: auditValue ?? core.audit, stats: statsValue ?? core.stats } : null),

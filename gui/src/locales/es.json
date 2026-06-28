@@ -348,5 +348,11 @@
       "blocking": "{{count}} alta/crítica",
       "other": "{{count}} media/baja"
     }
+  },
+  "errors": {
+    "commandTimeout": "{{label}} agotó el tiempo de espera ({{timeoutMs}}ms) y se detuvo",
+    "commandCancelled": "{{label}} cancelado",
+    "noJsonOutput": "{{label}} no produjo salida JSON. stderr: {{stderr}}",
+    "invalidJson": "{{label}} produjo una salida que no es JSON válido: {{cause}}"
   }
 }

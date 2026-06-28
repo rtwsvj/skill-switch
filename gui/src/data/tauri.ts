@@ -32,6 +32,7 @@ import {
   toggleArgs,
 } from './cli-args';
 import { assembleDashboard, emptyStats } from './dashboard';
+import { InvalidJsonError, NoJsonOutputError } from './errors';
 import { runWithTimeout, type SpawnHandle } from './run-with-timeout';
 
 const sidecarProgram = 'bin/skill-switch-cli';
@@ -83,16 +84,18 @@ async function runCliJson<T>(
     throw new Error(`${label} exited ${output.code ?? 'null'}: ${output.stderr || output.stdout}`);
   }
   if (!output.stdout.trim()) {
-    throw new Error(`${label} 无 JSON 输出。stderr: ${output.stderr.slice(0, 300)}`);
+    throw new NoJsonOutputError(label, output.stderr);
   }
   let data: T;
   try {
     data = JSON.parse(output.stdout) as T;
   } catch (error) {
-    // JSON 解析失败:展示 stdout/stderr 摘要,而不是裸抛一个无上下文的 SyntaxError。
-    throw new Error(
-      `${label} 输出不是合法 JSON:${error instanceof Error ? error.message : String(error)}` +
-        `\nstdout: ${output.stdout.slice(0, 300)}\nstderr: ${output.stderr.slice(0, 300)}`,
+    // JSON 解析失败:携带 stdout/stderr 摘要,而不是裸抛一个无上下文的 SyntaxError。
+    throw new InvalidJsonError(
+      label,
+      error instanceof Error ? error.message : String(error),
+      output.stdout,
+      output.stderr,
     );
   }
   return { data, stdout: output.stdout, stderr: output.stderr, exitCode: output.code ?? -1 };

@@ -348,5 +348,11 @@
       "blocking": "{{count}} 条高危/严重",
       "other": "{{count}} 条中/低风险"
     }
+  },
+  "errors": {
+    "commandTimeout": "{{label}} 超时({{timeoutMs}}ms),已终止",
+    "commandCancelled": "{{label}} 已取消",
+    "noJsonOutput": "{{label}} 无 JSON 输出。stderr: {{stderr}}",
+    "invalidJson": "{{label}} 输出不是合法 JSON:{{cause}}"
   }
 }

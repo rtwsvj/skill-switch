@@ -2,6 +2,7 @@
 // 所有测试 headless,不依赖 Tauri 运行时。
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { toggleArgs, syncArgs, removeArgs, restoreArgs } from '../src/data/cli-args';
+import { InvalidJsonError, NoJsonOutputError } from '../src/data/errors';
 
 // ── toggleArgs ────────────────────────────────────────────────
 describe('toggleArgs', () => {
@@ -173,34 +174,37 @@ describe('tauri runCliJson 错误处理', () => {
     await expect(loadScan()).rejects.toThrow(/exited 1/);
   });
 
-  it('stdout 为空字符串 → 抛出「无 JSON 输出」Error', async () => {
-    runWithTimeout.mockResolvedValue({ code: 0, stdout: '', stderr: '' });
+  it('stdout 为空字符串 → 抛出 NoJsonOutputError(code=noJsonOutput,无硬编码文案)', async () => {
+    runWithTimeout.mockResolvedValue({ code: 0, stdout: '', stderr: 'boom' });
     const { loadScan } = await import('../src/data/tauri');
-    await expect(loadScan()).rejects.toThrow(/无 JSON 输出/);
+    const err = await loadScan().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NoJsonOutputError);
+    expect((err as NoJsonOutputError).code).toBe('noJsonOutput');
+    // stderr 摘要进入 params,供 UI 用 t('errors.noJsonOutput', params) 渲染
+    expect((err as NoJsonOutputError).params.stderr).toBe('boom');
   });
 
-  it('stdout 只有空白 → 同样抛出「无 JSON 输出」', async () => {
+  it('stdout 只有空白 → 同样抛出 NoJsonOutputError', async () => {
     runWithTimeout.mockResolvedValue({ code: 0, stdout: '   \n  ', stderr: '' });
     const { loadScan } = await import('../src/data/tauri');
-    await expect(loadScan()).rejects.toThrow(/无 JSON 输出/);
+    await expect(loadScan()).rejects.toBeInstanceOf(NoJsonOutputError);
   });
 
-  it('stdout 是非法 JSON → 抛出含 stdout 摘要的 Error(非裸 SyntaxError)', async () => {
+  it('stdout 是非法 JSON → 抛出 InvalidJsonError 并在 params 携带 stdout 摘要', async () => {
     runWithTimeout.mockResolvedValue({ code: 0, stdout: 'not-json-at-all', stderr: '' });
     const { loadScan } = await import('../src/data/tauri');
     const err = await loadScan().catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(Error);
-    const msg = (err as Error).message;
-    // 应该提示不是合法 JSON,并包含 stdout 摘要
-    expect(msg).toMatch(/不是合法 JSON/);
-    expect(msg).toContain('not-json-at-all');
+    expect(err).toBeInstanceOf(InvalidJsonError);
+    expect((err as InvalidJsonError).code).toBe('invalidJson');
+    // 应携带 stdout 摘要,供排查(放在 params,而非硬编码进 message)
+    expect((err as InvalidJsonError).params.stdout).toContain('not-json-at-all');
   });
 
-  it('stdout 是截断 JSON → 错误消息包含截断内容摘要', async () => {
+  it('stdout 是截断 JSON → 抛出 InvalidJsonError', async () => {
     const truncated = '{"skills": [{"name": "foo"';
     runWithTimeout.mockResolvedValue({ code: 0, stdout: truncated, stderr: '' });
     const { loadScan } = await import('../src/data/tauri');
-    await expect(loadScan()).rejects.toThrow(/不是合法 JSON/);
+    await expect(loadScan()).rejects.toBeInstanceOf(InvalidJsonError);
   });
 
   it('allowNonZero=true(如 loadAudit)时非零退出不抛,正常解析 JSON', async () => {

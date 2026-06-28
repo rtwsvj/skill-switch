@@ -348,5 +348,11 @@
       "blocking": "{{count}} 件の高/重大",
       "other": "{{count}} 件の中/低"
     }
+  },
+  "errors": {
+    "commandTimeout": "{{label}} がタイムアウトしました（{{timeoutMs}}ms）。中止しました",
+    "commandCancelled": "{{label}} をキャンセルしました",
+    "noJsonOutput": "{{label}} の JSON 出力がありません。stderr: {{stderr}}",
+    "invalidJson": "{{label}} の出力が正しい JSON ではありません: {{cause}}"
   }
 }
