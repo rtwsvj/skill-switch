@@ -92,4 +92,74 @@ A subtle MCP threat: a server that's benign when you install it, then ships an u
 
 ---
 
+## 防护层次:静态装前审计 ≠ 运行时防护
+
+skill-switch 是**纵深防御的第一层**,不是全部。了解它能做什么、不能做什么,反而能让你更放心地用它。
+
+### 第一层的位置与价值
+
+skill-switch 的审计运行在**本地、装前、离线**:
+
+- **本地** — 不上传任何内容,不依赖云端扫描服务。
+- **装前** — 在 skill 或 MCP server 被写入 agent 目录**之前**拦截,而不是事后检测。
+- **静态** — 分析文件内容和配置声明,不执行任何代码。
+
+这一层覆盖的威胁:
+
+| 威胁类型 | 检测方式 |
+|---|---|
+| 反向 shell(bash、netcat、Python socket) | `reverse-shell/*` 规则族 |
+| 数据外泄指令(curl 传 env/凭据) | `exfiltration/*` 规则族 |
+| 凭据钓鱼(要求用户粘贴 token/密码) | `credential-theft/*` 规则族 |
+| 危险 MCP server(shell 包装、无钉扎 npx) | `mcp/shell-wrapper-*`、`mcp/unpinned-package` |
+| MCP 配置中的硬编码密钥/凭据路径 | `mcp/header-literal-secret`、`mcp/credential-path-access` |
+| 隐藏指令(零宽字符、CSS 隐藏文本、"忽略前面的指令") | `prompt-injection/*`、`invisible-chars/*` |
+| 混淆载荷(base64 解码后执行、同形字伪装命令) | `base64-payload/*`、`ansi-injection/*` |
+| 供应链风险(非正式 registry、无版本钉扎的安装器) | `supply-chain/*` |
+
+完整规则列表: [docs/rules.md](rules.md)
+
+### 静态扫描的诚实上限
+
+学术研究表明,对恶意 AI agent skill 的纯静态扫描准确率存在结构性上限:**SkillSieve(2025) 报告的检测率约为 61.5%**([arxiv.org/abs/2504.09056](https://arxiv.org/abs/2504.09056))。这是行业天花板,不是某个工具的失败。原因在于:
+
+- 静态分析无法追踪**跨文件数据流**(两个无害片段组合后变危险)。
+- 静态分析无法检测**间接提示注入**:skill 在运行时拉取外部内容(网页、文件、API 响应),这些外部内容携带的恶意指令只有在 agent 执行时才显现。
+- 攻击者可以通过多跳混淆、语义伪装等手段绕过基于模式匹配的规则。
+
+这意味着:**通过 skill-switch 审计不等于该 skill 安全**,只表示它未触发已知静态特征。
+
+### 不覆盖的场景
+
+| 场景 | 原因 |
+|---|---|
+| **间接提示注入** | skill 执行时拉取的外部网页/文档中嵌入的恶意指令,静态分析时尚未加载 |
+| **运行时行为** | skill 装后通过 `run:` / hooks 调用的脚本,实际执行才知道做什么 |
+| **MCP rug-pull** | server 审计通过后,作者推送更新改变工具描述或行为,静态签名不变 |
+| **跨文件污点组合** | 分散在多个无害文件的片段在 agent 上下文中拼合后才有威胁 |
+| **LLM 语义级攻击** | 措辞无害但能操纵模型决策的指令,超出正则/关键词规则的识别范围 |
+
+### 互补的运行时工具
+
+下列工具覆盖 skill-switch 不覆盖的运行时和语义层,与它形成互补:
+
+| 工具 | 层次 | 用途 |
+|---|---|---|
+| [garak](https://github.com/NVIDIA/garak) | 运行时对抗测试 | 对 LLM/agent 发起对抗提示,检测提示注入、越狱、信息泄露漏洞 |
+| [mcp-scan](https://github.com/invariantlabs-ai/mcp-scan) | 运行时 MCP 审计 | 连接 MCP server 拉取实时工具清单,检测 tool 描述注入和 rug-pull |
+| [llm-guard](https://github.com/protectai/llm-guard) | 输入/输出净化 | 在 LLM 调用链中过滤提示注入和敏感数据泄露 |
+
+### 推荐的分层实践
+
+```
+装前          →  skill-switch audit (本文档)   静态、本地、零遥测
+运行时测试    →  garak                          对抗提示、越狱检测
+MCP 运行时    →  mcp-scan                       tool 描述 hash 钉扎、rug-pull 检测
+调用链防护    →  llm-guard                      输入输出净化
+```
+
+没有哪一层单独足够;组合使用才能覆盖更大的攻击面。
+
+---
+
 Full rule reference: [docs/rules.md](rules.md) · CI setup: [docs/github-action.md](github-action.md) · Project: [github.com/rtwsvj/skill-switch](https://github.com/rtwsvj/skill-switch)
