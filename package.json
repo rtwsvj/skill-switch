@@ -47,6 +47,7 @@
     "cli": "tsx src/cli/index.ts",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
+    "mutate": "stryker run",
     "release": "node scripts/release.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
