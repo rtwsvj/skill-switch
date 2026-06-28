@@ -2,4 +2,5 @@ packages:
   - gui
 
 allowBuilds:
+  '@swc/core': true
   esbuild: true
