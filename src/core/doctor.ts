@@ -5,8 +5,15 @@
 //   stale-lock    声明 enabled 且磁盘在位,但锁里没有条目(锁过期/绕过 install 装的)
 //   extra-locked  锁里有条目但声明完全不认识它(孤儿锁/该卸载没卸载)
 // 这是 skills.lock 价值兑现点:S6.2 包成 doctor --ci 进流水线。
+//
+// P3-D5:--fix 漂移自修复。按 kind 映射修复动作,写操作前先快照。
+//   missing       → 提示用户跑 sync/install(缺来源,无法自动从 store 重铺)
+//   content-drift → 从声明的 source 重铺(copyDirWithoutSymlinks / symlink)
+//   stale-lock    → 提示:磁盘已在位但锁缺条目,需用户跑 install 重建锁
+//   extra-locked  → removeLockEntries 清除孤儿锁条目
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
 import {
   readDoctorHashCache,
@@ -15,7 +22,7 @@ import {
   type DoctorHashCacheFile,
 } from './doctor-hash-cache.ts';
 import { readBypassLedger, type BypassRecord } from './bypass-ledger.ts';
-import { getSkillsLockPath, readSkillsLock } from './lock.ts';
+import { getSkillsLockPath, readSkillsLock, removeLockEntries } from './lock.ts';
 import { isCanonicalSkillName } from './skill-name.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import {
@@ -23,7 +30,10 @@ import {
   readDeclaration,
   type SkillAgentSource,
   type SkillDeclaration,
+  type SkillsDeclarationFile,
 } from './sync.ts';
+import { copyDirWithoutSymlinks } from './safe-copy.ts';
+import { snapshot } from './backup.ts';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { auditConfigFiles, type ConfigFileResult } from './audit/config-discovery.ts';
 
@@ -62,9 +72,145 @@ export interface DoctorReport {
   configAudit: ConfigFileResult[];
 }
 
+export type FixStatus = 'fixed' | 'skipped' | 'manual';
+
+export interface FixResult {
+  kind: DriftKind;
+  agent: AgentType;
+  name: string;
+  status: FixStatus;
+  detail: string;
+}
+
+export interface DoctorFixReport {
+  /** 修复执行前产生的快照路径(每个被修改的 agent 目录各一个) */
+  snapshotPaths: string[];
+  fixes: FixResult[];
+}
+
 function skillsDirFor(home: string, agent: AgentType): string | undefined {
   const location = getAgentSkillsLocations().find((l) => l.agent === agent);
   return location ? resolveGlobalSkillsDir(home, location) : undefined;
+}
+
+/** 从声明中获取某 agent 下某 skill 的来源路径(绝对或相对 home)→ 绝对路径。 */
+function sourceAbsForFix(home: string, declaration: SkillsDeclarationFile, name: string, agent: AgentType): string | undefined {
+  const skill = declaration.skills.find((s) => s.name === name);
+  if (!skill) return undefined;
+  const agentSrc = skill.agentSources?.[agent];
+  const src = agentSrc?.source ?? skill.source;
+  return isAbsolute(src) ? src : join(home, src);
+}
+
+/**
+ * P3-D5:对已有漂移 findings 执行自修复。
+ * 写操作前先对涉及的 agent 目录快照(store = ~/.skill-switch/backups)。
+ * - content-drift → rm 目标,重铺 source(copy 或 symlink)
+ * - extra-locked  → removeLockEntries 清除孤儿锁条目
+ * - missing / stale-lock → 只汇报"需手动",不写磁盘
+ */
+export async function fixFindings(
+  home: string,
+  findings: DriftFinding[],
+  declaration: SkillsDeclarationFile,
+): Promise<DoctorFixReport> {
+  const store = join(home, '.skill-switch', 'backups');
+  const snapshotPaths: string[] = [];
+  const fixes: FixResult[] = [];
+
+  // 先对所有需要写磁盘的 agent 目录做快照(每个 agent 只一次)
+  const agentsToSnapshot = new Set<AgentType>();
+  for (const f of findings) {
+    if (f.kind === 'content-drift') agentsToSnapshot.add(f.agent);
+  }
+
+  for (const agent of agentsToSnapshot) {
+    const dir = skillsDirFor(home, agent);
+    if (dir && existsSync(dir)) {
+      try {
+        const snap = await snapshot(dir, { store, label: 'pre-fix' });
+        snapshotPaths.push(snap.path);
+      } catch {
+        // 快照失败不阻断修复(目录为空/不存在时 snapshot 抛错);继续
+      }
+    }
+  }
+
+  // 处理 extra-locked:收集需要删除的锁条目
+  const lockKeysToRemove: Array<{ name: string; agent: AgentType }> = [];
+  for (const f of findings) {
+    if (f.kind === 'extra-locked') {
+      lockKeysToRemove.push({ name: f.name, agent: f.agent });
+    }
+  }
+  if (lockKeysToRemove.length > 0) {
+    const lockPath = getSkillsLockPath(home);
+    await removeLockEntries(lockPath, lockKeysToRemove);
+  }
+
+  // 逐条处理 findings
+  for (const f of findings) {
+    if (f.kind === 'missing') {
+      fixes.push({
+        kind: f.kind, agent: f.agent, name: f.name,
+        status: 'manual',
+        detail: '无法自动修复 missing(需要运行 skill-switch sync 或 install 从源重铺)',
+      });
+      continue;
+    }
+
+    if (f.kind === 'stale-lock') {
+      fixes.push({
+        kind: f.kind, agent: f.agent, name: f.name,
+        status: 'manual',
+        detail: '磁盘已在位但锁缺条目;运行 skill-switch install 重建锁条目',
+      });
+      continue;
+    }
+
+    if (f.kind === 'extra-locked') {
+      fixes.push({
+        kind: f.kind, agent: f.agent, name: f.name,
+        status: 'fixed',
+        detail: `已从 skills.lock 移除孤儿条目 ${f.agent}/${f.name}`,
+      });
+      continue;
+    }
+
+    if (f.kind === 'content-drift') {
+      const target = f.target;
+      if (!target) {
+        fixes.push({ kind: f.kind, agent: f.agent, name: f.name, status: 'skipped', detail: '缺少 target 路径,跳过' });
+        continue;
+      }
+      const sourceAbs = sourceAbsForFix(home, declaration, f.name, f.agent);
+      if (!sourceAbs || !existsSync(sourceAbs)) {
+        fixes.push({ kind: f.kind, agent: f.agent, name: f.name, status: 'skipped', detail: `声明来源不存在,跳过: ${sourceAbs ?? '未知'}` });
+        continue;
+      }
+
+      // 确定模式(symlink 还是 copy)
+      const skill = declaration.skills.find((s) => s.name === f.name);
+      const agentSrc = skill?.agentSources?.[f.agent];
+      const mode = agentSrc?.mode ?? skill?.mode ?? 'copy';
+
+      try {
+        await rm(target, { recursive: true, force: true });
+        if (mode === 'symlink') {
+          const { symlink: symlinkFn, mkdir: mkdirFn } = await import('node:fs/promises');
+          await mkdirFn(join(target, '..'), { recursive: true });
+          await symlinkFn(sourceAbs, target, 'dir');
+        } else {
+          await copyDirWithoutSymlinks(sourceAbs, target);
+        }
+        fixes.push({ kind: f.kind, agent: f.agent, name: f.name, status: 'fixed', detail: `已从 ${sourceAbs} 重铺(${mode})` });
+      } catch (err) {
+        fixes.push({ kind: f.kind, agent: f.agent, name: f.name, status: 'skipped', detail: `重铺失败: ${(err as Error).message}` });
+      }
+    }
+  }
+
+  return { snapshotPaths, fixes };
 }
 
 function summarizeDeclaration(skill: SkillDeclaration): DoctorDeclaration {

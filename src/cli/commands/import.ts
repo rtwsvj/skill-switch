@@ -1,12 +1,16 @@
 // W3-b import 子命令:读取 .ssp 档案,校验格式,把 declaration 写入 skills.json、
 // lock 写入 skills.lock.json。不执行 sync——完成后提示用户运行 skill-switch sync。
 // 默认不覆盖已有文件,需加 --force;--dry-run 只打印会写什么,不写文件。
+//
+// P3-D5:--apply 选项:import 后直接调用 applySync,新机一条命令 bootstrap。
+//   无 --apply 时行为不变。
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Command } from 'commander';
 import { resolveHomeRoot } from '../../core/paths.ts';
-import { getSkillsJsonPath } from '../../core/sync.ts';
+import { applySync, getSkillsJsonPath, readDeclaration } from '../../core/sync.ts';
+import { snapshotAgents } from '../../core/agent-snapshots.ts';
 import { validateSkillsJson } from '../../core/lint/skills-json-validator.ts';
 import { getSkillsLockPath, writeSkillsLock } from '../../core/lock.ts';
 import { writeJsonState } from '../../core/state-io.ts';
@@ -16,6 +20,8 @@ interface ImportCliOptions {
   home?: string;
   force?: boolean;
   dryRun?: boolean;
+  /** P3-D5:import 后直接执行 applySync */
+  apply?: boolean;
 }
 
 function validateBundle(raw: unknown): SspBundle {
@@ -58,6 +64,7 @@ export function registerImportCommand(program: Command): void {
     .option('--home <dir>', '覆盖 home 根目录(默认取系统 home)')
     .option('--force', '覆盖已有的 skills.json / skills.lock.json')
     .option('--dry-run', '只打印会写入的内容,不真正写文件')
+    .option('--apply', '[P3] import 后直接执行 sync,新机一条命令 bootstrap')
     .action(async (file: string, options: ImportCliOptions, command: Command) => {
       const home = resolveHomeRoot(options.home ?? command.parent?.opts<{ home?: string }>().home);
 
@@ -123,6 +130,22 @@ export function registerImportCommand(program: Command): void {
 
       console.log(`imported declaration → ${skillsJsonPath}`);
       console.log(`imported lock        → ${lockPath}`);
+
+      // P3-D5:--apply 模式:import 后直接执行 applySync(快照+同步)
+      if (options.apply) {
+        const declaration = await readDeclaration(skillsJsonPath);
+        // 计算有哪些 agent 受影响,先快照
+        const affectedAgents = [...new Set(declaration.skills.flatMap((s) => s.agents))];
+        const snapshots = await snapshotAgents(home, affectedAgents, 'pre-import-apply');
+        const { actions } = await applySync(home, declaration);
+        const changed = actions.filter((a) => a.kind !== 'noop').length;
+        console.log(`✓ import --apply 完成:同步 ${changed}/${actions.length} 动作`);
+        for (const snap of snapshots) {
+          console.log(`  快照: ${snap.path}`);
+        }
+        return;
+      }
+
       console.log('提示:档案已写入,skill 文件尚未同步。请运行 skill-switch sync 把声明应用到磁盘。');
     });
 }

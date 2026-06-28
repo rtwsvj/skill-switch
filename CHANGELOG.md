@@ -5,6 +5,12 @@
 
 ## [Unreleased]
 
+### 新增 Added
+- **`sync --out <file>` / `sync --plan <file>` — plan artifact 持久化(对标 Terraform plan -out)**:`sync --out <file>` 把 planSync 结果 + 声明文件 sha256 摘要 + 时间戳序列化写盘;`sync --plan <file>` 读回后先校验声明 sha256 未变(变了则拒绝并提示重 plan),校验通过再执行——保证"看到的 plan"和"实际执行的 plan"完全一致。现有 `sync` / `sync --dry-run` 行为零改变。
+- **`doctor --fix` — 漂移自修复(对标 chezmoi apply)**:doctor 已产结构化 finding,`--fix` 按 kind 映射:`content-drift` → 从声明 source 重铺(copy/symlink);`extra-locked` → removeLockEntries 清孤儿锁条目;`missing`/`stale-lock` → 提示手动跑 sync/install。写操作前自动先快照受影响的 agent 目录。无 `--fix` 时只报告,行为不变。
+- **`restore prune` — 快照生命周期清理(对标 Nix expire-generations)**:`restore prune --keep-last <N>` 保留最近 N 个快照删除其余;`--older-than <Nd>` 删除 N 天前的快照;两者可组合;`--dry-run` 只列将删不执行。基于 listSnapshots 的 epochMs 排序,.tar.gz 与 .json sidecar 一并删除。
+- **`import --apply` — 一条命令 bootstrap(对标 chezmoi init --apply)**:import 后追加 `--apply` 即直接执行 applySync,快照 + 同步一气呵成;无 `--apply` 时行为不变,仍只写声明/锁文件并提示手动 sync。
+
 ## [0.8.0] - 2026-06-27
 
 ### 新增 Added

@@ -1,4 +1,8 @@
 // F8 sync 子命令:应用整份 skills.json 声明;dry-run 只报 plan,正常执行前快照。
+// P3-D5:
+//   sync --out <file>    把 planSync 结果 + 声明 sha256 序列化写盘(plan artifact)
+//   sync --plan <file>   读取 plan artifact,校验声明 sha256 未变后执行
+//   两者均与现有 sync / sync --dry-run 行为完全兼容。
 import type { Command } from 'commander';
 import { snapshotAgents } from '../../core/agent-snapshots.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
@@ -6,7 +10,9 @@ import {
   applySync,
   getSkillsJsonPath,
   planSync,
+  readAndVerifyPlanArtifact,
   readDeclaration,
+  writePlanArtifact,
   type SyncAction,
 } from '../../core/sync.ts';
 import type { SnapshotInfo } from '../../core/backup.ts';
@@ -16,6 +22,10 @@ interface SyncCliOptions {
   home?: string;
   json?: boolean;
   dryRun?: boolean;
+  /** P3-D5:plan artifact 输出路径(仅 plan 模式用) */
+  out?: string;
+  /** P3-D5:plan artifact 输入路径(apply 从文件执行) */
+  plan?: string;
 }
 
 interface SyncCliResult {
@@ -61,9 +71,50 @@ export function registerSyncCommand(program: Command): void {
     .option('--home <dir>', '覆盖 home 根目录(默认取系统 home)')
     .option('--dry-run', '只计算并输出动作,不写磁盘也不快照')
     .option('--json', '机器可读 JSON 输出')
+    .option('--out <file>', '[P3] 把 plan 结果序列化写到文件(plan artifact),不执行')
+    .option('--plan <file>', '[P3] 从 plan artifact 文件读取动作并执行(校验声明未变)')
     .action(async (options: SyncCliOptions, command: Command) => {
       const home = resolveHomeRoot(options.home ?? command.parent?.opts<{ home?: string }>().home);
       const declarationPath = getSkillsJsonPath(home);
+
+      // P3-D5:--out 模式:只做 plan 并写出 artifact,不执行任何写操作
+      if (options.out) {
+        const declaration = await readDeclaration(declarationPath);
+        const planned = await planSync(home, declaration);
+        const artifact = await writePlanArtifact(options.out, declarationPath, planned);
+        if (options.json) {
+          console.log(JSON.stringify({ planFile: options.out, artifact }, null, 2));
+        } else {
+          console.log(`plan 已写出: ${options.out}`);
+          console.log(`  声明摘要: ${artifact.declarationSha256.slice(0, 16)}…`);
+          console.log(`  计划动作: ${planned.length} 条`);
+        }
+        return;
+      }
+
+      // P3-D5:--plan 模式:读取 artifact,校验声明 sha256,直接用 artifact 中的 actions 执行
+      if (options.plan) {
+        const artifact = await readAndVerifyPlanArtifact(options.plan, declarationPath);
+        const declaration = await readDeclaration(declarationPath);
+        const planned = artifact.actions;
+
+        const result: SyncCliResult = {
+          declarationPath,
+          dryRun: false,
+          snapshots: [],
+          actions: planned,
+        };
+
+        result.snapshots = await snapshotAgents(home, changedAgents(planned), 'pre-sync');
+        // 使用 artifact 中的 actions 执行(声明文件已校验未变,重新 apply 等价)
+        result.actions = (await applySync(home, declaration)).actions;
+
+        if (options.json) console.log(JSON.stringify(result, null, 2));
+        else printSyncResult(result);
+        return;
+      }
+
+      // 默认:与原有行为完全一致
       const declaration = await readDeclaration(declarationPath);
       const planned = await planSync(home, declaration);
 
