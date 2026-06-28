@@ -1,0 +1,136 @@
+# 跨平台发布流水线:git tag 推送时触发,用 tauri-action 在三平台并行构建,
+# 产出 DMG (macOS) / AppImage+deb (Linux) / MSI+NSIS (Windows) 并上传到 GitHub Release。
+# 本地 fallback 用 scripts/release.mjs(仅 macOS 签名构建,保留不删)。
+#
+# 前置 Secrets(在仓库 Settings → Secrets → Actions 里配置):
+#   APPLE_CERTIFICATE        — Developer ID Application .p12 base64
+#   APPLE_CERTIFICATE_PASSWORD — .p12 密码
+#   APPLE_SIGNING_IDENTITY   — "Developer ID Application: Name (TEAMID)"
+#   APPLE_ID                 — Apple ID 邮箱(公证用)
+#   APPLE_ID_PASSWORD        — App-Specific Password(appleid.apple.com 生成)
+#   APPLE_TEAM_ID            — 10 位 Team ID
+# Windows 代码签名可选;未配置时只跳过签名步骤,构建仍正常产出。
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    permissions:
+      contents: write   # 上传 Release 产物需要
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest   # Apple Silicon + Intel universal(tauri-action 默认)
+            args: '--target universal-apple-darwin'
+          - platform: ubuntu-22.04   # AppImage + deb
+            args: ''
+          - platform: windows-latest # MSI + NSIS
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      # ── 检出 ─────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Rust 工具链(Tauri 需要) ─────────────────────────────────────────
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # macOS universal binary 需要两个 target
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      # ── Linux 系统依赖 ────────────────────────────────────────────────────
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      # ── Node + pnpm ───────────────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── 测试(仅 Linux,避免三倍跑;Windows/mac 构建已有 CI 覆盖) ──────────
+      - name: Run tests
+        if: matrix.platform == 'ubuntu-22.04'
+        run: pnpm test && pnpm typecheck
+
+      # ── macOS 签名证书导入 ────────────────────────────────────────────────
+      - name: Import macOS certificate
+        if: matrix.platform == 'macos-latest' && env.APPLE_CERTIFICATE != ''
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          # 创建临时 keychain,避免污染系统 keychain
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: -s -k "" build.keychain
+          rm certificate.p12
+
+      # ── tauri-action 构建 + 上传 Release ────────────────────────────────
+      - name: Build and release (tauri-action)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS 签名(Secrets 未配置时留空,tauri 会跳过签名)
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'skill-switch ${{ github.ref_name }}'
+          releaseBody: |
+            ## skill-switch ${{ github.ref_name }}
+
+            ### 安装
+
+            **macOS (Apple Silicon / Intel)**
+            下载 `skill-switch_*_aarch64.dmg` 或 `skill-switch_*_x64.dmg`,拖进「应用程序」。
+
+            **Linux**
+            下载 `skill-switch_*.AppImage`(通用)或 `skill-switch_*.deb`(Debian/Ubuntu)。
+
+            **Windows**
+            下载 `skill-switch_*_x64_en-US.msi` 或 `skill-switch_*_x64-setup.exe`。
+
+            **npm(CLI)**
+            ```bash
+            npx @rtwsvj/skill-switch --help
+            ```
+
+            See [CHANGELOG.md](https://github.com/rtwsvj/skill-switch/blob/main/CHANGELOG.md) for details.
+          releaseDraft: false
+          prerelease: false
+          projectPath: ./gui
+          args: ${{ matrix.args }}
