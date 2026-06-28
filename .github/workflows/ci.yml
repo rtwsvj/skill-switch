@@ -34,6 +34,11 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # 带阈值门禁的覆盖率检查:thresholds 在 vitest.config.ts 声明,低于下限则失败。
+      # 阈值保守(比实测低 2-3%),防倒退而非一步到位高覆盖。
+      - name: Coverage gate
+        run: pnpm test:coverage
+
       # 抓 GUI 生产构建回归(import/JSX/语法级);Tauri 原生构建仍属本地/macOS。
       - name: Build GUI
         run: pnpm --dir gui build

