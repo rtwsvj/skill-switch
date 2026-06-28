@@ -166,6 +166,7 @@ export function WriteOperations({
               type="button"
               onClick={onSyncApply}
               disabled={!syncPlan || busy === 'sync-apply' || writeBusy}
+              aria-label={busy === 'sync-apply' ? t('operations.busy') : t('operations.sync.apply')}
             >
               {busy === 'sync-apply' ? t('operations.busy') : t('operations.sync.apply')}
             </button>

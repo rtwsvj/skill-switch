@@ -97,7 +97,13 @@ export function SectionStatusBar({ section, onReload }: { section: SectionState;
       {section.status === 'error' ? <StatusPill tone="danger">{t('section.failed')}</StatusPill> : null}
       {section.status === 'loaded' ? <span className="muted">{t('section.lastRefreshed', { time })}</span> : null}
       {section.status === 'idle' ? <span className="muted">{t('section.notLoaded')}</span> : null}
-      <button type="button" className="ghost-button" onClick={onReload} disabled={section.status === 'loading'}>
+      <button
+        type="button"
+        className="ghost-button"
+        onClick={onReload}
+        disabled={section.status === 'loading'}
+        aria-label={section.status === 'error' ? t('section.retry') : t('section.refresh')}
+      >
         {section.status === 'error' ? t('section.retry') : t('section.refresh')}
       </button>
     </div>
@@ -234,8 +240,9 @@ export function Header({
             type="checkbox"
             checked={advanced}
             onChange={(event) => onAdvancedChange(event.target.checked)}
+            aria-label={t('header.advanced')}
           />
-          <span>{t('header.advanced')}</span>
+          <span aria-hidden="true">{t('header.advanced')}</span>
         </label>
       </div>
     </header>
