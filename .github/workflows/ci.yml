@@ -42,3 +42,9 @@ jobs:
       # 抓 GUI 生产构建回归(import/JSX/语法级);Tauri 原生构建仍属本地/macOS。
       - name: Build GUI
         run: pnpm --dir gui build
+
+      # i18n 漏译检测:扫 gui/src 的 t() 调用,对比四个 locale 文件。
+      # 只读(status 命令不写文件),新增漏译 key 即失败。
+      # 配置见 gui/i18next.config.mjs。
+      - name: i18n check
+        run: pnpm --dir gui i18n:check

@@ -11,7 +11,8 @@
     "tauri": "PATH=$HOME/.cargo/bin:$PATH tauri",
     "tui": "node scripts/tui.mjs",
     "check:entitlements": "node scripts/check-entitlements.mjs",
-    "sign": "bash scripts/sign-notarize.sh"
+    "sign": "bash scripts/sign-notarize.sh",
+    "i18n:check": "i18next-cli status"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.1",
