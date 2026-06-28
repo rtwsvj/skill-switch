@@ -3,8 +3,13 @@
 //   enabled=true 保证在位且与源一致(symlink 指向/copy 内容哈希),
 //   enabled=false 移除,未声明的目录一律不碰(用户手装的东西不是 sync 的管辖)。
 // 幂等:对账式 plan→apply,二跑全 noop。Codex config.toml 原生开关在 S4.2 特例接入。
+//
+// P3-D5:plan artifact 持久化(对标 Terraform plan -out)。
+//   sync plan --out <file>  把 planSync 结果 + 声明 sha256 摘要 + 时间戳序列化写盘。
+//   sync apply --plan <file> 读回后校验声明文件 sha256 未变,变则拒绝提示重 plan。
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { lstat, mkdir, readlink, rm, symlink } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
@@ -310,6 +315,93 @@ async function materializeSkill(
     await copyDirWithoutSymlinks(sourceAbs, action.target);
   }
 }
+
+// ---------- P3-D5:plan artifact ----------
+
+export interface SyncPlanArtifact {
+  /** 格式版本,固定为 1 */
+  version: 1;
+  /** 生成时间(ISO8601) */
+  createdAt: string;
+  /** 声明文件路径(信息用,不作安全依据) */
+  declarationPath: string;
+  /** 声明文件内容的 sha256 hex 摘要(校验声明未被修改) */
+  declarationSha256: string;
+  /** planSync 产生的动作列表 */
+  actions: SyncAction[];
+}
+
+/** 计算字符串的 sha256 hex 摘要(无依赖,用 node:crypto)。 */
+export function sha256Hex(content: string): string {
+  return createHash('sha256').update(content, 'utf8').digest('hex');
+}
+
+/**
+ * 把 planSync 结果序列化写到 outFile,附带声明文件 sha256。
+ * apply --plan 时会重新读声明文件并对比该摘要,不一致则拒绝。
+ */
+export async function writePlanArtifact(
+  outFile: string,
+  declarationPath: string,
+  actions: SyncAction[],
+): Promise<SyncPlanArtifact> {
+  // 读声明文件原始内容计算摘要(以磁盘字节为准,与 JSON.stringify 无关)
+  const rawDeclaration = await readFile(declarationPath, 'utf8');
+  const artifact: SyncPlanArtifact = {
+    version: 1,
+    createdAt: new Date().toISOString(),
+    declarationPath,
+    declarationSha256: sha256Hex(rawDeclaration),
+    actions,
+  };
+  await mkdir(outFile.replace(/\/[^/]+$/, ''), { recursive: true }).catch(() => undefined);
+  await writeFile(outFile, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
+  return artifact;
+}
+
+/**
+ * 读回 plan artifact 并校验声明文件 sha256。
+ * 若声明文件已被修改(sha256 不符),抛出描述性错误,提示用户重新 plan。
+ */
+export async function readAndVerifyPlanArtifact(
+  planFile: string,
+  declarationPath: string,
+): Promise<SyncPlanArtifact> {
+  let raw: string;
+  try {
+    raw = await readFile(planFile, 'utf8');
+  } catch {
+    throw new Error(`找不到 plan 文件: ${planFile}`);
+  }
+  let artifact: SyncPlanArtifact;
+  try {
+    artifact = JSON.parse(raw) as SyncPlanArtifact;
+  } catch {
+    throw new Error(`plan 文件 JSON 损坏: ${planFile}`);
+  }
+  if (artifact.version !== 1 || !Array.isArray(artifact.actions) || !artifact.declarationSha256) {
+    throw new Error(`plan 文件结构非法(期望 version:1 + actions + declarationSha256): ${planFile}`);
+  }
+
+  // 校验声明文件未被修改
+  let currentRaw: string;
+  try {
+    currentRaw = await readFile(declarationPath, 'utf8');
+  } catch {
+    throw new Error(`找不到声明文件: ${declarationPath}`);
+  }
+  const currentSha256 = sha256Hex(currentRaw);
+  if (currentSha256 !== artifact.declarationSha256) {
+    throw new Error(
+      `声明文件已被修改,plan 已过期,请重新执行 sync plan --out <file>。\n` +
+      `  plan 记录: ${artifact.declarationSha256.slice(0, 16)}…\n` +
+      `  当前文件: ${currentSha256.slice(0, 16)}…`,
+    );
+  }
+  return artifact;
+}
+
+// ---------- applySync ----------
 
 export async function applySync(
   home: string,

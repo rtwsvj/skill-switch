@@ -1,8 +1,11 @@
 // S6.2 doctor 子命令:三方校验(S6.1 核心)的 CLI 包装。
 // --ci:漂移即 exit 1(skills.lock 进流水线的价值兑现点);默认模式只报告不改退出码。
 // R20-b:追加配置安全 advisory 段落(auditConfigFiles 结果);不影响默认退出码。
+// P3-D5:--fix 对检出漂移执行自修复(写前先快照):
+//   content-drift → 从 source 重铺;extra-locked → 清孤儿锁;missing/stale-lock → 提示手动。
 import type { Command } from 'commander';
-import { runDoctor } from '../../core/doctor.ts';
+import { fixFindings, runDoctor } from '../../core/doctor.ts';
+import { getSkillsJsonPath, readDeclaration } from '../../core/sync.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import type { ConfigFileResult } from '../../core/audit/config-discovery.ts';
 
@@ -41,9 +44,33 @@ export function registerDoctorCommand(program: Command): void {
     .option('--home <dir>', '覆盖 home 根目录(默认取系统 home)')
     .option('--ci', '漂移时以非零退出(供 CI 使用)')
     .option('--json', '机器可读 JSON 输出')
-    .action(async (options: { home?: string; ci?: boolean; json?: boolean }, command: Command) => {
+    .option('--fix', '[P3] 对漂移执行自修复(写前先快照;missing/stale-lock 只提示)')
+    .action(async (options: { home?: string; ci?: boolean; json?: boolean; fix?: boolean }, command: Command) => {
       const home = resolveHomeRoot(options.home ?? command.parent?.opts<{ home?: string }>().home);
       const report = await runDoctor(home);
+
+      // P3-D5:--fix 模式
+      if (options.fix && !report.clean) {
+        const declaration = await readDeclaration(getSkillsJsonPath(home));
+        const fixReport = await fixFindings(home, report.findings, declaration);
+
+        if (options.json) {
+          console.log(JSON.stringify({ ...report, fix: fixReport }, null, 2));
+        } else {
+          console.log(`✗ 检出 ${report.findings.length} 处漂移,已尝试修复:`);
+          for (const r of fixReport.fixes) {
+            console.log(`  [${r.status}] ${r.kind}  ${r.agent}/${r.name}`);
+            console.log(`    ${r.detail}`);
+          }
+          if (fixReport.snapshotPaths.length > 0) {
+            for (const p of fixReport.snapshotPaths) console.log(`  快照: ${p}`);
+          }
+          console.log(formatConfigAuditSection(report.configAudit));
+        }
+
+        if (options.ci && !report.clean) process.exitCode = 1;
+        return;
+      }
 
       if (options.json) {
         console.log(JSON.stringify(report, null, 2));
