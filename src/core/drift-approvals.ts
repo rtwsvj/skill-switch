@@ -11,6 +11,16 @@ import { join } from 'node:path';
 import type { DriftEntry, DriftState } from './drift.ts';
 import { readJsonState, writeJsonState } from './state-io.ts';
 
+// ─── 审批 criteria 分级 ───────────────────────────────────────────────────────
+//
+// criteria 字段表明此审批满足的安全基线等级:
+//   safe-to-run    — 仅确认可安全运行(默认级别,与旧版行为一致)
+//   safe-to-deploy — 确认可安全部署到生产(更高要求)
+//
+// drift --ci --criteria safe-to-deploy 只认达到 safe-to-deploy 级别的审批;
+// 不带 --criteria 时行为与旧版完全一致(任何审批均有效)。
+export type ApprovalCriteria = 'safe-to-run' | 'safe-to-deploy';
+
 // ─── 存储结构 ──────────────────────────────────────────────────────────────────
 
 export interface ApprovalRecord {
@@ -20,6 +30,11 @@ export interface ApprovalRecord {
   approvedAt: string;
   /** 可选说明 */
   note?: string;
+  /**
+   * 审批达到的安全基线等级(可选,缺省等同于 safe-to-run)。
+   * 新增字段,旧记录无此字段时降级为 safe-to-run。
+   */
+  criteria?: ApprovalCriteria;
 }
 
 export interface DriftApprovalsFile {
@@ -101,6 +116,7 @@ export async function recordApproval(
   home: string,
   entry: DriftEntry,
   note?: string,
+  criteria?: ApprovalCriteria,
 ): Promise<void> {
   const store = await loadApprovals(home);
   const key = approvalKey(entry);
@@ -108,6 +124,8 @@ export async function recordApproval(
     contentHash: driftContentHash(entry),
     approvedAt: new Date().toISOString(),
     ...(note ? { note } : {}),
+    // criteria 存在时才写入字段(向后兼容:旧记录无此字段视为 safe-to-run)
+    ...(criteria ? { criteria } : {}),
   };
   await writeJsonState(getDriftApprovalsPath(home), store);
 }
@@ -127,11 +145,28 @@ export async function revokeApproval(home: string, entry: DriftEntry): Promise<b
  * 当且仅当:
  *   1. approvals 中存在对应键
  *   2. 存储的 contentHash 与当前漂移项的 contentHash 完全匹配
+ *   3. (可选) 若传入 requiredCriteria,审批记录的 criteria 必须达标:
+ *        - safe-to-run    → 任何记录均达标(包括无 criteria 字段的旧记录)
+ *        - safe-to-deploy → 仅记录中 criteria === 'safe-to-deploy' 才达标
  * 才返回 true。内容再次变化(新 commit、新本地修改)后哈希不同 → 重新浮出。
+ *
+ * 不传 requiredCriteria 时行为与旧版完全一致(任何审批均有效)。
  */
-export function isApproved(store: DriftApprovalsFile, entry: DriftEntry): boolean {
+export function isApproved(
+  store: DriftApprovalsFile,
+  entry: DriftEntry,
+  requiredCriteria?: ApprovalCriteria,
+): boolean {
   const key = approvalKey(entry);
   const record = store.approvals[key];
   if (!record) return false;
-  return record.contentHash === driftContentHash(entry);
+  if (record.contentHash !== driftContentHash(entry)) return false;
+
+  // criteria 过滤:仅当调用方要求时才检查
+  if (requiredCriteria === 'safe-to-deploy') {
+    // 旧记录无 criteria 字段 → 降级为 safe-to-run,不达标
+    return record.criteria === 'safe-to-deploy';
+  }
+  // requiredCriteria 为 undefined 或 'safe-to-run' → 旧版行为,通过
+  return true;
 }
