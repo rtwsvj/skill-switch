@@ -354,5 +354,13 @@
     "commandCancelled": "{{label}} cancelado",
     "noJsonOutput": "{{label}} no produjo salida JSON. stderr: {{stderr}}",
     "invalidJson": "{{label}} produjo una salida que no es JSON válido: {{cause}}"
+  },
+  "update": {
+    "checking": "Buscando actualizaciones…",
+    "upToDate": "Estás al día",
+    "available": "Actualización disponible",
+    "version": "La versión {{version}} está lista",
+    "installNow": "Instalar ahora",
+    "later": "Más tarde"
   }
 }

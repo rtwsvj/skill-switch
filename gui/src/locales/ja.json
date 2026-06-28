@@ -354,5 +354,13 @@
     "commandCancelled": "{{label}} をキャンセルしました",
     "noJsonOutput": "{{label}} の JSON 出力がありません。stderr: {{stderr}}",
     "invalidJson": "{{label}} の出力が正しい JSON ではありません: {{cause}}"
+  },
+  "update": {
+    "checking": "アップデートを確認中…",
+    "upToDate": "最新バージョンです",
+    "available": "アップデートがあります",
+    "version": "バージョン {{version}} が利用可能です",
+    "installNow": "今すぐ更新",
+    "later": "後で"
   }
 }

@@ -23,6 +23,18 @@
       "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost"
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "PLACEHOLDER — 用 `tauri signer generate -w ~/.tauri/skill-switch.key` 生成密钥对,把公钥(dW50cnVzdGVk... 开头的 base64 字符串)填在这里;真实发布时必须填真实 pubkey 否则更新会被拒绝。",
+      "endpoints": [
+        "https://github.com/rtwsvj/skill-switch/releases/latest/download/latest.json"
+      ],
+      "dialog": false,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
