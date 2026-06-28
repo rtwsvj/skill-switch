@@ -16,6 +16,8 @@
           "args": true
         }
       ]
-    }
+    },
+    "updater:default",
+    "process:allow-restart"
   ]
 }
