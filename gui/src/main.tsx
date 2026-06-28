@@ -1,9 +1,21 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { ErrorBoundary } from './ErrorBoundary';
 import './i18n';
 import './styles.css';
+
+// Tauri 本地 IPC 推荐配置:5 分钟 stale、1 次重试、不监听窗口焦点
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 300_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const root = document.getElementById('root');
 
@@ -13,8 +25,10 @@ if (!root) {
 
 createRoot(root).render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </QueryClientProvider>
   </React.StrictMode>,
 );
