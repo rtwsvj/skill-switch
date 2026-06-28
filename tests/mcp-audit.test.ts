@@ -261,12 +261,13 @@ describe('mcp-audit: literal secrets in env', () => {
   });
 
   it('AWS access key (AKIA…) → high mcp/env-literal-aws-key', () => {
+    // 使用高熵的真实格式 AWS Key(非文档示例值;AKIAIOSFODNN7EXAMPLE 在白名单中会被跳过)
     const findings = auditMcpConfig(
       json({
         server: {
           command: 'node',
           args: ['./server.js'],
-          env: { AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE' },
+          env: { AWS_ACCESS_KEY_ID: 'AKIAJ3XYKPM2N5TU8VWQ' },
         },
       }),
     );
