@@ -1,8 +1,10 @@
 // 内置套餐注册表 — 供 CLI 通过 id 解析内置套餐路径
-// 新增内置套餐时:在此文件添加条目,并在同目录新建对应 *.pack.json。
+// P3-D6:改为 readdir 自动扫描目录下所有 *.pack.json,读取 displayName/description。
+// 新增内置套餐只需在同目录新建 *.pack.json,无需改代码。
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFileSync, readdirSync } from 'node:fs';
 
 /**
  * 解析本目录(内置套餐 *.pack.json 所在)。
@@ -29,35 +31,59 @@ export interface BuiltinPackMeta {
   path: string;
 }
 
-/** 全部内置套餐 id 列表(须与目录下 *.pack.json 对应) */
-const BUILTIN_ENTRIES: Array<Omit<BuiltinPackMeta, 'path'>> = [
-  {
-    id: 'security-review',
-    displayName: '安全审查套餐',
-    description: '代码安全审查工作流:静态分析 + 依赖漏洞扫描 + 密钥泄露检测',
-  },
-  {
-    id: 'tdd-workflow',
-    displayName: 'TDD 工作流套餐',
-    description: '测试驱动开发:先写测试、再实现、再简化,结合代码审查保证质量',
-  },
-  {
-    id: 'team-onboarding',
-    displayName: '团队上手套餐',
-    description: '新人或跨机迁移必备:代码库探索 + 项目初始化 + 文档生成',
-  },
-];
+/**
+ * 从 pack.json 文件读取 displayName/description。
+ * 读取失败或字段缺失时返回 undefined(调用方跳过此文件)。
+ */
+function readPackMeta(filePath: string): { displayName: string; description: string } | undefined {
+  try {
+    const raw = readFileSync(filePath, 'utf8');
+    const obj: unknown = JSON.parse(raw);
+    if (typeof obj !== 'object' || obj === null) return undefined;
+    const o = obj as Record<string, unknown>;
+    const displayName = typeof o.displayName === 'string' ? o.displayName : '';
+    const description = typeof o.description === 'string' ? o.description : '';
+    // displayName 必填才算有效套餐
+    if (!displayName) return undefined;
+    return { displayName, description };
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * 列出全部内置套餐(含绝对路径)。
+ * 通过 readdir 扫描同目录下所有 *.pack.json,读取 displayName/description。
+ * SEA 下 builtinDir() 返回 null 时优雅返回 []。
  */
 export function listBuiltinPacks(): BuiltinPackMeta[] {
   const dir = builtinDir();
   if (dir === null) return [];
-  return BUILTIN_ENTRIES.map((e) => ({
-    ...e,
-    path: join(dir, `${e.id}.pack.json`),
-  }));
+
+  let entries: string[];
+  try {
+    // 明确传 encoding:'utf8' 确保返回 string[] 而非 Buffer[]
+    entries = readdirSync(dir, { encoding: 'utf8' });
+  } catch {
+    // 目录不可读(极端情况)时静默返回空
+    return [];
+  }
+
+  const result: BuiltinPackMeta[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith('.pack.json')) continue;
+    // id = 文件名去掉 .pack.json 后缀
+    const id = entry.slice(0, -'.pack.json'.length);
+    if (!id) continue;
+    const filePath = join(dir, entry);
+    const meta = readPackMeta(filePath);
+    if (!meta) continue;
+    result.push({ id, displayName: meta.displayName, description: meta.description, path: filePath });
+  }
+
+  // 按 id 字典序排序,保证确定性
+  result.sort((a, b) => a.id.localeCompare(b.id));
+  return result;
 }
 
 /**
@@ -65,16 +91,18 @@ export function listBuiltinPacks(): BuiltinPackMeta[] {
  * 找不到返回 null。
  */
 export function resolveBuiltinPackPath(id: string): string | null {
-  const entry = BUILTIN_ENTRIES.find((e) => e.id === id);
-  if (!entry) return null;
   const dir = builtinDir();
   if (dir === null) return null;
-  return join(dir, `${entry.id}.pack.json`);
+  // 验证文件存在且可读(readPackMeta 会确认格式)
+  const filePath = join(dir, `${id}.pack.json`);
+  const meta = readPackMeta(filePath);
+  if (!meta) return null;
+  return filePath;
 }
 
 /**
  * 判断一个字符串是否是已知内置套餐 id。
  */
 export function isBuiltinId(id: string): boolean {
-  return BUILTIN_ENTRIES.some((e) => e.id === id);
+  return resolveBuiltinPackPath(id) !== null;
 }

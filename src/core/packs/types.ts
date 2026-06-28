@@ -29,6 +29,27 @@ export interface SkillCooccurrence {
   sessionsTogether: number;
   /** 共现强度 = sessionsTogether / min(sessions(a), sessions(b)),0..1;越接近 1 越是"老搭子" */
   strength: number;
+  /**
+   * 提升度 lift = P(A∩B) / (P(A)·P(B)),用 session 频率估算(P3-D6 新增,optional)。
+   * lift > 1 表示正相关;= 1 表示独立;< 1 表示负相关。
+   * 过滤"高频 skill 与谁都共现"的假关联:高频 skill 与任何 skill 的 strength 都高,
+   * 但 lift 会揭示这只是基础率效应(P(A)·P(B) 大)而非真正亲和。
+   * sessionCount = 0 或分母为 0 时置 0;sessionsTogether < 2 时也置 0(小样本门槛)。
+   * 旧版/合成 fixture 可能缺少此字段;suggest.ts 的 minLift 过滤时缺失视为 0。
+   */
+  lift?: number;
+  /**
+   * 置信度 confidence(A→B) = P(A∩B)/P(A) = sessionsTogether / sessions(a)(P3-D6 新增,optional)。
+   * 表示"用了 a 的 session 中有多少也用了 b"。
+   * sessions(a) = 0 时置 0。旧版/合成 fixture 可能缺少此字段。
+   */
+  confidenceAB?: number;
+  /**
+   * 置信度 confidence(B→A) = P(A∩B)/P(B) = sessionsTogether / sessions(b)(P3-D6 新增,optional)。
+   * 表示"用了 b 的 session 中有多少也用了 a"。
+   * sessions(b) = 0 时置 0。旧版/合成 fixture 可能缺少此字段。
+   */
+  confidenceBA?: number;
 }
 
 /** Step1 产物:共现分析报告 */

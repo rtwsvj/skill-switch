@@ -28,6 +28,14 @@ export interface SuggestPacksOptions {
   minSessionsTogether?: number;
   /** 最多返回几个建议,默认 5 */
   maxPacks?: number;
+  /**
+   * 边成立的最低 lift(提升度)阈值。
+   * lift < 1 意味着两 skill 实际是负相关("高频 skill 与谁都共现"的假关联)。
+   * 建议值 1.5:代表实际共现比随机高 50%,过滤掉基础率效应。
+   * 默认 undefined = 不过滤(向后兼容——合成 fixture 里 lift 可能缺失)。
+   * pair.lift 字段缺失(undefined)时视为 0,会被过滤掉(有 minLift 时)。
+   */
+  minLift?: number;
 }
 
 // ── djb2 哈希(仅内部用) ──────────────────────────────────────────────────────
@@ -144,11 +152,21 @@ export function suggestPacks(
   const minStrength = opts.minStrength ?? 0.5;
   const minSessionsTogether = opts.minSessionsTogether ?? 3;
   const maxPacks = opts.maxPacks ?? 5;
+  const minLift = opts.minLift; // undefined = 不过滤(向后兼容)
 
   // 收集所有出现在有效边里的节点
-  const validPairs = report.pairs.filter(
-    (p) => p.strength >= minStrength && p.sessionsTogether >= minSessionsTogether,
-  );
+  // 过滤条件:strength + sessionsTogether + 可选 lift
+  // lift 缺失(旧数据/合成 fixture)时:若设了 minLift 门槛则视为 0(被排除),否则跳过 lift 过滤
+  const validPairs = report.pairs.filter((p) => {
+    if (p.strength < minStrength) return false;
+    if (p.sessionsTogether < minSessionsTogether) return false;
+    if (minLift !== undefined) {
+      // p.lift 可能是 undefined(旧/合成数据);undefined 视为 0 → 被排除
+      const liftVal = p.lift ?? 0;
+      if (liftVal < minLift) return false;
+    }
+    return true;
+  });
 
   if (validPairs.length === 0) return [];
 

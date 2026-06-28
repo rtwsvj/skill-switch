@@ -141,13 +141,33 @@ export async function analyzeCooccurrence(
     [...usageMap.entries()].map(([skill, { sessions }]) => [skill, sessions]),
   );
 
+  // 总 session 数(分母),用于 lift 计算
+  const totalSessions = sessionSkills.size;
+
   const pairs: SkillCooccurrence[] = [...pairSessions.entries()]
     .map(([key, sessionsTogether]) => {
       const [a, b] = key.split('\0') as [string, string];
-      const minSessions = Math.min(skillSessions.get(a) ?? 1, skillSessions.get(b) ?? 1);
+      const sessA = skillSessions.get(a) ?? 0;
+      const sessB = skillSessions.get(b) ?? 0;
+      const minSessions = Math.min(sessA === 0 ? 1 : sessA, sessB === 0 ? 1 : sessB);
       // strength ∈ [0,1]:越接近 1 代表两者越「绑定」
       const strength = minSessions > 0 ? sessionsTogether / minSessions : 0;
-      return { a, b, sessionsTogether, strength };
+
+      // ── 关联规则指标 ─────────────────────────────────────────────────────────
+      // 置信度:confidence(A→B) = sessionsTogether / sessions(a)
+      const confidenceAB = sessA > 0 ? sessionsTogether / sessA : 0;
+      // 置信度:confidence(B→A) = sessionsTogether / sessions(b)
+      const confidenceBA = sessB > 0 ? sessionsTogether / sessB : 0;
+      // 提升度 lift = P(A∩B) / (P(A)·P(B))
+      //   = (sessionsTogether/N) / ((sessA/N)·(sessB/N))
+      //   = (sessionsTogether·N) / (sessA·sessB)
+      // 小 sessionCount 时 lift 容易虚高;要求 sessionsTogether >= 2 才计算,否则置 0。
+      const lift =
+        totalSessions > 0 && sessA > 0 && sessB > 0 && sessionsTogether >= 2
+          ? (sessionsTogether * totalSessions) / (sessA * sessB)
+          : 0;
+
+      return { a, b, sessionsTogether, strength, lift, confidenceAB, confidenceBA };
     })
     .sort(
       (x, y) =>
