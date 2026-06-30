@@ -3,5 +3,6 @@ packages:
 
 allowBuilds:
   '@swc/core': true
+  bun: true
   esbuild: true
   re2: true
