@@ -1,9 +1,11 @@
 import { useEffect, useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Moon, Sun } from 'lucide-react';
 import type { DashboardData, DoctorReport } from '../data';
 import { languageLabels, supportedLanguages, type SupportedLanguage } from '../i18n';
 import { cx, doctorHint, doctorKindLabel, driftTone } from '../lib/helpers';
 import type { ConfirmationDialogState, OperationNotice, SectionState } from '../lib/types';
+import { useTheme } from './ThemeProvider';
 
 // v0.3 D1:健康中心 —— doctor 三方对账(声明×锁×磁盘)可视化,按漂移类型分组 + 本地化提示 + legacy 名告警。
 // 纯展示,便于测试;沿用「高级」面板定位(技术受众 P2/P4),文案全 i18n(不暴露 CLI 的中文 detail)。
@@ -214,6 +216,38 @@ function LanguageSwitcher() {
   );
 }
 
+// 明暗切换按钮 — 三态循环:system → light → dark → system
+function ThemeToggle() {
+  const { resolvedTheme, setTheme, theme } = useTheme();
+  const { t } = useTranslation();
+
+  // SSR 环境(测试用 renderToString)没有 useTheme,直接隐藏即可
+  const handleToggle = () => {
+    // 简化:直接在 light/dark 之间切换(跳过 system)
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+  };
+
+  const toggleLabel = resolvedTheme === 'dark' ? t('header.theme.toLight') : t('header.theme.toDark');
+
+  return (
+    <button
+      type="button"
+      className="ghost-button"
+      onClick={handleToggle}
+      aria-label={toggleLabel}
+      title={toggleLabel}
+      style={{ minHeight: 28, padding: '4px 6px' }}
+    >
+      {resolvedTheme === 'dark'
+        ? <Sun size={15} aria-hidden="true" />
+        : <Moon size={15} aria-hidden="true" />
+      }
+      {/* 仅当 theme 为 system 时展示小标记,提示用户当前跟随系统 */}
+      {theme === 'system' ? <span style={{ fontSize: 10, opacity: 0.6 }}>AUTO</span> : null}
+    </button>
+  );
+}
+
 export function Header({
   data,
   advanced,
@@ -235,6 +269,7 @@ export function Header({
         <StatusPill tone={data.source === 'fixtures' ? 'warn' : 'good'}>{data.source === 'fixtures' ? t('header.source.fixtures') : t('header.source.live')}</StatusPill>
         {advanced ? <span>{new Date(data.loadedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</span> : null}
         <LanguageSwitcher />
+        <ThemeToggle />
         <label className="advanced-toggle">
           <input
             type="checkbox"

@@ -5,9 +5,19 @@
 
 ## [Unreleased]
 
-> 本轮:11 路并行的「开源对标」实现(见 [docs/oss-comparison.md](docs/oss-comparison.md))。第二波再上 5 项获批新依赖(下方「质量&GUI 增强」)。仍留:re2 线性正则引擎、bun compile(待批)。
+> 本轮:11 路并行的「开源对标」实现(见 [docs/oss-comparison.md](docs/oss-comparison.md))。第二波再上 5 项获批新依赖(下方「质量&GUI 增强」)。第三波全部落地:RE2 线性正则引擎、GUI shadcn 重设计基建、bun compile 并列打包路径。第四波「集众家之所长」(见 [docs/best-of-breed-plan.md](docs/best-of-breed-plan.md)):安全深度(二进制魔数伪装 / taint 数据流 / 跨-skill 协同 / OWASP Agentic+ATLAS 映射)+ apm.yml 互操作 + GUI Markdown 渲染 + registry 注册表只读接入(见 [docs/registry-integration-plan.md](docs/registry-integration-plan.md));全部自研重写、零复制竞品代码。
 
 ### 新增 Added
+- **二进制魔数伪装检测(第四波·安全深度)**:`masquerade/binary-magic-bytes`(critical)+ `masquerade/binary-lossy-head`(high)——识别声明为文本却以 PE/ELF/Mach-O/PDF/ZIP/JAR/gzip/7z/RAR/Wasm 等可执行/归档魔数开头的伪装文件;只看文件起始,正文提及魔数名不误报。魔数表从公开格式规范自写。
+- **taint 数据流多步攻击链(第四波·安全深度)**:`exfiltration/taint-source-to-sink`(high)——单文件内识别"读敏感源(环境变量/凭据文件/历史/浏览器·钱包数据)→ 近距离外发(curl 上传/nc//dev/tcp/外渗端点/base64 管道/scp 等)"的跨行数据外渗链;仅命令上下文计数,散文零误报。
+- **跨-skill 协同攻击检测(第四波·安全深度)**:`analyzeCrossSkillCollusion`——识别多个 skill 经共享 dropzone 路径 / 共享外部端点(high)或全局配置蔓延(medium)联合构成的凭据外泄与提权链;需具体共享线索、能力横跨两个 skill 才报,重精确低误报;接入 audit home 全格式输出与退出码,补齐已有跨-MCP-server 检测。
+- **OWASP Agentic Top10 + MITRE ATLAS 映射(第四波·安全深度)**:规则类目新增 MITRE ATLAS 技法(`atlas:AML.Txxxx`)与 OWASP Agentic Top10(`owasp-agentic:Txx`)标签,additive 并入 SARIF rule properties.tags,与既有 OWASP LLM 标签并存;不影响 severity 或阻断逻辑。
+- **`apm-import <apm.yml>` — 与 microsoft/apm 互操作(第四波,只读)**:默认 dry-run 预览将纳管的 skill,`--apply` 才写入声明;只挑 skill 类原语映射到 skill-switch 治理模型,明确跳过 prompts/agents/hooks 等非 skill 原语。绝不执行 apm.yml 中的命令/脚本、绝不联网,纯本地文件解析。定位:互操作而非硬刚,做 APM 生态里"最强安全+治理"那一环。
+- **GUI 技能描述 Markdown 安全渲染(第四波)**:技能详情的描述用 `react-markdown` + `rehype-sanitize`(默认 schema、禁 raw HTML、外链 `noopener`)渲染为富文本,杜绝描述内 XSS/钓鱼链接;样式走设计系统 token、明暗自适应。
+- **`registry` 命令 — 注册表只读接入(第四波·C 线)**:从官方 **MCP Registry**(`registry.modelcontextprotocol.io`)与 GitHub `marketplace.json` 市场**只读搜索**(`registry search`)并**经安全审计后安装**(`registry install`)skill / MCP server。纯 opt-in(仅运行该命令才联网)、仅 HTTPS、零遥测(`credentials:'omit'`、不带指纹)、零新依赖(Node 内置 fetch)、限时限大小;安装复用既有「解析→克隆→审计→拦截」管线,DANGER 默认拦截需 `--force` 留痕放行,绝不执行远端内容。仅接有稳定文档化免鉴权读接口的源,不抓聚合站 HTML。
+- **审计引擎 → RE2 线性正则(第三波)**:`compileMatcher` 用 RE2(线性时间、无回溯)匹配审计规则,从根上消除 ReDoS;`prompt-injection/zero-width-chars` 去 lookbehind/lookahead、`base64-payload` rm-rf 去 lookahead(均附 `test()` 语义等价证明,findings 不变);4 条 `{0,2048}` 超量词规则回退原生 RegExp + 行截断保护;编译结果 WeakMap 缓存。corpus/评分/verdict 行为零改变。
+- **GUI 重设计基建(第三波)**:引入 `shadcn/ui + Tailwind` 设计系统(Button/Card/Badge/Tabs/Dialog/Input/Select/Tooltip/Skeleton/Table)+ 明暗主题(跟随系统、localStorage 持久化、Header 一键切换)+ Overview 卡片化(指标卡 + lucide 图标 + 骨架占位);CSS 变量走 shadcn 标准 token + 语义色 `--good/--warn/--danger`;为后续各屏迁移提供设计系统契约。四语言 i18n 100%(新增主题切换/对话框关闭文案)。
+- **bun compile 并列打包路径(第三波,实验性)**:新增 `gui/scripts/bundle-cli-bun.mjs`(`pnpm bundle:cli:bun`),用 `bun build --compile` 产出单文件 CLI(产物命名/路径与现有 SEA 路径一致),wrapper 入口绕过 `node:sea` 禁区;实测冷启动 ~71ms vs tsx ~765ms(约 10x)。bun 为 devDependency(不随应用发),测试用 `it.skipIf(!bunAvailable)` 守卫(无 bun 环境不红);现有 `bundle:cli`(SEA)/`src/**`/Tauri sidecar 完全保留。
 - **质量门禁(第二波)**:`recheck` ReDoS 静态守卫——遍历全部审计规则正则,写规则时即拦下会回溯灾难的 evil 正则(测试门禁,无需 eslint);`stryker` 变异测试配置(`pnpm mutate`,收敛到 audit engine/score,衡量测试有效性);`i18next-cli` GUI 漏译检测进 CI(`pnpm --dir gui i18n:check`,漏译即失败,当前四语言 100%)。
 - **GUI 数据层 → TanStack Query(第二波)**:App 手写的 sections 加载状态机替换为 `@tanstack/react-query`(`staleTime` 5min / `retry` 1 / 不随窗口聚焦重取,贴合 Tauri 本地 IPC);写操作后精细 `invalidateQueries`(toggle/remove/install/sync 后不重跑 stats),取代全量刷新;DashboardShell 对外接口不变。
 - **GUI 自动更新(第二波)**:接入 `tauri-plugin-updater` + `tauri-plugin-process`,`UpdateChecker` 横幅组件(有更新提示版本+一键更新+重启,非 Tauri 运行时优雅 no-op),四语言 `update.*` 文案;更新源指向 GitHub Releases 的 `latest.json`,发布前需 `tauri signer generate` 填真实 pubkey(已占位+注释)。

@@ -6,6 +6,15 @@
     "source": {
       "fixtures": "Datos de ejemplo",
       "live": "Conectado"
+    },
+    "theme": {
+      "toLight": "Cambiar a modo claro",
+      "toDark": "Cambiar a modo oscuro"
+    }
+  },
+  "ui": {
+    "dialog": {
+      "close": "Cerrar"
     }
   },
   "screens": {

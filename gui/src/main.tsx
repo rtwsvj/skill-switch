@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { ErrorBoundary } from './ErrorBoundary';
+import { ThemeProvider } from './components/ThemeProvider';
+import { TooltipProvider } from './components/ui/tooltip';
 import './i18n';
 import './styles.css';
 
@@ -25,10 +27,14 @@ if (!root) {
 
 createRoot(root).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={300}>
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   </React.StrictMode>,
 );

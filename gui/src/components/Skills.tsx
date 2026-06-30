@@ -4,6 +4,7 @@ import type { AuditReport, DashboardData, SkillRecord } from '../data';
 import { actionSkillName, cx, isBlockingAudit, isNameMismatch, isSkillEnabled, isWriteBusy } from '../lib/helpers';
 import type { SkillActionsProps } from '../lib/types';
 import { StatusPill } from './atoms';
+import { MarkdownView } from './ui/markdown';
 
 // ──────────────────────────────────────────────────────────
 // 状态徽章派生逻辑
@@ -131,7 +132,7 @@ function SkillDetail({
         {skill.description ? (
           <div className="skill-detail-desc">
             <dt>{t('skills.detail.description')}</dt>
-            <dd className="muted">{skill.description}</dd>
+            <dd><MarkdownView>{skill.description}</MarkdownView></dd>
           </div>
         ) : null}
         {info.hasError ? (

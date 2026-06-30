@@ -6,6 +6,15 @@
     "source": {
       "fixtures": "样例数据",
       "live": "已连接"
+    },
+    "theme": {
+      "toLight": "切换到亮色模式",
+      "toDark": "切换到暗色模式"
+    }
+  },
+  "ui": {
+    "dialog": {
+      "close": "关闭"
     }
   },
   "screens": {

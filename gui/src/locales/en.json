@@ -6,6 +6,15 @@
     "source": {
       "fixtures": "Sample data",
       "live": "Connected"
+    },
+    "theme": {
+      "toLight": "Switch to light mode",
+      "toDark": "Switch to dark mode"
+    }
+  },
+  "ui": {
+    "dialog": {
+      "close": "Close"
     }
   },
   "screens": {

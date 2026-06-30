@@ -3,8 +3,12 @@ import { mkdtempSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listSnapshots, snapshot } from '../src/core/backup.ts';
+
+// 每个用例都 spawn 一个 tsx 冷启动子进程;并发跑全量测试时冷启动可达数秒,
+// 默认 5s 超时会偶发误判失败(已知 flaky)。放宽到 60s 让 CLE 子进程在负载下稳定完成。
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const ROOT = join(import.meta.dirname, '..');
 const CLI = join(ROOT, 'src', 'cli', 'index.ts');

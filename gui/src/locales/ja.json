@@ -6,6 +6,15 @@
     "source": {
       "fixtures": "サンプルデータ",
       "live": "接続済み"
+    },
+    "theme": {
+      "toLight": "ライトモードに切り替え",
+      "toDark": "ダークモードに切り替え"
+    }
+  },
+  "ui": {
+    "dialog": {
+      "close": "閉じる"
     }
   },
   "screens": {

