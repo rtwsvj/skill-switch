@@ -56,6 +56,7 @@
   "dependencies": {
     "commander": "^15.0.0",
     "gray-matter": "^4.0.3",
+    "re2": "^1.25.0",
     "simple-git": "^3.36.0",
     "tsx": "^4.22.4",
     "xdg-basedir": "^5.1.0"
