@@ -8,9 +8,15 @@
 //   - suppression 对象补 status: "accepted"(SARIF §3.35.4 合规)
 //   - rule descriptor 补 helpUri(指向 docs/rules.md 锚点或仓库 URL)
 //   - rule descriptor properties.tags 加 OWASP LLM/MCP Top10 标签(additive)
+// A2:
+//   - properties.tags 再 additive 并入 MITRE ATLAS(atlas:)与 OWASP Agentic Top10
+//     (owasp-agentic:)标签,与既有 OWASP LLM(owasp:LLMxx)标签并存;
+//     映射表见 ./atlas-map.ts。不改 severity、不改阻断/抑制逻辑。
 
 import type { AuditFinding, Severity } from './types.ts';
 import { fingerprintFinding } from './baseline.ts';
+// A2:MITRE ATLAS + OWASP Agentic Top10 标签(additive,与 OWASP LLM 标签并存)
+import { atlasTagsForRule, agenticTagsForRule } from './atlas-map.ts';
 
 // ── SARIF level 映射 ─────────────────────────────────────────────────────────
 // critical/high → error;medium → warning;low/info → note
@@ -187,9 +193,11 @@ export function toSarifDocument(
       defaultConfiguration: { level },
       helpUri: ruleHelpUri(id),
     };
-    const owaspTags = owaspTagsForRule(id);
-    if (owaspTags.length > 0) {
-      descriptor.properties = { tags: owaspTags };
+    // additive:OWASP LLM Top10 + MITRE ATLAS(atlas:) + OWASP Agentic Top10(owasp-agentic:)
+    // 三套标签并存于 properties.tags,均不影响 severity / 阻断逻辑。
+    const tags = [...owaspTagsForRule(id), ...atlasTagsForRule(id), ...agenticTagsForRule(id)];
+    if (tags.length > 0) {
+      descriptor.properties = { tags };
     }
     return descriptor;
   });
