@@ -2,14 +2,117 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ══════════════════════════════════════════════════════════════════════════
+   设计 Token — CSS 变量 (shadcn/ui 风格 + skill-switch 扩展语义色)
+   ── 明亮主题(:root) ──────────────────────────────────────────────────── */
 :root {
-  color: #edf2f7;
-  background: #111418;
+  /* 基础色 */
+  --background: 36 15% 96%;           /* 米白纸张底色 */
+  --foreground: 28 20% 14%;           /* 深褐前景 */
+
+  /* 卡片 */
+  --card: 36 18% 99%;
+  --card-foreground: 28 20% 14%;
+
+  /* 弹出层 */
+  --popover: 36 18% 99%;
+  --popover-foreground: 28 20% 14%;
+
+  /* 主色 — 青绿 verdigris */
+  --primary: 174 69% 44%;
+  --primary-foreground: 0 0% 100%;
+
+  /* 次要 */
+  --secondary: 36 12% 88%;
+  --secondary-foreground: 28 20% 22%;
+
+  /* 静音 */
+  --muted: 36 10% 92%;
+  --muted-foreground: 28 12% 42%;
+
+  /* 强调 */
+  --accent: 174 28% 88%;
+  --accent-foreground: 174 40% 24%;
+
+  /* 危险 */
+  --destructive: 4 80% 56%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* 边框 / 输入 / 焦点环 */
+  --border: 36 14% 82%;
+  --input: 36 14% 82%;
+  --ring: 174 69% 44%;
+
+  /* 语义扩展 */
+  --good: 174 69% 44%;
+  --good-foreground: 0 0% 100%;
+  --warn: 40 85% 46%;
+  --warn-foreground: 0 0% 100%;
+  --danger: 4 80% 56%;
+  --danger-foreground: 0 0% 100%;
+
+  /* 圆角 */
+  --radius: 0.5rem;
+
+  /* 阴影 */
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 1px rgb(0 0 0 / 0.05);
+  --shadow-dialog: 0 20px 60px rgb(0 0 0 / 0.16), 0 4px 16px rgb(0 0 0 / 0.08);
+
+  /* 字体 */
+  color-scheme: light;
   font-family: Aptos, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: geometricPrecision;
 }
 
+/* ── 暗色主题(.dark) ────────────────────────────────────────────────────
+   沿用 skill-switch 原有的 coal/iron/parchment/verdigris 配色,
+   过渡到 CSS 变量体系,保证与旧 CSS class 兼容。 */
+.dark {
+  --background: 220 11% 9%;           /* #111418 */
+  --foreground: 36 56% 92%;           /* #f0e6d1 */
+
+  --card: 220 9% 14%;                 /* #1d1b16 风格 */
+  --card-foreground: 36 56% 92%;
+
+  --popover: 220 9% 12%;
+  --popover-foreground: 36 56% 92%;
+
+  --primary: 174 69% 44%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 8% 20%;
+  --secondary-foreground: 36 30% 76%;
+
+  --muted: 220 8% 18%;
+  --muted-foreground: 36 16% 60%;
+
+  --accent: 174 28% 22%;
+  --accent-foreground: 174 60% 76%;
+
+  --destructive: 4 76% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 36 14% 20%;
+  --input: 36 14% 20%;
+  --ring: 174 69% 44%;
+
+  --good: 174 69% 44%;
+  --good-foreground: 0 0% 100%;
+  --warn: 40 78% 50%;
+  --warn-foreground: 0 0% 100%;
+  --danger: 4 76% 60%;
+  --danger-foreground: 0 0% 100%;
+
+  --shadow-card: 0 1px 4px rgb(0 0 0 / 0.36), inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --shadow-dialog: 0 20px 60px rgb(0 0 0 / 0.52), 0 4px 16px rgb(0 0 0 / 0.28);
+
+  color-scheme: dark;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   基础 reset
+   ═══════════════════════════════════════════════════════════════════════ */
 * {
   box-sizing: border-box;
 }
@@ -18,10 +121,13 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  transition: background-color 0.2s, color 0.2s;
   background:
-    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px),
-    linear-gradient(180deg, rgb(255 255 255 / 0.025) 1px, transparent 1px),
-    #111418;
+    linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(var(--border) / 0.3) 1px, transparent 1px),
+    hsl(var(--background));
   background-size: 42px 42px;
 }
 
@@ -31,12 +137,21 @@ select {
   font: inherit;
 }
 
+h1, h2, p {
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   旧版 CSS class — 向后兼容(各屏组件仍依赖这些 class)
+   值直接引用 CSS 变量,使主题切换生效。
+   ═══════════════════════════════════════════════════════════════════════ */
+
 button {
   min-height: 34px;
-  border: 1px solid rgb(237 242 247 / 0.16);
+  border: 1px solid hsl(var(--border));
   border-radius: 6px;
-  background: rgb(17 20 24 / 0.9);
-  color: #edf2f7;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
   cursor: pointer;
   padding: 7px 10px;
 }
@@ -50,10 +165,10 @@ input,
 select {
   min-height: 34px;
   width: 100%;
-  border: 1px solid rgb(237 242 247 / 0.18);
+  border: 1px solid hsl(var(--border));
   border-radius: 6px;
-  background: rgb(17 20 24 / 0.95);
-  color: #edf2f7;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   padding: 6px 8px;
 }
 
@@ -69,22 +184,16 @@ select {
   align-items: end;
   justify-content: space-between;
   gap: 24px;
-  border-bottom: 1px solid rgb(36 184 166 / 0.45);
+  border-bottom: 1px solid hsl(var(--primary) / 0.45);
   padding-bottom: 18px;
 }
 
 .eyebrow {
   margin: 0 0 4px;
-  color: #24b8a6;
+  color: hsl(var(--primary));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
   text-transform: uppercase;
-}
-
-h1,
-h2,
-p {
-  margin: 0;
 }
 
 h1 {
@@ -112,7 +221,7 @@ h2 {
 
 .header-meta {
   gap: 12px;
-  color: #a8b3c2;
+  color: hsl(var(--muted-foreground));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
 }
@@ -124,20 +233,20 @@ h2 {
 }
 
 .language-switcher span {
-  color: #a8b3c2;
+  color: hsl(var(--muted-foreground));
 }
 
 .advanced-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #a8b3c2;
+  color: hsl(var(--muted-foreground));
 }
 
 .advanced-toggle input {
   min-height: auto;
   width: auto;
-  accent-color: #24b8a6;
+  accent-color: hsl(var(--primary));
 }
 
 .screen-tabs {
@@ -148,14 +257,14 @@ h2 {
 
 .screen-tabs button {
   min-width: 108px;
-  background: rgb(29 27 22 / 0.86);
+  background: hsl(var(--card));
   padding: 10px 14px;
   text-align: center;
 }
 
 .screen-tabs button.active {
-  border-color: rgb(36 184 166 / 0.8);
-  background: rgb(36 184 166 / 0.16);
+  border-color: hsl(var(--primary) / 0.8);
+  background: hsl(var(--primary) / 0.12);
 }
 
 .screen {
@@ -171,19 +280,19 @@ h2 {
 
 .metric {
   min-height: 112px;
-  border: 1px solid rgb(240 230 209 / 0.14);
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
-  background: rgb(29 27 22 / 0.92);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-card);
   padding: 16px;
 }
 
 .metric-danger {
-  border-color: rgb(239 68 68 / 0.55);
+  border-color: hsl(var(--danger) / 0.55);
 }
 
 .metric-good {
-  border-color: rgb(36 184 166 / 0.45);
+  border-color: hsl(var(--good) / 0.45);
 }
 
 .metric-value {
@@ -194,7 +303,7 @@ h2 {
 
 .metric-label {
   margin-top: 14px;
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-size: 13px;
   text-transform: uppercase;
 }
@@ -209,10 +318,10 @@ h2 {
 .audit-card,
 .fatal-panel,
 .loading-panel {
-  border: 1px solid rgb(240 230 209 / 0.14);
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
-  background: rgb(29 27 22 / 0.92);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-card);
 }
 
 .panel,
@@ -225,11 +334,11 @@ h2 {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
 }
 
 .panel-title > span {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
 }
@@ -238,33 +347,33 @@ h2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
-  border: 1px solid rgb(240 230 209 / 0.14);
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
-  background: rgb(29 27 22 / 0.92);
+  background: hsl(var(--card));
   margin-bottom: 14px;
   padding: 12px 14px;
 }
 
 .operation-banner-good {
-  border-color: rgb(36 184 166 / 0.55);
+  border-color: hsl(var(--good) / 0.55);
 }
 
 .operation-banner-warn {
-  border-color: rgb(216 153 36 / 0.65);
+  border-color: hsl(var(--warn) / 0.65);
 }
 
 .operation-banner-danger {
-  border-color: rgb(239 68 68 / 0.65);
+  border-color: hsl(var(--danger) / 0.65);
 }
 
 .operation-banner strong {
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
   font-size: 14px;
 }
 
 .operation-banner p,
 .operation-banner li {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
 }
 
@@ -277,7 +386,7 @@ h2 {
 }
 
 .operation-banner code {
-  color: #f5d69c;
+  color: hsl(var(--warn));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   word-break: break-all;
 }
@@ -288,7 +397,7 @@ h2 {
   z-index: 20;
   display: grid;
   place-items: center;
-  background: rgb(17 20 24 / 0.74);
+  background: hsl(var(--background) / 0.74);
   padding: 20px;
 }
 
@@ -296,62 +405,60 @@ h2 {
   display: grid;
   gap: 12px;
   width: min(420px, 100%);
-  border: 1px solid rgb(216 153 36 / 0.65);
+  border: 1px solid hsl(var(--warn) / 0.65);
   border-radius: 8px;
-  background: #1d1b16;
-  box-shadow: 0 18px 48px rgb(0 0 0 / 0.38);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-dialog);
   padding: 18px;
 }
 
 .confirm-dialog-danger {
-  border-color: rgb(239 68 68 / 0.68);
+  border-color: hsl(var(--danger) / 0.68);
 }
 
 .confirm-dialog h2 {
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
   font-size: 16px;
 }
 
 .confirm-dialog p {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-size: 13px;
   line-height: 1.5;
 }
 
-/* F-A2:确认框里的「将发生什么」结构化预览 */
 .confirm-dialog .dialog-details {
   margin: 2px 0 0;
   padding: 8px 12px 8px 26px;
   border-radius: 6px;
-  background: rgb(17 20 24 / 0.55);
-  border: 1px solid rgb(240 230 209 / 0.12);
+  background: hsl(var(--muted) / 0.55);
+  border: 1px solid hsl(var(--border));
   list-style: disc;
   display: grid;
   gap: 3px;
 }
 
 .confirm-dialog .dialog-details li {
-  color: #d8cdb4;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
   line-height: 1.5;
 }
 
-/* F-B2:确认框里的大白话「后果/安心」提示(用后代选择器压过 .confirm-dialog p) */
 .confirm-dialog .dialog-consequence {
   margin: 2px 0 0;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgb(56 189 148 / 0.12);
-  border: 1px solid rgb(56 189 148 / 0.32);
-  color: #cde7d8;
+  background: hsl(var(--good) / 0.12);
+  border: 1px solid hsl(var(--good) / 0.32);
+  color: hsl(var(--good-foreground));
   font-size: 12px;
   line-height: 1.5;
 }
 
 .confirm-dialog .dialog-consequence-danger {
-  background: rgb(239 68 68 / 0.12);
-  border-color: rgb(239 68 68 / 0.4);
-  color: #f6c9c0;
+  background: hsl(var(--danger) / 0.12);
+  border-color: hsl(var(--danger) / 0.4);
+  color: hsl(var(--danger));
 }
 
 .dialog-actions {
@@ -375,7 +482,7 @@ h2 {
   display: grid;
   align-content: start;
   gap: 10px;
-  border-top: 1px solid rgb(240 230 209 / 0.1);
+  border-top: 1px solid hsl(var(--border));
   padding-top: 12px;
 }
 
@@ -385,7 +492,7 @@ h2 {
 }
 
 .form-help {
-  color: #a8b3c2;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
   line-height: 1.45;
 }
@@ -393,7 +500,7 @@ h2 {
 .operation-form label {
   display: grid;
   gap: 5px;
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
 }
 
@@ -417,13 +524,13 @@ h2 {
 }
 
 .primary-action {
-  border-color: rgb(36 184 166 / 0.65);
-  color: #72f0df;
+  border-color: hsl(var(--primary) / 0.65);
+  color: hsl(var(--primary));
 }
 
 .danger-action {
-  border-color: rgb(239 68 68 / 0.65);
-  color: #fca5a5;
+  border-color: hsl(var(--danger) / 0.65);
+  color: hsl(var(--danger));
 }
 
 .blocked-list,
@@ -431,23 +538,22 @@ h2 {
 .snapshot-list {
   display: grid;
   gap: 7px;
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
 }
 
 .blocked-list {
-  border-left: 2px solid #ef4444;
+  border-left: 2px solid hsl(var(--danger));
   padding-left: 10px;
   display: grid;
   gap: 8px;
 }
 
-/* F-C2:被拦技能的「为什么 + 仍要安装」面板 */
 .blocked-item {
   display: grid;
   gap: 6px;
   padding: 8px 0;
-  border-top: 1px solid rgb(239 68 68 / 0.2);
+  border-top: 1px solid hsl(var(--danger) / 0.2);
 }
 
 .blocked-head {
@@ -464,7 +570,7 @@ h2 {
 }
 
 .plan-list span {
-  color: #f5d69c;
+  color: hsl(var(--warn));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
 }
 
@@ -473,7 +579,7 @@ h2 {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  border-top: 1px solid rgb(240 230 209 / 0.1);
+  border-top: 1px solid hsl(var(--border));
   padding-top: 8px;
 }
 
@@ -483,12 +589,11 @@ h2 {
 }
 
 .snapshot-row span {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
 }
 
-/* F-B1:撤销/历史中心的快照时间线 */
 .snapshot-timeline {
   display: grid;
   gap: 10px;
@@ -501,10 +606,10 @@ h2 {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid rgb(240 230 209 / 0.12);
-  border-left: 3px solid rgb(56 189 148 / 0.5);
+  border: 1px solid hsl(var(--border));
+  border-left: 3px solid hsl(var(--good) / 0.5);
   border-radius: 8px;
-  background: rgb(17 20 24 / 0.6);
+  background: hsl(var(--muted) / 0.4);
 }
 
 .timeline-main {
@@ -514,7 +619,7 @@ h2 {
 }
 
 .timeline-main strong {
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
   font-size: 14px;
 }
 
@@ -526,9 +631,8 @@ h2 {
   white-space: nowrap;
 }
 
-/* F-C1:安全中心的 bypass 留痕面板 */
 .bypass-panel {
-  border-color: rgb(239 68 68 / 0.4);
+  border-color: hsl(var(--danger) / 0.4);
   margin-bottom: 12px;
 }
 
@@ -544,9 +648,9 @@ h2 {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid rgb(239 68 68 / 0.28);
+  border: 1px solid hsl(var(--danger) / 0.28);
   border-radius: 8px;
-  background: rgb(239 68 68 / 0.06);
+  background: hsl(var(--danger) / 0.06);
 }
 
 .bypass-main {
@@ -556,7 +660,7 @@ h2 {
 }
 
 .bypass-main strong {
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
 }
 
 .bypass-meta {
@@ -565,16 +669,14 @@ h2 {
   gap: 8px;
 }
 
-/* 覆盖透明度行(stats 扫描了多少/跳过多少) */
 .coverage-line {
   margin: 2px 0 10px;
   font-size: 12px;
 }
 
-/* v0.3 A1:首启引导卡 */
 .onboarding-card {
-  border-color: rgb(56 189 148 / 0.4);
-  background: rgb(56 189 148 / 0.07);
+  border-color: hsl(var(--good) / 0.4);
+  background: hsl(var(--good) / 0.07);
   margin-bottom: 14px;
 }
 
@@ -587,16 +689,15 @@ h2 {
 }
 
 .onboarding-points li {
-  color: #d8cdb4;
+  color: hsl(var(--muted-foreground));
   font-size: 13px;
   line-height: 1.55;
 }
 
-/* v0.3 D1:健康中心 —— 三方对账漂移分组 */
 .drift-group {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid rgb(240 230 209 / 0.1);
+  border-top: 1px solid hsl(var(--border));
 }
 
 .drift-group-head {
@@ -610,7 +711,6 @@ h2 {
   margin-top: 4px;
 }
 
-/* F-A3:导入未管理技能的提示条 */
 .import-banner {
   display: flex;
   align-items: center;
@@ -618,20 +718,19 @@ h2 {
   gap: 12px;
   padding: 12px 16px;
   margin-bottom: 12px;
-  border: 1px solid rgb(56 189 148 / 0.4);
+  border: 1px solid hsl(var(--good) / 0.4);
   border-radius: 8px;
-  background: rgb(56 189 148 / 0.08);
-  color: #d8cdb4;
+  background: hsl(var(--good) / 0.08);
+  color: hsl(var(--foreground));
   font-size: 13px;
 }
 
-/* F-F2:本地优先/零遥测承诺页脚 */
 .app-footer {
   margin-top: 18px;
   padding: 12px 0 4px;
-  border-top: 1px solid rgb(240 230 209 / 0.1);
+  border-top: 1px solid hsl(var(--border));
   text-align: center;
-  color: #8c8068;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
 }
 
@@ -642,9 +741,9 @@ h2 {
 
 .command-strip span,
 .agent-list span {
-  border: 1px solid rgb(216 153 36 / 0.35);
+  border: 1px solid hsl(var(--warn) / 0.35);
   border-radius: 999px;
-  color: #f5d69c;
+  color: hsl(var(--warn));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   padding: 5px 8px;
@@ -658,13 +757,13 @@ h2 {
 }
 
 .definition-grid div {
-  border: 1px solid rgb(240 230 209 / 0.12);
+  border: 1px solid hsl(var(--border));
   border-radius: 6px;
   padding: 12px;
 }
 
 .definition-grid dt {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
 }
 
@@ -686,15 +785,15 @@ h2 {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  border-top: 1px solid rgb(240 230 209 / 0.1);
-  color: #b7ab91;
+  border-top: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   padding-top: 8px;
 }
 
 .doctor-list strong {
-  color: #f5d69c;
+  color: hsl(var(--warn));
   font-weight: 500;
 }
 
@@ -704,10 +803,10 @@ h2 {
 }
 
 .guide-panel {
-  border: 1px solid rgb(36 184 166 / 0.26);
+  border: 1px solid hsl(var(--primary) / 0.26);
   border-radius: 8px;
-  background: rgb(18 34 40 / 0.82);
-  color: #dbe7ef;
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
   font-size: 14px;
   line-height: 1.55;
   padding: 14px 16px;
@@ -716,7 +815,7 @@ h2 {
 .attention-row {
   justify-content: space-between;
   gap: 12px;
-  border-top: 1px solid rgb(240 230 209 / 0.1);
+  border-top: 1px solid hsl(var(--border));
   padding-top: 8px;
 }
 
@@ -724,7 +823,7 @@ h2 {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  border: 1px solid rgb(240 230 209 / 0.16);
+  border: 1px solid hsl(var(--border));
   border-radius: 999px;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
@@ -734,18 +833,18 @@ h2 {
 }
 
 .pill-good {
-  border-color: rgb(36 184 166 / 0.5);
-  color: #72f0df;
+  border-color: hsl(var(--good) / 0.5);
+  color: hsl(var(--good));
 }
 
 .pill-warn {
-  border-color: rgb(216 153 36 / 0.65);
-  color: #f5d69c;
+  border-color: hsl(var(--warn) / 0.65);
+  color: hsl(var(--warn));
 }
 
 .pill-danger {
-  border-color: rgb(239 68 68 / 0.65);
-  color: #fca5a5;
+  border-color: hsl(var(--danger) / 0.65);
+  color: hsl(var(--danger));
 }
 
 .table-panel {
@@ -768,7 +867,7 @@ table {
 
 th,
 td {
-  border-top: 1px solid rgb(240 230 209 / 0.1);
+  border-top: 1px solid hsl(var(--border));
   padding: 12px 16px;
   text-align: left;
   vertical-align: top;
@@ -794,7 +893,7 @@ td {
 }
 
 th {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 500;
@@ -802,12 +901,12 @@ th {
 }
 
 td {
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
   font-size: 14px;
 }
 
 .row-alert td {
-  background: rgb(216 153 36 / 0.08);
+  background: hsl(var(--warn) / 0.08);
 }
 
 .mono {
@@ -816,7 +915,7 @@ td {
 
 .muted,
 .empty {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
 }
 
 .agent-list {
@@ -824,7 +923,6 @@ td {
   gap: 5px;
 }
 
-/* M0-5.6 懒加载区块的工具条 + 状态条 */
 .section-toolbar {
   display: flex;
   align-items: center;
@@ -855,9 +953,9 @@ td {
 .section-error {
   margin: 0 0 12px;
   padding: 8px 12px;
-  border: 1px solid rgb(239 68 68 / 0.45);
+  border: 1px solid hsl(var(--danger) / 0.45);
   border-radius: 6px;
-  color: #f8b4b4;
+  color: hsl(var(--danger));
   font-size: 13px;
   white-space: pre-wrap;
 }
@@ -874,7 +972,7 @@ td {
 }
 
 .audit-card-danger {
-  border-color: rgb(239 68 68 / 0.6);
+  border-color: hsl(var(--danger) / 0.6);
 }
 
 .audit-head {
@@ -885,7 +983,7 @@ td {
 
 .audit-head p {
   margin-top: 6px;
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
   word-break: break-word;
 }
@@ -895,7 +993,7 @@ td {
   place-items: center;
   width: 56px;
   height: 56px;
-  border: 1px solid rgb(36 184 166 / 0.45);
+  border: 1px solid hsl(var(--primary) / 0.45);
   border-radius: 50%;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 20px;
@@ -908,7 +1006,7 @@ td {
 }
 
 .audit-meta > span:last-child {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
 }
@@ -926,7 +1024,7 @@ td {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 8px;
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
 }
@@ -939,15 +1037,15 @@ td {
 
 .severity-critical,
 .severity-high {
-  background: #ef4444;
+  background: hsl(var(--danger));
 }
 
 .severity-medium {
-  background: #d89924;
+  background: hsl(var(--warn));
 }
 
 .severity-low {
-  background: #24b8a6;
+  background: hsl(var(--good));
 }
 
 .compact .metric {
@@ -959,9 +1057,7 @@ td {
   margin-top: 24px;
 }
 
-/* ──────────────────────────────────────────────────────────
-   技能主从布局 (master-detail)
-   ────────────────────────────────────────────────────────── */
+/* ── 技能主从布局 ──────────────────────────────────────────────────────── */
 
 .skills-master-detail {
   display: grid;
@@ -974,21 +1070,19 @@ td {
   min-width: 0;
 }
 
-/* 选中行高亮 */
 .skills-row-clickable {
   cursor: pointer;
 }
 
 .skills-row-clickable:hover td {
-  background: rgb(36 184 166 / 0.06);
+  background: hsl(var(--primary) / 0.06);
 }
 
 .row-selected td {
-  background: rgb(36 184 166 / 0.12) !important;
-  border-top-color: rgb(36 184 166 / 0.3);
+  background: hsl(var(--primary) / 0.12) !important;
+  border-top-color: hsl(var(--primary) / 0.3);
 }
 
-/* 技能列表名称列 */
 .skill-row-name {
   display: grid;
   gap: 2px;
@@ -998,12 +1092,11 @@ td {
   font-size: 12px;
 }
 
-/* 详情面板 */
 .skill-detail-panel {
-  border: 1px solid rgb(240 230 209 / 0.14);
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
-  background: rgb(29 27 22 / 0.92);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-card);
   padding: 16px;
   position: sticky;
   top: 12px;
@@ -1022,12 +1115,12 @@ td {
   gap: 8px;
   margin-bottom: 14px;
   padding-bottom: 14px;
-  border-bottom: 1px solid rgb(240 230 209 / 0.1);
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .skill-detail-name {
   margin: 0;
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
   font-size: 16px;
   font-weight: 600;
   word-break: break-word;
@@ -1040,7 +1133,7 @@ td {
 }
 
 .skill-detail-grid dt {
-  color: #b7ab91;
+  color: hsl(var(--muted-foreground));
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   text-transform: uppercase;
@@ -1049,7 +1142,7 @@ td {
 
 .skill-detail-grid dd {
   margin: 0;
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
   font-size: 13px;
 }
 
@@ -1062,25 +1155,24 @@ td {
 }
 
 .skill-detail-error-msg {
-  color: #fca5a5 !important;
+  color: hsl(var(--danger)) !important;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
-/* 安全评分 */
 .skill-score {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 20px;
 }
 
 .skill-score-ok {
-  color: #72f0df;
+  color: hsl(var(--good));
 }
 
 .skill-score-bad {
-  color: #fca5a5;
+  color: hsl(var(--danger));
 }
 
 .skill-detail-actions {
@@ -1088,7 +1180,7 @@ td {
   flex-wrap: wrap;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid rgb(240 230 209 / 0.1);
+  border-top: 1px solid hsl(var(--border));
 }
 
 .skill-detail-actions button {
@@ -1097,9 +1189,7 @@ td {
   font-size: 13px;
 }
 
-/* ──────────────────────────────────────────────────────────
-   撤销 toast
-   ────────────────────────────────────────────────────────── */
+/* ── 撤销 toast ──────────────────────────────────────────────────────── */
 
 .undo-toast-stack {
   position: fixed;
@@ -1114,10 +1204,10 @@ td {
 
 .undo-toast {
   position: relative;
-  border: 1px solid rgb(36 184 166 / 0.5);
+  border: 1px solid hsl(var(--primary) / 0.5);
   border-radius: 8px;
-  background: #1d1b16;
-  box-shadow: 0 8px 28px rgb(0 0 0 / 0.48);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-dialog);
   overflow: hidden;
   pointer-events: auto;
   animation: toast-in 0.2s ease;
@@ -1134,7 +1224,7 @@ td {
   left: 0;
   height: 2px;
   width: 100%;
-  background: rgb(36 184 166 / 0.6);
+  background: hsl(var(--primary) / 0.6);
   will-change: width;
 }
 
@@ -1147,7 +1237,7 @@ td {
 
 .undo-toast-msg {
   flex: 1;
-  color: #f0e6d1;
+  color: hsl(var(--foreground));
   font-size: 13px;
   line-height: 1.4;
 }
@@ -1174,6 +1264,45 @@ td {
   place-items: center;
   font-size: 11px;
 }
+
+/* ── 粘贴安装 ──────────────────────────────────────────────────────── */
+
+.paste-install {
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: hsl(var(--card));
+}
+
+.paste-install h3 { margin: 0 0 4px; }
+
+.paste-box {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.paste-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.paste-agent { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.paste-error { color: hsl(var(--danger)); margin: 8px 0; }
+.paste-warn { color: hsl(var(--warn)); margin: 8px 0; font-size: 13px; }
+.paste-source { margin: 8px 0 4px; font-size: 12px; word-break: break-all; }
+.paste-candidates { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+.paste-cand { display: flex; flex-direction: column; gap: 2px; }
+.paste-cand-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.paste-cand.blocked .paste-cand-label { opacity: 0.7; cursor: not-allowed; }
+.paste-blocked-note { font-size: 12px; margin-left: 26px; }
+
+/* ── 响应式 ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 980px) {
   .header,
@@ -1219,36 +1348,3 @@ td {
     padding-inline: 10px;
   }
 }
-
-/* 一键安装(粘贴框)*/
-.paste-install {
-  border: 1px solid var(--border, #2a2f3a);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
-  background: var(--panel-bg, rgba(255, 255, 255, 0.02));
-}
-.paste-install h3 { margin: 0 0 4px; }
-.paste-box {
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  font-family: var(--mono-font, ui-monospace, monospace);
-  font-size: 13px;
-  padding: 8px 10px;
-  margin: 8px 0;
-  border-radius: 8px;
-  border: 1px solid var(--border, #2a2f3a);
-  background: var(--input-bg, rgba(0, 0, 0, 0.2));
-  color: inherit;
-}
-.paste-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
-.paste-agent { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
-.paste-error { color: var(--danger, #ff6b6b); margin: 8px 0; }
-.paste-warn { color: var(--warn, #e0a800); margin: 8px 0; font-size: 13px; }
-.paste-source { margin: 8px 0 4px; font-size: 12px; word-break: break-all; }
-.paste-candidates { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
-.paste-cand { display: flex; flex-direction: column; gap: 2px; }
-.paste-cand-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.paste-cand.blocked .paste-cand-label { opacity: 0.7; cursor: not-allowed; }
-.paste-blocked-note { font-size: 12px; margin-left: 26px; }
