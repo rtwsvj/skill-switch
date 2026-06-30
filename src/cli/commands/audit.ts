@@ -36,6 +36,7 @@ import { promisify } from 'node:util';
 import type { Command } from 'commander';
 import { allFileRules, allRules } from '../../../rules/index.ts';
 import { auditContents, type AuditReport, type AuditTarget } from '../../core/audit/engine.ts';
+import { analyzeCrossSkillCollusion } from '../../core/audit/cross-skill.ts';
 import { auditConfigFiles, flattenConfigFindings, readMcpConfigsRaw, readSettingsConfigsRaw, type ConfigFileResult } from '../../core/audit/config-discovery.ts';
 import {
   loadPolicyFile,
@@ -478,6 +479,11 @@ export interface AuditHomeReport {
   configs?: ConfigFileResult[];
   /** Whether any config finding has blocking severity. */
   configsBlocked?: boolean;
+  /**
+   * 跨-skill 协同攻击 finding(A4):单个 skill 看不出、多个 skill 经共享 dropzone /
+   * 共享外部端点 / 全局配置蔓延联合构成的链。与 skills[].findings 正交,跨文件维度。
+   */
+  crossSkillFindings?: AuditFinding[];
 }
 
 export async function auditHome(home: string, options: { includeConfigs?: boolean } = {}): Promise<AuditHomeReport> {
@@ -505,15 +511,24 @@ export async function auditHome(home: string, options: { includeConfigs?: boolea
 
   skills.sort((a, b) => `${a.relSkillsDir}|${a.dirName}`.localeCompare(`${b.relSkillsDir}|${b.dirName}`));
 
+  // A4:跨-skill 协同攻击分析。把每个 skill 的扫描文件喂给纯函数,
+  // 找"单 skill 不致命、组合成链"的协同攻击(共享 dropzone / 外部端点 / 配置蔓延)。
+  const crossSkillFindings = analyzeCrossSkillCollusion(
+    skills.map((s) => ({
+      skillId: s.name,
+      files: s.fileContents ? [...s.fileContents].map(([file, content]) => ({ file, content })) : [],
+    })),
+  );
+
   if (!options.includeConfigs) {
-    return { home, total: skills.length, skills };
+    return { home, total: skills.length, skills, crossSkillFindings };
   }
 
   const configs = await auditConfigFiles(home);
   const allConfigFindings: AuditFinding[] = flattenConfigFindings(configs);
   const configsBlocked = allConfigFindings.some((f) => BLOCKING_SEVERITIES.has(f.severity));
 
-  return { home, total: skills.length, skills, configs, configsBlocked };
+  return { home, total: skills.length, skills, configs, configsBlocked, crossSkillFindings };
 }
 
 function formatAuditHomeTable(
@@ -552,6 +567,12 @@ function formatAuditHomeTable(
         }
       }
     }
+  }
+
+  if (report.crossSkillFindings && report.crossSkillFindings.length > 0) {
+    parts.push('', '--- cross-skill collusion(跨-skill 协同攻击)---');
+    parts.push(`${report.crossSkillFindings.length} finding(s)`);
+    parts.push(...formatFindingLines(report.crossSkillFindings, baselinedFingerprints));
   }
 
   return parts.join('\n');
@@ -1177,6 +1198,7 @@ export function registerAuditCommand(program: Command): void {
         const allFindings: AuditFinding[] = [
           ...report.skills.flatMap((s) => s.findings),
           ...(report.configs ? flattenConfigFindings(report.configs) : []),
+          ...(report.crossSkillFindings ?? []),
         ];
         const baseline = buildBaselineFile(allFindings);
         try {
@@ -1196,6 +1218,7 @@ export function registerAuditCommand(program: Command): void {
           [
             ...report.skills.flatMap((s) => s.findings),
             ...(report.configs ? flattenConfigFindings(report.configs) : []),
+            ...(report.crossSkillFindings ?? []),
           ],
           minSeverity,
         ));
@@ -1206,6 +1229,7 @@ export function registerAuditCommand(program: Command): void {
           [
             ...report.skills.flatMap((s) => s.findings),
             ...(report.configs ? flattenConfigFindings(report.configs) : []),
+            ...(report.crossSkillFindings ?? []),
           ],
           minSeverity,
         ));
@@ -1216,6 +1240,7 @@ export function registerAuditCommand(program: Command): void {
           [
             ...report.skills.flatMap((s) => s.findings),
             ...(report.configs ? flattenConfigFindings(report.configs) : []),
+            ...(report.crossSkillFindings ?? []),
           ],
           minSeverity,
         ));
@@ -1228,6 +1253,7 @@ export function registerAuditCommand(program: Command): void {
           [
             ...report.skills.flatMap((s) => s.findings),
             ...(report.configs ? flattenConfigFindings(report.configs) : []),
+            ...(report.crossSkillFindings ?? []),
           ],
           minSeverity,
         ));
@@ -1239,6 +1265,7 @@ export function registerAuditCommand(program: Command): void {
           [
             ...report.skills.flatMap((s) => s.findings),
             ...(report.configs ? flattenConfigFindings(report.configs) : []),
+            ...(report.crossSkillFindings ?? []),
           ],
           minSeverity,
         ));
@@ -1337,7 +1364,14 @@ export function registerAuditCommand(program: Command): void {
         );
       });
       const configBlocked = report.configsBlocked === true;
-      const anyBlocked = skillsBlocked || configBlocked;
+      // A4:跨-skill 协同 finding 的阻断判定(沿用 policy.failOn + 抑制 + 基线规则)。
+      const crossSkillBlocked = (report.crossSkillFindings ?? []).some(
+        (f) =>
+          !policy.suppressedRuleIds.has(f.ruleId) &&
+          !baselinedFingerprints.has(fingerprintFinding(f)) &&
+          SEVERITY_RANK[f.severity] <= SEVERITY_RANK[policy.failOn],
+      );
+      const anyBlocked = skillsBlocked || configBlocked || crossSkillBlocked;
       if (overrideExitCode !== undefined) {
         if (anyBlocked) process.exitCode = overrideExitCode;
       } else {

@@ -320,6 +320,7 @@ describe('audit CLI:suppress', () => {
       suppress: [
         { ruleId: 'exfiltration/exfil-endpoint', reason: '已审批' },
         { ruleId: 'credential-theft/token-exfil', reason: '已审批' },
+        { ruleId: 'exfiltration/taint-source-to-sink', reason: '已审批' },
       ],
     }), 'utf8');
 
@@ -367,6 +368,7 @@ describe('audit CLI:SARIF suppression', () => {
       suppress: [
         { ruleId: 'exfiltration/exfil-endpoint', reason: '豁免' },
         { ruleId: 'credential-theft/token-exfil', reason: '豁免' },
+        { ruleId: 'exfiltration/taint-source-to-sink', reason: '豁免' },
       ],
     }), 'utf8');
 

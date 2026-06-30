@@ -5,6 +5,7 @@
 import type { AuditFileRule, AuditRule } from '../src/core/audit/types.ts';
 import { ansiInjectionRules } from './ansi-injection.ts';
 import { base64PayloadRules } from './base64-payload.ts';
+import { binaryMasqueradeRules } from './binary-masquerade.ts';
 import { clickfixRules } from './clickfix.ts';
 import { credentialTheftRules } from './credential-theft.ts';
 import { destructiveRules } from './destructive.ts';
@@ -17,6 +18,7 @@ import { reverseShellRules } from './reverse-shell.ts';
 import { stagedRules } from './staged.ts';
 import { stagedExfilRules } from './staged-exfil.ts';
 import { supplyChainRules } from './supply-chain.ts';
+import { taintRules } from './taint.ts';
 
 export const allRules: AuditRule[] = [
   ...exfiltrationRules,
@@ -36,4 +38,6 @@ export const allFileRules: AuditFileRule[] = [
   ...base64PayloadRules,    // A5:base64 编码 payload 解码检测
   ...invisibleCharRules,    // Trojan-Source bidi/控制字符(CVE-2021-42574)
   ...ansiInjectionRules,    // R2-b:ANSI 转义序列/终端控制序列注入
+  ...binaryMasqueradeRules, // A1:二进制魔数伪装(文本扩展名却以可执行/归档魔数开头)
+  ...taintRules,            // A3:taint 单文件内 source→sink 数据外渗链
 ];

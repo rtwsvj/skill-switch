@@ -504,7 +504,10 @@ describe('--baseline + --policy 组合', () => {
     // 策略抑制另一条 finding
     const policyPath = join(dir, 'policy.json');
     writeFileSync(policyPath, JSON.stringify({
-      suppress: [{ ruleId: 'credential-theft/token-exfil', reason: '测试' }],
+      suppress: [
+        { ruleId: 'credential-theft/token-exfil', reason: '测试' },
+        { ruleId: 'exfiltration/taint-source-to-sink', reason: '测试' },
+      ],
     }), 'utf8');
 
     const { status, stdout } = runCli([

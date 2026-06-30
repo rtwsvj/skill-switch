@@ -258,6 +258,7 @@ describe('e2e: .skill-switch-policy.json / --policy', () => {
         suppress: [
           { ruleId: 'exfiltration/exfil-endpoint', reason: '已审批' },
           { ruleId: 'credential-theft/token-exfil', reason: '已审批' },
+          { ruleId: 'exfiltration/taint-source-to-sink', reason: '已审批' },
         ],
       }),
       'utf8',
