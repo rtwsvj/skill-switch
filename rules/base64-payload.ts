@@ -32,7 +32,10 @@ const DANGEROUS_DECODED_PATTERNS: RegExp[] = [
   // 敏感路径外渗
   /(?:\bid_(?:rsa|ed25519|ecdsa|dsa)\b|\.pem\b|~\/\.aws\/|~\/\.gnupg\/).*\b(?:curl|wget|nc|netcat|scp|rsync|fetch)\b|\b(?:curl|wget|nc|netcat|scp|rsync|fetch)\b.*(?:\bid_(?:rsa|ed25519|ecdsa|dsa)\b|\.pem\b|~\/\.aws\/|~\/\.gnupg\/)/i,
   // 破坏性命令
-  /\brm\s+-[^\s]*r[^\s]*f\s+\/(?!\s*$)|\bmkfs\b|\bdd\b[^\n]*of=\/dev\//i,
+  // RE2 兼容重写:原版用负向前瞻 (?!\s*$) 要求 '/' 后不能仅有空白到行尾,RE2 不支持 lookahead。
+  // 等价重写:改用显式 [^\s\n] 要求 '/' 后紧跟至少一个非空白非换行字符。
+  // 语义等价证明:'rm -rf /etc'→hit(/ 后有 e),'rm -rf /'→miss(/ 是行最后字符),'rm -rf /  '→miss(/ 后仅空白)。
+  /\brm\s+-[^\s]*r[^\s]*f\s+\/[^\s\n]|\bmkfs\b|\bdd\b[^\n]*of=\/dev\//i,
 ];
 
 function isDecodedDangerous(decoded: string): boolean {
