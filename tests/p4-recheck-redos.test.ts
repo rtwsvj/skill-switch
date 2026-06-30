@@ -180,9 +180,15 @@ describe('P4: recheck 静态 ReDoS 守卫', { timeout: 120_000 }, () => {
     expect(skippedIds.length).toBeLessThan(20);
   });
 
-  it('白名单中所有条目仍被 recheck 判为 vulnerable(确保白名单不会静默失效)', async () => {
+  it('白名单中所有条目未被 recheck 明确判为 safe(确保白名单不会静默失效)', async () => {
     // 若某条白名单规则的正则被修复为 safe,recheck 返回 safe 而白名单仍有它——
     // 此测试会失败并提示可以从白名单移除该条目。
+    //
+    // 只有 recheck 明确判 "safe" 才算 stale:
+    //   recheck 的 status 可能是 safe / vulnerable / unknown / timeout / error。
+    //   unknown / timeout / error 表示在分析预算内无法判定(在较慢的 CI 节点上很常见,
+    //   同一条正则本机判 vulnerable、CI 判 unknown),并不代表正则已变安全——
+    //   保留白名单是保守且正确的,因此不算 stale。这样断言跨环境确定、不 flaky。
     //
     // 跳过 FUZZ_NONDETERMINISTIC 中的规则:这些规则的 fuzz 结果是随机的,
     // 有时返回 safe,有时返回 vulnerable——不能用于确定性验证。
@@ -197,9 +203,9 @@ describe('P4: recheck 静态 ReDoS 守卫', { timeout: 120_000 }, () => {
       const { source, flags } = rule.pattern as RegExp;
       const result = await check(source, flags);
 
-      if (result.status !== 'vulnerable') {
+      if (result.status === 'safe') {
         staleEntries.push(
-          `  • ${rule.id}: recheck 现在返回 "${result.status}"(${complexitySummary(result)}),可从白名单移除`,
+          `  • ${rule.id}: recheck 现在明确判为 "safe"(${complexitySummary(result)}),可从白名单移除`,
         );
       }
     }
