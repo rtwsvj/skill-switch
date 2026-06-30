@@ -31,7 +31,14 @@ export const promptInjectionRules: AuditRule[] = [
     // ZWNJ U+200C / ZWJ U+200D 另有合法用途:emoji ZWJ 序列(家庭/职业/彩虹旗 emoji)与波斯语/印度系文字靠它们连接,
     // 这些场景相邻码点为非 ASCII(emoji 为 astral 代理对,亦非 [A-Za-z]),不应误报;
     // 仅当 ZWNJ/ZWJ 紧贴 ASCII 字母(把关键词如 IGNORE / system 拆开绕过扫描)才报——真实 evasion 签名。
-    pattern: /[\u200B\u2060\uFEFF]|(?<=[A-Za-z])[\u200C\u200D]|[\u200C\u200D](?=[A-Za-z])/,
+    //
+    // RE2 兼容重写:原版用 lookbehind (?<=[A-Za-z]) 和 lookahead (?=[A-Za-z]),RE2 不支持。
+    // 等价重写:把相邻的 ASCII 字母纳入匹配主体——
+    //   [A-Za-z][\u200C\u200D]  — ASCII 字母后接 ZWNJ/ZWJ(等价于原 lookbehind 分支)
+    //   [\u200C\u200D][A-Za-z]  — ZWNJ/ZWJ 后接 ASCII 字母(等价于原 lookahead 分支)
+    // 语义等价:test() 只看"有无匹配",相邻字母被消费不影响命中/不命中的二值结果。
+    // 边界验证:A+ZWNJ→hit、ZWJ+B→hit、emoji ZWJ→miss(emoji 非[A-Za-z])、阿拉伯 ZWNJ→miss。
+    pattern: /[\u200B\u2060\uFEFF]|[A-Za-z][\u200C\u200D]|[\u200C\u200D][A-Za-z]/,
     message: '出现零宽/不可见 Unicode 字符(常用于隐藏注入指令或拆词绕过扫描)',
     source: SECTION,
   },
