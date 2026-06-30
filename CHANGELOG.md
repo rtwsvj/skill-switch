@@ -5,9 +5,11 @@
 
 ## [Unreleased]
 
-> 本轮:11 路并行的「开源对标」实现(见 [docs/oss-comparison.md](docs/oss-comparison.md))。第二波再上 5 项获批新依赖(下方「质量&GUI 增强」)。仍留:re2 线性正则引擎、bun compile(待批)。
+> 本轮:11 路并行的「开源对标」实现(见 [docs/oss-comparison.md](docs/oss-comparison.md))。第二波再上 5 项获批新依赖(下方「质量&GUI 增强」)。第三波:RE2 线性正则引擎已落地、GUI shadcn 重设计基建已落地;bun compile 仍待整合。
 
 ### 新增 Added
+- **审计引擎 → RE2 线性正则(第三波)**:`compileMatcher` 用 RE2(线性时间、无回溯)匹配审计规则,从根上消除 ReDoS;`prompt-injection/zero-width-chars` 去 lookbehind/lookahead、`base64-payload` rm-rf 去 lookahead(均附 `test()` 语义等价证明,findings 不变);4 条 `{0,2048}` 超量词规则回退原生 RegExp + 行截断保护;编译结果 WeakMap 缓存。corpus/评分/verdict 行为零改变。
+- **GUI 重设计基建(第三波)**:引入 `shadcn/ui + Tailwind` 设计系统(Button/Card/Badge/Tabs/Dialog/Input/Select/Tooltip/Skeleton/Table)+ 明暗主题(跟随系统、localStorage 持久化、Header 一键切换)+ Overview 卡片化(指标卡 + lucide 图标 + 骨架占位);CSS 变量走 shadcn 标准 token + 语义色 `--good/--warn/--danger`;为后续各屏迁移提供设计系统契约。四语言 i18n 100%(新增主题切换/对话框关闭文案)。
 - **质量门禁(第二波)**:`recheck` ReDoS 静态守卫——遍历全部审计规则正则,写规则时即拦下会回溯灾难的 evil 正则(测试门禁,无需 eslint);`stryker` 变异测试配置(`pnpm mutate`,收敛到 audit engine/score,衡量测试有效性);`i18next-cli` GUI 漏译检测进 CI(`pnpm --dir gui i18n:check`,漏译即失败,当前四语言 100%)。
 - **GUI 数据层 → TanStack Query(第二波)**:App 手写的 sections 加载状态机替换为 `@tanstack/react-query`(`staleTime` 5min / `retry` 1 / 不随窗口聚焦重取,贴合 Tauri 本地 IPC);写操作后精细 `invalidateQueries`(toggle/remove/install/sync 后不重跑 stats),取代全量刷新;DashboardShell 对外接口不变。
 - **GUI 自动更新(第二波)**:接入 `tauri-plugin-updater` + `tauri-plugin-process`,`UpdateChecker` 横幅组件(有更新提示版本+一键更新+重启,非 Tauri 运行时优雅 no-op),四语言 `update.*` 文案;更新源指向 GitHub Releases 的 `latest.json`,发布前需 `tauri signer generate` 填真实 pubkey(已占位+注释)。

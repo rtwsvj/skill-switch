@@ -7,7 +7,7 @@
 //   量词超限)自动回退到原生 RegExp + 行长截断兜底。
 //   行长截断(MAX_AUDIT_MATCH_LINE_LENGTH=2048)作为 defense-in-depth 保留。
 //   编译结果通过 WeakMap 缓存——同一 RegExp 对象只编译一次。
-import { createRequire } from 'module';
+import { createRequire } from 'node:module';
 import { scoreFindings, verdictForScore, type Verdict } from './score.ts';
 import type { AuditFileRule, AuditFileTarget, AuditFinding, AuditRule } from './types.ts';
 import { CONFUSABLES_MAP } from './confusables-data.ts';

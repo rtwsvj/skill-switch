@@ -219,6 +219,7 @@ function LanguageSwitcher() {
 // 明暗切换按钮 — 三态循环:system → light → dark → system
 function ThemeToggle() {
   const { resolvedTheme, setTheme, theme } = useTheme();
+  const { t } = useTranslation();
 
   // SSR 环境(测试用 renderToString)没有 useTheme,直接隐藏即可
   const handleToggle = () => {
@@ -226,13 +227,15 @@ function ThemeToggle() {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
   };
 
+  const toggleLabel = resolvedTheme === 'dark' ? t('header.theme.toLight') : t('header.theme.toDark');
+
   return (
     <button
       type="button"
       className="ghost-button"
       onClick={handleToggle}
-      aria-label={resolvedTheme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
-      title={resolvedTheme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
+      aria-label={toggleLabel}
+      title={toggleLabel}
       style={{ minHeight: 28, padding: '4px 6px' }}
     >
       {resolvedTheme === 'dark'

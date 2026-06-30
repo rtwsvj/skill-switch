@@ -1,7 +1,7 @@
 // shadcn/ui Badge — 小标签/状态标记。
 // 用法: <Badge variant="default|secondary|outline|destructive|good|warn|danger">文字</Badge>
 import { cva, type VariantProps } from 'class-variance-authority';
-import { type HTMLAttributes } from 'react';
+import type { HTMLAttributes } from 'react';
 import { cn } from '../../lib/utils';
 
 const badgeVariants = cva(

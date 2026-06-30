@@ -30,7 +30,6 @@ CardHeader.displayName = 'CardHeader';
 
 const CardTitle = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    // biome-ignore lint/a11y/useHeadingContent: 由使用方传入 children
     <h3
       ref={ref}
       className={cn('font-semibold leading-none tracking-tight', className)}
