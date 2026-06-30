@@ -91,6 +91,7 @@ skill-switch --help
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
 | `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |
 | `apm-import` | 与 **microsoft/apm** 生态互操作(只读):解析 `apm.yml`/`apm.lock.yaml`,把其中 skill 类原语映射到 skill-switch 治理模型。默认 dry-run 预览,`--apply` 才写入声明;明确跳过 prompts/agents/hooks 等非 skill 原语。绝不执行其中命令、绝不联网。 | `skill-switch apm-import ./apm.yml` |
+| `registry` | 从官方 **MCP Registry** 与 GitHub `marketplace.json` 市场**只读搜索**并**经安全审计后安装** skill / MCP server。`registry search <query>`、`registry install <id>`。纯 opt-in(仅运行该命令才联网)、仅 HTTPS、零遥测、零新依赖;安装复用既有「解析→克隆→审计→拦截」管线,危险源默认拦截需 `--force` 留痕,绝不执行远端内容。 | `skill-switch registry search filesystem` |
 | `uninstall` | 一键卸载本软件(见下节)。 | `skill-switch uninstall` |
 | `watch` | 检出磁盘上绕过治理层的 skill(不在声明中但在磁盘上);`--once` 单次扫盘,默认持续监视。 | `skill-switch watch --once` |
 | `completion` | 输出 bash / zsh / fish shell 自动补全脚本。`eval "$(skill-switch completion bash)"` 让当前 shell 立即支持 Tab 补全;或指定 `zsh`/`fish`。 | `eval "$(skill-switch completion bash)"` |

@@ -28,6 +28,7 @@ import { registerUninstallCommand } from './commands/uninstall.ts';
 import { registerWatchCommand } from './commands/watch.ts';
 import { registerCompletionCommand } from './commands/completion.ts';
 import { registerApmImportCommand } from './commands/apm-import.ts';
+import { registerRegistryCommand } from './commands/registry.ts';
 
 // 同步读取本包版本号供 commander `.version()` 用(commander 需同步字符串)。
 // SEA 打包后 package.json 可能不可达——失败回退 'unknown',绝不抛。
@@ -128,6 +129,8 @@ export function buildProgram(): Command {
   registerMcpCommand(program);
   program.commands.at(-1)?.helpGroup('集成');
   registerApmImportCommand(program);
+  program.commands.at(-1)?.helpGroup('集成');
+  registerRegistryCommand(program);
   program.commands.at(-1)?.helpGroup('集成');
   registerCompletionCommand(program);
   program.commands.at(-1)?.helpGroup('集成');
