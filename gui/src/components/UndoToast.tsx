@@ -1,5 +1,8 @@
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { X } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { Button } from './ui/button';
 
 export interface UndoToastItem {
   id: string;
@@ -45,6 +48,9 @@ export function useUndoToast() {
 
 /**
  * 单条 toast。单独抽出是为了能用 useEffect 挂进度条动画和键盘导航。
+ * W4/G2:迁移到 shadcn 设计系统(Button + 设计 token),明暗自适应,风格与 Overview 一致。
+ * a11y 不动:role="status"、aria-atomic、进度条 aria-hidden、关闭按钮 aria-label 全部保留;
+ * 结构类名(undo-toast-*)也保留,供无障碍测试断言与既有 CSS 布局挂载。
  * 注:在没有 @types/react 时,往自定义组件传 key 会出现 TS2322 误报。
  * 规避方式:通过 createElement 绕开 JSX key 类型检查 — key 在 React 运行时仍正常工作。
  */
@@ -72,35 +78,50 @@ export function ToastRow({
 
   return (
     <div
-      className="undo-toast"
+      className={cn(
+        'undo-toast',
+        'pointer-events-auto relative overflow-hidden rounded-lg',
+        'border border-primary/50 bg-card text-card-foreground shadow-dialog',
+        'animate-fade-in',
+      )}
       // role="status" 用于非紧急通知;屏幕阅读器会在合适时机朗读
       role="status"
       // aria-atomic=false:允许阅读器只读更新内容,不打断整段
       aria-atomic="false"
     >
-      <div className="undo-toast-progress" ref={progressRef} aria-hidden="true" />
-      <div className="undo-toast-body">
+      <div
+        className="undo-toast-progress absolute left-0 top-0 h-0.5 w-full bg-primary/60 will-change-[width]"
+        ref={progressRef}
+        aria-hidden="true"
+      />
+      <div className="undo-toast-body flex items-center gap-2.5 px-3.5 py-3">
         {/* 消息与操作按钮是兄弟节点,辅助技术可依次访问 */}
-        <span className="undo-toast-msg">{toast.message}</span>
-        <div className="undo-toast-actions">
-          <button
+        <span className="undo-toast-msg flex-1 text-[13px] leading-snug text-foreground">
+          {toast.message}
+        </span>
+        <div className="undo-toast-actions flex shrink-0 items-center gap-1.5">
+          <Button
             type="button"
-            className="undo-toast-undo primary-action"
+            variant="default"
+            size="sm"
+            className="undo-toast-undo h-7 px-2.5 text-xs"
             onClick={() => {
               toast.onUndo();
               onDismiss(toast.id);
             }}
           >
             {t('skills.undo.action')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="undo-toast-close ghost-button"
+            variant="ghost"
+            size="icon"
+            className="undo-toast-close h-7 w-7 text-muted-foreground"
             aria-label={t('skills.undo.close')}
             onClick={() => onDismiss(toast.id)}
           >
-            ✕
-          </button>
+            <X size={14} aria-hidden="true" />
+          </Button>
         </div>
       </div>
     </div>
@@ -118,7 +139,12 @@ export function UndoToastStack({
   // toast 区域始终挂载在 DOM 里(空时隐藏),保持 aria-live 区域稳定,避免动态插入导致朗读失效
   return (
     <section
-      className={toasts.length === 0 ? 'undo-toast-stack undo-toast-stack-empty' : 'undo-toast-stack'}
+      className={cn(
+        'undo-toast-stack',
+        'pointer-events-none fixed bottom-6 right-5 z-50 grid gap-2',
+        'w-[min(360px,calc(100vw-2rem))]',
+        toasts.length === 0 && 'undo-toast-stack-empty',
+      )}
       aria-label={t('skills.undo.region')}
       // aria-live=polite:插入新消息时屏幕阅读器在空闲时机朗读,不打断当前操作
       aria-live="polite"
