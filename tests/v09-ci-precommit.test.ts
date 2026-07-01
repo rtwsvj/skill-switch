@@ -265,7 +265,7 @@ describe('普通 ci(不传 --pre-commit)行为保持不变', () => {
     const dir = makeTmpDir();
     runBin(['ci'], dir);
     const content = readFileSync(join(dir, '.github', 'workflows', 'skill-switch.yml'), 'utf8');
-    expect(content).toContain('rtwsvj/skill-switch@v0.8.0');
+    expect(content).toContain('rtwsvj/skill-switch@v0.9.0');
   });
 
   it('workflow 文件含 security-events: write(sarif 默认格式)', () => {

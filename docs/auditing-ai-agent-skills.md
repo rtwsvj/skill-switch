@@ -63,7 +63,7 @@ permissions:
   security-events: write     # to upload SARIF to code-scanning
 steps:
   - uses: actions/checkout@v4
-  - uses: rtwsvj/skill-switch@v0.8.0
+  - uses: rtwsvj/skill-switch@v0.9.0
     with:
       args: --configs
 ```

@@ -108,7 +108,7 @@ scoop uninstall skill-switch
 
 ```bash
 # 1. 下载 DMG
-curl -L -O https://github.com/rtwsvj/skill-switch/releases/latest/download/skill-switch_0.8.0_aarch64.dmg
+curl -L -O https://github.com/rtwsvj/skill-switch/releases/latest/download/skill-switch_0.9.0_aarch64.dmg
 
 # 2. 双击挂载,把 skill-switch.app 拖进「应用程序」
 # 3. 链 CLI 到 PATH

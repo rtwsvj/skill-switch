@@ -5,6 +5,10 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-01
+
+> 自 v0.6.0(npm 上最后一个已发布版本)以来累积的所有内容一次发布:含原 0.7 / 0.8 批次 + 第三波(RE2/shadcn/bun)+ 第四波「集众家之所长」+ SkillsMP 源 + GUI 各屏 shadcn 迁移。
+>
 > 本轮:11 路并行的「开源对标」实现(见 [docs/oss-comparison.md](docs/oss-comparison.md))。第二波再上 5 项获批新依赖(下方「质量&GUI 增强」)。第三波全部落地:RE2 线性正则引擎、GUI shadcn 重设计基建、bun compile 并列打包路径。第四波「集众家之所长」(见 [docs/best-of-breed-plan.md](docs/best-of-breed-plan.md)):安全深度(二进制魔数伪装 / taint 数据流 / 跨-skill 协同 / OWASP Agentic+ATLAS 映射)+ apm.yml 互操作 + GUI Markdown 渲染 + registry 注册表只读接入(见 [docs/registry-integration-plan.md](docs/registry-integration-plan.md));全部自研重写、零复制竞品代码。
 
 ### 新增 Added

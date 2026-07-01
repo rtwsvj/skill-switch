@@ -14,7 +14,7 @@
 class SkillSwitch < Formula
   desc "AI agent skills 与 MCP/agent 配置的安全审计与治理工具"
   homepage "https://github.com/rtwsvj/skill-switch"
-  version "0.8.0"
+  version "0.9.0"
 
   # macOS Apple Silicon
   on_arm do
