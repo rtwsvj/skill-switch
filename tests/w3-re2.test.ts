@@ -224,7 +224,9 @@ describe('W3-RE2: base64-payload rm-rf lookahead 重写后语义等价', () => {
 
 describe('W3-RE2: 病态输入下 RE2 运行线性极快', () => {
   // 复用 audit-redos.test.ts / r23a-redos-guard.test.ts 中的病态串
-  const PATHOLOGICAL_BUDGET_MS = 50; // RE2 线性:50ms 远小于 fallback 的 1000ms 预算
+  // RE2 线性实测 1–70ms;放宽到 500ms 吸收满负载并发下的 GC/JIT 墙钟抖动(曾偶发 67.9ms 越 50ms 预算)。
+  // 真正的灾难回溯是数百 ms~秒级,仍会被 500ms 判失败;线性运行仍留 ~7x 余量。
+  const PATHOLOGICAL_BUDGET_MS = 500;
 
   const pathologicalInputs = [
     { label: 'all-a', input: 'a'.repeat(MAX_AUDIT_MATCH_LINE_LENGTH) },

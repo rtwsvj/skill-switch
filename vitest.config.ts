@@ -6,6 +6,11 @@ export default defineConfig({
     // 被 CI 静默跳过。统一覆盖,避免「写了测试却没跑」。
     include: ['tests/**/*.test.ts', 'gui/tests/**/*.test.{ts,tsx}'],
     setupFiles: ['tests/setup.ts'],
+    // 全局超时 30s:大量 CLI 集成测试每例 spawn 一个 tsx 冷启动子进程,满负载并发跑全量时
+    // 冷启动可达数秒,默认 5s 会偶发误判超时(每次挂的是随机的几个,隔离重跑都过 = flaky)。
+    // 30s 给冷启动足够余量,又仍能抓住真正挂死的测试。个别文件可再自行 vi.setConfig 覆盖。
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     // 覆盖率配置:需要 @vitest/coverage-v8 devDependency。
     // 运行: pnpm test:coverage
     coverage: {
