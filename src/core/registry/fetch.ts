@@ -3,7 +3,10 @@
 // 安全姿态(不可协商,见 docs/registry-integration-plan.md §0):
 //   1. 纯 opt-in:本模块只被 `registry` 命令显式调用时才执行;import 本文件不触发任何网络。
 //   2. 仅 HTTPS:http:// 一律拒绝(防降级 / 明文窃听)。
-//   3. 零遥测:不带 user-agent 指纹、不带凭据、不带本机信息;只发一个最小的 `accept: application/json`。
+//   3. 零遥测:不带 user-agent 指纹、不带本机信息;只发一个最小的 `accept: application/json`。
+//      默认不带任何凭据 / authorization。唯一例外:调用方**显式**传 `bearerToken`(如 SkillsMP 等
+//      需鉴权源,token 由用户经环境变量自带),此时附加 `authorization: Bearer <token>`——token 只进
+//      请求头、绝不进 URL 或任何错误信息(错误只含 rawUrl),且只发往调用方指定的那个 HTTPS 目标。
 //   4. 限大小:响应体超上限即中止(防超大响应 DoS / OOM)。
 //   5. 限时:请求超时即 abort。
 //   6. 校验 content-type:必须含 json,否则拒绝(防把 HTML 错误页当数据解析)。
@@ -23,6 +26,12 @@ export interface FetchJsonOptions {
   timeoutMs?: number;
   /** 响应体大小上限(字节)。 */
   maxBytes?: number;
+  /**
+   * 可选 Bearer token(仅需鉴权的源用,如 SkillsMP;由用户经环境变量自带)。
+   * 设置后附加 `authorization: Bearer <token>`——只进请求头、绝不进 URL 或错误信息,
+   * 且只发往本次请求的 HTTPS 目标。缺省(绝大多数源)不带任何 authorization。
+   */
+  bearerToken?: string;
 }
 
 /** 取数层错误:带稳定 code,便于上层归类 / 测试断言。 */
@@ -91,12 +100,15 @@ export async function fetchJson<T = unknown>(
 
   let res: Response;
   try {
+    // 零遥测:只发一个最小的 accept 头;不带 user-agent / cookie / 任何本机信息。
+    // 仅当调用方显式传 bearerToken 时附加 authorization(见 FetchJsonOptions.bearerToken)。
+    const headers: Record<string, string> = { accept: 'application/json' };
+    if (opts.bearerToken) headers.authorization = `Bearer ${opts.bearerToken}`;
     res = await fetchImpl(url.toString(), {
       signal: ctrl.signal,
-      // 零遥测:只发一个最小的 accept 头;不带 user-agent / cookie / authorization / 任何本机信息。
-      headers: { accept: 'application/json' },
+      headers,
       redirect: 'follow',
-      // 永不带凭据(即便目标同源也不附 cookie)。
+      // 永不带 cookie 凭据(即便目标同源也不附 cookie);authorization 仅在上面显式附加。
       credentials: 'omit',
     });
   } catch (e) {

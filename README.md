@@ -19,7 +19,7 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 在审计之上,它还是个**跨 agent 的 skill 治理层**:盘点 / 开关 / 安装 / 同步 / 回滚——所有写操作**先自动备份、可一键回滚**,危险 skill 装前即被拦。**命令行(CLI)** 与**桌面 App(GUI)** 两种用法,能力对等。
 
-> 状态:**v0.8.0**。CLI 已发布 npm(`npx @rtwsvj/skill-switch`);macOS 桌面 App 已 Developer ID 签名 + Apple 公证,双击即用。
+> 状态:**v0.9.0**(发布准备就绪)。发布后:CLI 走 npm(`npx @rtwsvj/skill-switch`),macOS 桌面 App 提供 Developer ID 签名 + Apple 公证的 DMG。(npm 当前最新为 0.6.0;0.9.0 的 tag + 发布由维护者手动完成。)
 
 ![demo](assets/demo.svg)
 
@@ -33,7 +33,7 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 ## 安装(macOS,Apple Silicon)
 
-1. 双击 `skill-switch_0.8.0_aarch64.dmg`,把 **skill-switch** 拖进「应用程序」。
+1. 双击 `skill-switch_0.9.0_aarch64.dmg`,把 **skill-switch** 拖进「应用程序」。
 2. 首次打开:双击图标 → 出现「下载自互联网,确认打开吗」点**打开**(已签名公证,不会被 Gatekeeper 拦)。
 3. 默认中文界面,右上角可切语言(见下)。
 
@@ -91,7 +91,7 @@ skill-switch --help
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
 | `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |
 | `apm-import` | 与 **microsoft/apm** 生态互操作(只读):解析 `apm.yml`/`apm.lock.yaml`,把其中 skill 类原语映射到 skill-switch 治理模型。默认 dry-run 预览,`--apply` 才写入声明;明确跳过 prompts/agents/hooks 等非 skill 原语。绝不执行其中命令、绝不联网。 | `skill-switch apm-import ./apm.yml` |
-| `registry` | 从官方 **MCP Registry** 与 GitHub `marketplace.json` 市场**只读搜索**并**经安全审计后安装** skill / MCP server。`registry search <query>`、`registry install <id>`。纯 opt-in(仅运行该命令才联网)、仅 HTTPS、零遥测、零新依赖;安装复用既有「解析→克隆→审计→拦截」管线,危险源默认拦截需 `--force` 留痕,绝不执行远端内容。 | `skill-switch registry search filesystem` |
+| `registry` | 从官方 **MCP Registry**、GitHub `marketplace.json` 市场、**SkillsMP**(可选,需自带 `SKILLSMP_TOKEN`)**只读搜索**并**经安全审计后安装** skill / MCP server。`registry search <query>`、`registry install <id>`。纯 opt-in(仅运行该命令才联网)、仅 HTTPS、零遥测、零新依赖;安装复用既有「解析→克隆→审计→拦截」管线,危险源默认拦截需 `--force` 留痕,绝不执行远端内容。SkillsMP 的 token 只发往 skillsmp.com、绝不存储。 | `skill-switch registry search filesystem` |
 | `uninstall` | 一键卸载本软件(见下节)。 | `skill-switch uninstall` |
 | `watch` | 检出磁盘上绕过治理层的 skill(不在声明中但在磁盘上);`--once` 单次扫盘,默认持续监视。 | `skill-switch watch --once` |
 | `completion` | 输出 bash / zsh / fish shell 自动补全脚本。`eval "$(skill-switch completion bash)"` 让当前 shell 立即支持 Tab 补全;或指定 `zsh`/`fish`。 | `eval "$(skill-switch completion bash)"` |
@@ -152,7 +152,7 @@ pnpm --dir gui tauri dev                 # 本地起 GUI
 pnpm release                             # 一键产出 .app / .dmg(不签名)
 ```
 
-`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.8.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
+`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.9.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
 
 签名 + 公证(需 Developer ID,见 [docs/release/signing.md](docs/release/signing.md)):
 

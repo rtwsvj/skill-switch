@@ -4,7 +4,7 @@
 // 用法:
 //   skill-switch ci                        # 写 .github/workflows/skill-switch.yml(sarif 格式)
 //   skill-switch ci --format github        # github 注解格式(无需 security-events: write)
-//   skill-switch ci --pin v0.8.0           # 固定 action 版本
+//   skill-switch ci --pin v0.9.0           # 固定 action 版本
 //   skill-switch ci --out path/to.yml      # 指定输出路径
 //   skill-switch ci --force                # 已有文件时覆盖
 //   skill-switch ci --baseline             # 同时运行 audit 写入基线文件
@@ -33,7 +33,7 @@ const DEFAULT_WORKFLOW_PATH = join('.github', 'workflows', 'skill-switch.yml');
 const DEFAULT_PRECOMMIT_PATH = '.pre-commit-config.yaml';
 
 /** 默认 action 版本引脚 */
-const DEFAULT_PIN = 'v0.8.0';
+const DEFAULT_PIN = 'v0.9.0';
 
 /** 默认基线文件路径(相对 cwd) */
 const DEFAULT_BASELINE_PATH = '.skill-switch-baseline.json';

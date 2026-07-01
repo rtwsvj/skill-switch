@@ -8,9 +8,10 @@
 import { type FetchJsonOptions, RegistryFetchError } from './fetch.ts';
 import { searchMarketplace } from './marketplace.ts';
 import { searchMcpServers } from './mcp-registry.ts';
+import { resolveSkillsmpToken, searchSkillsMp } from './skillsmp.ts';
 
 /** 归一化的注册表条目来源。 */
-export type RegistrySource = 'mcp' | 'marketplace';
+export type RegistrySource = 'mcp' | 'marketplace' | 'skillsmp';
 
 /** 条目落地安装时,来源指向的是 git 仓库还是 npm 包。 */
 export type RegistrySourceType = 'git' | 'npm' | 'unknown';
@@ -43,10 +44,15 @@ export interface RegistryEntry {
 }
 
 export interface SearchOptions extends FetchJsonOptions {
-  /** 只查某一源;缺省两源都查(marketplace 需配 marketplaceRepo)。 */
+  /** 只查某一源;缺省查所有可用源(marketplace 需配 marketplaceRepo;skillsmp 需 token)。 */
   source?: RegistrySource;
   /** marketplace 源要拉的 GitHub 仓库,形如 owner/repo。 */
   marketplaceRepo?: string;
+  /**
+   * SkillsMP token(可选;缺省读环境变量 SKILLSMP_TOKEN)。skill-switch 绝不存储此值;
+   * 仅经 fetch.ts bearerToken 只发往 skillsmp.com。未配置则 skillsmp 源被跳过。
+   */
+  skillsmpToken?: string;
 }
 
 /** 单源搜索的结果(成功条目 + 跳过/出错说明)。 */
@@ -84,6 +90,7 @@ export async function searchRegistries(
 ): Promise<SearchResult> {
   const wantMcp = !opts.source || opts.source === 'mcp';
   const wantMarketplace = !opts.source || opts.source === 'marketplace';
+  const wantSkillsmp = !opts.source || opts.source === 'skillsmp';
   const perSource: SourceResult[] = [];
 
   if (wantMcp) {
@@ -112,7 +119,26 @@ export async function searchRegistries(
     }
   }
 
-  // 合并 + 去重(保序:先 mcp 后 marketplace)。
+  if (wantSkillsmp) {
+    const token = resolveSkillsmpToken(opts.skillsmpToken);
+    if (!token) {
+      perSource.push({
+        source: 'skillsmp',
+        entries: [],
+        skipped:
+          'SkillsMP 需鉴权:设置环境变量 SKILLSMP_TOKEN(在 skillsmp.com 申请)后才会查此源。token 只发往 skillsmp.com,skill-switch 不存储。',
+      });
+    } else {
+      try {
+        const entries = await searchSkillsMp(query, token, opts);
+        perSource.push({ source: 'skillsmp', entries });
+      } catch (e) {
+        perSource.push({ source: 'skillsmp', entries: [], error: describeError(e) });
+      }
+    }
+  }
+
+  // 合并 + 去重(保序:先 mcp,后 marketplace,后 skillsmp)。
   const seen = new Set<string>();
   const entries: RegistryEntry[] = [];
   for (const sr of perSource) {
