@@ -22,8 +22,17 @@
 |---|---|---|---|
 | **官方 MCP Registry** | `https://registry.modelcontextprotocol.io` REST(`GET /v0/servers?search=…`),v0 已冻结、读免鉴权 | 稳定、文档化 | ✅ 做 |
 | **`marketplace.json` 清单** | Claude Code 市场标准:GitHub 托管的 `.claude-plugin/marketplace.json`(如 `anthropics/skills`),raw.githubusercontent 拉取 JSON | 标准、稳定 | ✅ 做 |
-| SkillsMP | 自称有 REST API 但无公开文档 | 不确定 | ⏸ 待其 API 文档化后再加 |
+| **SkillsMP** | REST `GET /api/v1/skills/search?q=…`([文档](https://skillsmp.com/docs/api)),**需 Bearer token 鉴权** | 有文档,但需鉴权 | ✅ 做(见 §1.1) |
 | Clawdhub / claudemarketplaces | 无公开 API(目录站) | 无 API | ❌ 不抓 HTML |
+
+### 1.1 SkillsMP —— opt-in + 用户自带 token 的例外
+
+SkillsMP 是唯一**需鉴权**的源,与"免鉴权"原则冲突,故按最严格方式接入,守住零凭据/零遥测底线:
+
+- **严格 opt-in**:仅当用户设了环境变量 `SKILLSMP_TOKEN`(在 skillsmp.com 自行申请)**且**该源被查询时才启用;未设 token 则该源被**跳过**并提示,不影响其它源、不联网。
+- **token 全程用户自带**:skill-switch **绝不内置、绝不存储、绝不写日志**;token 只经 `fetch.ts` 的 `bearerToken` 附加进 `Authorization` 请求头,**只进 header 不进 URL**(故不会出现在任何错误信息里),**只发往 `skillsmp.com`**(HTTPS)。
+- **不进命令行**:token 只从环境变量读,不做成 CLI 参数(避免进 shell history)。
+- 其余(HTTPS-only、限时限大小、装前必审、绝不执行)与另两源一致。
 
 ## 2. 命令 UX(新建独立 `registry` 命令,不动 add/packs 核心)
 

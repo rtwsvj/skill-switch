@@ -20,7 +20,7 @@ import {
 } from '../../core/registry/index.ts';
 
 interface RegistryCommonOptions {
-  source?: string; // mcp | marketplace
+  source?: string; // mcp | marketplace | skillsmp
   marketplace?: string; // owner/repo
   json?: boolean;
   home?: string;
@@ -43,12 +43,14 @@ const VERDICT_MARK: Record<SkillCandidate['verdict'], string> = {
 /** 校验 --source 值;非法即报错。 */
 function parseSourceFlag(v: string | undefined): RegistrySource | undefined {
   if (v === undefined) return undefined;
-  if (v === 'mcp' || v === 'marketplace') return v;
-  throw new Error(`--source 只能是 mcp 或 marketplace(收到:${v})`);
+  if (v === 'mcp' || v === 'marketplace' || v === 'skillsmp') return v;
+  throw new Error(`--source 只能是 mcp | marketplace | skillsmp(收到:${v})`);
 }
 
 function sourceLabel(s: RegistrySource): string {
-  return s === 'mcp' ? 'MCP Registry' : 'marketplace.json';
+  if (s === 'mcp') return 'MCP Registry';
+  if (s === 'skillsmp') return 'SkillsMP';
+  return 'marketplace.json';
 }
 
 function printSearchHuman(query: string, entries: RegistryEntry[], notes: string[]): void {
@@ -78,7 +80,7 @@ export function registerRegistryCommand(program: Command): void {
     .command('search')
     .description('只读搜索注册表,列出匹配条目(不写盘)')
     .argument('<query>', '搜索关键词')
-    .option('--source <source>', '只查某一源:mcp | marketplace(缺省两源)')
+    .option('--source <source>', '只查某一源:mcp | marketplace | skillsmp(缺省查所有可用源)')
     .option('--marketplace <owner/repo>', '要查的 marketplace 仓库(如 anthropics/skills)')
     .option('--json', '机器可读 JSON 输出')
     .action(async (query: string, options: RegistryCommonOptions) => {
@@ -107,7 +109,7 @@ export function registerRegistryCommand(program: Command): void {
     .command('install')
     .description('取注册表条目 → 解析来源 → 审计 → dry-run 预览或经现有安装路径落盘(绝不执行远端内容)')
     .argument('<id>', '要安装的条目 id(来自 registry search)')
-    .option('--source <source>', '在哪个源里找该 id:mcp | marketplace')
+    .option('--source <source>', '在哪个源里找该 id:mcp | marketplace | skillsmp')
     .option('--marketplace <owner/repo>', 'marketplace 源的仓库(--source marketplace 时需要)')
     .option('--agent <agent>', '安装到的目标 agent(如 claude-code);实际落盘必填')
     .option('--mode <mode>', '铺设方式:copy | symlink', 'copy')
