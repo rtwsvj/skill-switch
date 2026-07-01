@@ -5,6 +5,7 @@ struct HistoryView: View {
     @State private var snapshots: [SnapshotView] = []
     @State private var loading = false
     @State private var error: String?
+    @State private var pendingRestore: SnapshotView?
 
     var body: some View {
         ScrollView {
@@ -12,7 +13,7 @@ struct HistoryView: View {
                 ScreenHeader(title: "历史", subtitle: "\(snapshots.count) 个备份") {
                     Task { await load() }
                 }
-                Text("你的「后悔药」:每次改动前都会自动备份。还原等写操作在「安装维护」里进行。")
+                Text("你的「后悔药」:每次改动前都会自动备份,随时可一键还原回某个时间点。")
                     .font(.callout).foregroundStyle(.secondary)
 
                 if loading {
@@ -31,9 +32,13 @@ struct HistoryView: View {
                                     Text(snap.createdAt).font(.caption2.monospaced()).foregroundStyle(.tertiary)
                                 }
                                 Spacer()
-                                if let src = snap.sourceDir {
-                                    Text(src).font(.caption2).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
+                                Button {
+                                    pendingRestore = snap
+                                } label: {
+                                    Label("还原到此", systemImage: "arrow.uturn.backward")
                                 }
+                                .buttonStyle(.bordered)
+                                .disabled(snap.snapshotId == nil || state.busy)
                             }
                         }
                     }
@@ -42,6 +47,20 @@ struct HistoryView: View {
             .padding(20)
         }
         .task { await load() }
+        .confirmationDialog(
+            "还原这个备份?",
+            isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
+            presenting: pendingRestore
+        ) { snap in
+            Button("还原") {
+                if let id = snap.snapshotId {
+                    Task { await state.restore(snapshotId: id); await load() }
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: { snap in
+            Text("会用「\(snap.label)」覆盖当前状态。覆盖前会再自动备份当前状态,仍可还原回来。")
+        }
     }
 
     private func load() async {

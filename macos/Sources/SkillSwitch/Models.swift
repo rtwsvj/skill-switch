@@ -123,3 +123,61 @@ struct RestoreListResult: Codable, Sendable {
     var store: String = ""
     var snapshots: [SnapshotView] = []
 }
+
+// ── 写操作结果(镜像 gui/src/data/types.ts 的 *RunResult)──────────────────────
+
+struct SyncAction: Codable, Sendable, Identifiable, Hashable {
+    var kind: String
+    var agent: String
+    var name: String
+    var target: String
+    var reason: String?
+    var id: String { "\(kind)-\(agent)-\(name)-\(target)" }
+}
+
+struct ToggleRunResult: Codable, Sendable {
+    var name: String
+    var enabled: Bool
+    var declarationPath: String
+    var snapshots: [SnapshotView] = []
+    var actions: [SyncAction] = []
+}
+
+struct SyncRunResult: Codable, Sendable {
+    var declarationPath: String
+    var dryRun: Bool
+    var snapshots: [SnapshotView] = []
+    var actions: [SyncAction] = []
+}
+
+struct RemoveRunResult: Codable, Sendable {
+    var name: String
+    var agent: String
+    var targetPath: String
+    var snapshots: [SnapshotView] = []
+}
+
+struct RestoreRunResult: Codable, Sendable {
+    var restored: Bool
+    var target: String
+    var snapshot: SnapshotView
+    var safetySnapshot: SnapshotView
+}
+
+struct InstalledEntry: Codable, Sendable, Identifiable, Hashable {
+    var name: String
+    var targetPath: String
+    var id: String { name + targetPath }
+}
+
+struct BlockedEntry: Codable, Sendable, Identifiable, Hashable {
+    var name: String
+    var score: Int
+    var id: String { name }
+}
+
+struct InstallRunResult: Codable, Sendable {
+    var installed: [InstalledEntry] = []
+    var blocked: [BlockedEntry] = []
+    var snapshotPath: String?
+}

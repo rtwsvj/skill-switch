@@ -34,7 +34,7 @@ struct SkillSwitchApp: App {
 }
 
 enum Screen: String, CaseIterable, Identifiable {
-    case overview, skills, safety, history, usage
+    case overview, skills, safety, operations, history, usage
     var id: String { rawValue }
 
     var title: String {
@@ -42,6 +42,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .overview: return "总览"
         case .skills: return "技能"
         case .safety: return "安全"
+        case .operations: return "维护"
         case .history: return "历史"
         case .usage: return "使用"
         }
@@ -51,6 +52,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .overview: return "square.grid.2x2"
         case .skills: return "puzzlepiece.extension"
         case .safety: return "checkmark.shield"
+        case .operations: return "wrench.and.screwdriver"
         case .history: return "clock.arrow.circlepath"
         case .usage: return "chart.bar"
         }
@@ -88,6 +90,7 @@ struct RootView: View {
                 case .overview: OverviewView()
                 case .skills: SkillsView()
                 case .safety: SafetyView()
+                case .operations: OperationsView()
                 case .history: HistoryView()
                 case .usage: UsageView()
                 }
@@ -111,6 +114,29 @@ struct RootView: View {
                     .background(.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
                     .padding()
             }
+        }
+        .overlay(alignment: .bottom) { banner }
+    }
+
+    // 写操作反馈:成功(绿)/ 失败(红)/ 处理中。3 秒后自动消失。
+    @ViewBuilder private var banner: some View {
+        if state.busy {
+            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("处理中…") }
+                .padding(10).background(.regularMaterial, in: Capsule()).padding(.bottom, 16)
+        } else if let msg = state.toast {
+            Label(msg, systemImage: "checkmark.circle.fill")
+                .font(.callout).foregroundStyle(.green)
+                .padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .task { try? await Task.sleep(for: .seconds(3.5)); state.toast = nil }
+        } else if let err = state.actionError {
+            Label(err, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.red)
+                .padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .task { try? await Task.sleep(for: .seconds(5)); state.actionError = nil }
         }
     }
 }

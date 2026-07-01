@@ -1,8 +1,43 @@
 import SwiftUI
 
+private enum SkillAction: Identifiable {
+    case toggle(name: String, to: Bool)
+    case remove(name: String, agent: String)
+
+    var id: String {
+        switch self {
+        case .toggle(let n, let t): return "toggle-\(n)-\(t)"
+        case .remove(let n, let a): return "remove-\(n)-\(a)"
+        }
+    }
+    var isDestructive: Bool { if case .remove = self { return true }; return false }
+    var confirmTitle: String {
+        switch self {
+        case .toggle(_, let to): return to ? "启用这个技能?" : "停用这个技能?"
+        case .remove: return "删除这个技能?"
+        }
+    }
+    var confirmMessage: String {
+        switch self {
+        case .toggle(let n, let to):
+            return to ? "启用 \(n)。改动前会先自动备份,随时可从「历史」还原。"
+                      : "停用 \(n)(只是关掉,文件仍在磁盘,随时可再启用)。改动前会先自动备份。"
+        case .remove(let n, let a):
+            return "从 \(a) 删除 \(n)。改动前会先自动备份,误删可从「历史」一键还原。"
+        }
+    }
+    var confirmButton: String {
+        switch self {
+        case .toggle(_, let to): return to ? "启用" : "停用"
+        case .remove: return "删除"
+        }
+    }
+}
+
 struct SkillsView: View {
     @EnvironmentObject var state: AppState
-    @State private var selected: SkillRecord?
+    @State private var openId: String?
+    @State private var pending: SkillAction?
 
     var body: some View {
         ScrollView {
@@ -10,7 +45,7 @@ struct SkillsView: View {
                 ScreenHeader(title: "技能", subtitle: "\(state.scan.total) 个技能") {
                     Task { await state.reload() }
                 }
-                Text("这些技能是各个 AI 工具装的。点开看详情;停用 / 删除等写操作在「安装维护」里(都会先自动备份)。")
+                Text("这些技能是各个 AI 工具装的。停用 / 删除都会先自动备份,可从「历史」还原。")
                     .font(.callout).foregroundStyle(.secondary)
 
                 if state.scan.skills.isEmpty {
@@ -23,10 +58,32 @@ struct SkillsView: View {
             }
             .padding(20)
         }
+        .disabled(state.busy)
+        .confirmationDialog(
+            pending?.confirmTitle ?? "",
+            isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
+            presenting: pending
+        ) { action in
+            Button(action.confirmButton, role: action.isDestructive ? .destructive : nil) {
+                perform(action)
+            }
+            Button("取消", role: .cancel) {}
+        } message: { action in
+            Text(action.confirmMessage)
+        }
+    }
+
+    private func perform(_ action: SkillAction) {
+        Task {
+            switch action {
+            case .toggle(let name, let to): await state.toggle(name, enabled: to)
+            case .remove(let name, let agent): await state.remove(name, agent: agent)
+            }
+        }
     }
 
     @ViewBuilder private func skillRow(_ skill: SkillRecord) -> some View {
-        let isOpen = selected?.id == skill.id
+        let isOpen = openId == skill.id
         Card(tone: skill.error != nil ? .warn : .neutral) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -45,11 +102,35 @@ struct SkillsView: View {
                 if isOpen {
                     Divider()
                     detail(skill)
+                    actions(skill)
                 }
             }
             .contentShape(Rectangle())
-            .onTapGesture { withAnimation(.snappy) { selected = isOpen ? nil : skill } }
+            .onTapGesture { withAnimation(.snappy) { openId = isOpen ? nil : skill.id } }
         }
+    }
+
+    @ViewBuilder private func actions(_ skill: SkillRecord) -> some View {
+        HStack(spacing: 10) {
+            let enabled = skill.enabled ?? true
+            Button {
+                pending = .toggle(name: skill.name ?? skill.dirName, to: !enabled)
+            } label: {
+                Label(enabled ? "停用" : "启用", systemImage: enabled ? "pause.circle" : "play.circle")
+            }
+            .buttonStyle(.bordered)
+
+            Button(role: .destructive) {
+                pending = .remove(name: skill.name ?? skill.dirName, agent: skill.agents.first ?? "")
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+            .tint(.red)
+            .disabled(skill.agents.isEmpty)
+            Spacer()
+        }
+        .padding(.top, 4)
     }
 
     @ViewBuilder private func detail(_ skill: SkillRecord) -> some View {
