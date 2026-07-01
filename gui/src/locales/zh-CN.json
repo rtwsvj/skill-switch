@@ -300,6 +300,7 @@
       "zeroUse": "从未用过"
     },
     "zombieTitle": "从未用过的技能",
+    "empty": "还没有找到任何技能。",
     "since": "自 {{date}}",
     "allTime": "全部时间",
     "columns": {
