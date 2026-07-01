@@ -300,6 +300,7 @@
       "zeroUse": "未使用"
     },
     "zombieTitle": "未使用のスキル",
+    "empty": "スキルはまだ見つかりません。",
     "since": "{{date}} 以降",
     "allTime": "全期間",
     "columns": {

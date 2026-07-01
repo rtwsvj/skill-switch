@@ -300,6 +300,7 @@
       "zeroUse": "Never used"
     },
     "zombieTitle": "Skills never used",
+    "empty": "No skills found yet.",
     "since": "since {{date}}",
     "allTime": "all time",
     "columns": {
