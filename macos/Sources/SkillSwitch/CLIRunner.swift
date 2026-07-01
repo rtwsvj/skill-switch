@@ -17,8 +17,16 @@ struct CLIError: LocalizedError {
 
 enum CLI {
     /// 解析出启动程序与固定前缀参数。
+    /// 顺序:.app 内置 CLI(分发) → SKILL_SWITCH_CLI → SKILL_SWITCH_ROOT+node(开发) → PATH。
     static func resolve() -> (launch: String, prefix: [String]) {
         let env = ProcessInfo.processInfo.environment
+        // 1. 打包进 .app 的自包含 SEA CLI(Contents/Resources/skill-switch-cli),无需 node。
+        if let res = Bundle.main.resourceURL {
+            let bundled = res.appendingPathComponent("skill-switch-cli").path
+            if FileManager.default.isExecutableFile(atPath: bundled) {
+                return (bundled, [])
+            }
+        }
         if let cli = env["SKILL_SWITCH_CLI"], !cli.isEmpty {
             return (cli, [])
         }
