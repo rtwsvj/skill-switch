@@ -123,8 +123,10 @@ export function OperationBanner({ notice }: { notice: OperationNotice | null }) 
       </div>
       {notice.snapshots && notice.snapshots.length > 0 ? (
         <ul>
-          {notice.snapshots.map((path) => (
-            <li key={path}>
+          {notice.snapshots.map((path, index) => (
+            // 同一次操作可能跨多个 agent 生成同名备份路径(如跨 6 个 agent 启用一个技能),
+            // 仅用 path 当 key 会重复 → 用 path+index 保证稳定唯一。
+            <li key={`${path}-${index}`}>
               <span>{t('operations.snapshot')}</span>
               <code>{path}</code>
             </li>
