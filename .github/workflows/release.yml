@@ -24,6 +24,7 @@ jobs:
     permissions:
       contents: write   # 上传 Release 产物需要
     runs-on: macos-14
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4

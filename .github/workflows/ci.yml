@@ -40,27 +40,16 @@ jobs:
         run: pnpm test:coverage
 
   # 原生 macOS App 自检:编译 SwiftUI + i18n 资源完整性。Tauri 已退役,
-  # 不再跑 gui 的 build/i18n:check。原生 App 产物签名仍走 macos/sign-notarize.sh 本地维护者手跑。
+  # 不再跑 gui 的 build/i18n:check。产物签名仍走 macos/sign-notarize.sh 由维护者本地手跑。
+  # swift build 与 check-i18n.sh 均不依赖 Node/pnpm,此 job 不装依赖(完整打包在 release.yml)。
   macos-app:
     runs-on: macos-14
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # 原生 App build-app.sh 会通过 pnpm bundle:cli 触发 esbuild + postject,
-      # 所以这里仍需 pnpm(只装 lockfile 列出的依赖,无 --frozen-lockfile 以便首次 job 装)
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Build SwiftUI app
         working-directory: macos
