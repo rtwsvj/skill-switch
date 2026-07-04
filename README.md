@@ -19,17 +19,17 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 在审计之上,它还是个**跨 agent 的 skill 治理层**:盘点 / 开关 / 安装 / 同步 / 回滚——所有写操作**先自动备份、可一键回滚**,危险 skill 装前即被拦。**命令行(CLI)** 与**桌面 App(GUI)** 两种用法,能力对等。
 
-> 状态:**v0.9.0**(发布准备就绪)。发布后:CLI 走 npm(`npx @rtwsvj/skill-switch`),macOS 桌面 App 提供 Developer ID 签名 + Apple 公证的 DMG。(npm 当前最新为 0.6.0;0.9.0 的 tag + 发布由维护者手动完成。)
+> 状态:**v0.9.0**(已全渠道发布)。npm 包 `@rtwsvj/skill-switch@0.9.0` 为 latest,GitHub Release(`v0.9.0`)附 Developer ID 签名 + Apple 公证的 DMG,macOS 桌面 App `skill-switch.app` 与 CLI 同号发布。
 
 ![demo](assets/demo.svg)
 
 ## Screenshots
 
-![总览](gui/docs/g1-overview.png)
-![技能](gui/docs/g1-skills.png)
-![安全体检](gui/docs/g1-audit.png)
-![使用统计](gui/docs/g1-usage.png)
-![多语言 zh-CN](gui/docs/p1-i18n-zh-CN.png)
+![总览](assets/screenshots/g1-overview.png)
+![技能](assets/screenshots/g1-skills.png)
+![安全体检](assets/screenshots/g1-audit.png)
+![使用统计](assets/screenshots/g1-usage.png)
+![多语言 zh-CN](assets/screenshots/p1-i18n-zh-CN.png)
 
 ## 安装(macOS,Apple Silicon)
 
@@ -41,24 +41,27 @@ App 只在你点「安装/停用/删除/同步/还原」时才写入本机各工
 
 ## GUI 全部能力
 
-顶栏:**语言**切换、**高级**开关(默认关;打开后才显示底层命令条和一致性明细等技术信息)。界面语言覆盖 **zh-CN**、**en**、**ja**、**es** 四种。
+原生 macOS App(SwiftUI,壳外调 `skill-switch` CLI 取数据,核心引擎一行不动)。侧边栏六屏:
 
-- **总览**:四个指标——已接入的工具、技能总数、从未用过(零调用)、健康检查(声明/锁/磁盘是否一致);**安装与维护**面板;**关注队列**(名称不一致 / 解析报错 / 被体检拦下的 skill)。
+- **总览**:四个指标——已接入的工具、技能总数、从未用过(零调用)、健康检查(声明/锁/磁盘是否一致);**安装与维护**入口;**关注队列**(名称不一致 / 解析报错 / 被体检拦下的 skill)。
 - **技能**:每个 skill 一行,状态(已启用/已停用),每行两个按钮——**停用/启用**、**删除**。停用会暂时关掉并保留在列表(随时可再启用);删除彻底移除。两者都先自动备份。
 - **安全**:每个 skill 的安全评分 + 裁决(SAFE/REVIEW/DANGER)+ 命中的风险点;评分 < 70 或有 critical/high 的会被拦。
+- **维护**:**安装**(来源 git/本地 → 目标工具 → 保存方式 →「安装」,装前自动体检,危险源进「被拦」列表,确需安装勾「遇到拦截也继续」)、**同步**(先「预览」再「开始同步」)。
+- **历史**:列出所有自动快照(`~/.skill-switch/backups/`),每个一行,点「还原」回到那一刻。
 - **使用**:每个 skill 的触发次数,并列出「僵尸」skill(装了却从没被调用)。
-- **安装与维护(写操作)**:**安装**(来源 git/本地 → 目标工具 → 保存方式 →「安装」,装前自动体检,危险源进「被拦」列表,确需安装勾「遇到拦截也继续」)、**同步**(先「预览」再「开始同步」)、**撤销(历史备份)**(「查看备份」选一个还原)。
 
-GUI 写操作走 `install/toggle/sync/remove/restore`,统一**确认 + 快照 + audit** 护栏:弹确认框 → 执行前自动拍快照(界面显示备份路径)→ 完成后刷新。
+顶栏:**语言**切换、**刷新**、明暗主题(跟随系统)。界面语言覆盖 **zh-CN**、**en**、**ja**、**es** 四种,应用内即时切换。
+
+GUI 写操作走 `install/toggle/sync/remove/restore`,统一**确认 + 快照 + audit** 护栏:弹原生确认框 → 执行前自动拍快照(界面显示备份路径)→ 完成后刷新。
 
 ## CLI 全部能力
 
 ### 让 `skill-switch` 命令可用
 
-装好 App 后,CLI 已随 App 带上,在 `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli`。链到 PATH 即可直接用:
+装好 App 后,CLI 已随 App 带上,在 `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli`。链到 PATH 即可直接用:
 
 ```bash
-ln -sf /Applications/skill-switch.app/Contents/MacOS/skill-switch-cli /usr/local/bin/skill-switch
+ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
 skill-switch --help
 ```
 
@@ -87,6 +90,7 @@ skill-switch --help
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
 | `packs` | 从对话用法**发现套餐**:`packs suggest` 读本机对话(只数 skill 名)建议常一起用的 skill 组成套餐;`packs save <id> [--enrich]` 固化成可携带的 `pack.json`(`--enrich` 从 lock 回填来源以便跨机重装);`packs install <pack.json|内置id>` 把套餐一键装到新机/另一个 agent(`--lock` 写可复现锁、可选 skill 失败不阻断);`packs list [--builtin]` 列出套餐/内置 starter 套餐;`packs show <file>` 查看;支持 `extends` 继承。 | `skill-switch packs install security-review` |
 | `mcp` | 把 skill-switch 跑成 **MCP server**(stdio):让 Cursor / Claude Code 等 agent 实时调用它的**只读**审计工具(`skill_switch_scan` / `status` / `audit`)。零依赖,绝不经此写磁盘。`--list-tools` 查看暴露的工具。 | `skill-switch mcp` |
+| `mcp-scan` | **运行时 MCP 审计(opt-in)**:连接配置里的 MCP server 取**实时**工具清单,用 80+ 静态规则审计工具描述(抓 tool-poisoning),并把每个工具的定义哈希成基线——再扫时定义变了就报 **rug-pull 嫌疑**(`mcp/tool-definition-changed` high;新工具 medium)。安全姿态:不带 flag 只列出、**绝不连接**;`--server "<source>::<name>"` 逐个显式同意(TTY 逐个确认,非 TTY 须 `--yes`;stdio server = 启动配置里的命令,连接前明示);http 仅限 localhost,其余必须 https;**绝不调用工具**(`tools/call`);超时硬杀(`--timeout <ms>`);header/env 值绝不进输出与基线。`--reset-baseline` 重新接受当前清单;`--ci` 有 critical/high 时 exit 1。详见 [docs/mcp-scan.md](docs/mcp-scan.md)。 | `skill-switch mcp-scan --server ".claude/mcp.json::fs" --yes` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
 | `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |
@@ -120,7 +124,7 @@ skill-switch uninstall
 - `--dry-run`:只列会删什么,不真删。
 - `--yes`:跳过确认。
 
-> 只装了 App、没链接 CLI:直接跑 `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli uninstall`。
+> 只装了 App、没链接 CLI:直接跑 `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli uninstall`。
 > 手动兜底:`rm -rf /Applications/skill-switch.app ~/.skill-switch`,再删掉你建过的 `skill-switch` 链接。
 
 ## Safety Model(为什么可以放心点)
@@ -148,16 +152,17 @@ pnpm install
 pnpm cli --help                          # = skill-switch
 pnpm cli scan --home tests/fixtures/home-basic
 pnpm test
-pnpm --dir gui tauri dev                 # 本地起 GUI
-pnpm release                             # 一键产出 .app / .dmg(不签名)
+(cd macos && swift run)                 # 本地起原生 macOS App
+pnpm release                             # 一键产出 .app(不签名)
 ```
 
-`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.9.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
+`pnpm release` 跑 `scripts/release.mjs`:测试 + typecheck + `npm pack --dry-run` + `bash macos/build-app.sh`,产出 `macos/dist/skill-switch.app`(内置自包含 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用)。
 
-签名 + 公证(需 Developer ID,见 [docs/release/signing.md](docs/release/signing.md)):
+签名 + 公证(需 Developer ID,见 [macos/README.md](macos/README.md)):
 
 ```bash
-APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui sign
+cd macos
+APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" ./sign-notarize.sh
 ```
 
 ## 更多文档
@@ -170,6 +175,6 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui
 - [docs/roadmap.md](./docs/roadmap.md):路线图——近期加固、中期功能、远期探索。
 - [docs/troubleshooting.md](./docs/troubleshooting.md):常见问题与解决方法（Gatekeeper、CLI 路径、audit 拦截、doctor 漂移、备份还原、卸载）。
 - [docs/architecture.md](./docs/architecture.md):贡献者架构概述——核心模块、CLI 层、GUI、vendored 快照与数据模型。
-- [docs/release/signing.md](./docs/release/signing.md):macOS 签名与公证。
+- [macos/README.md](./macos/README.md):原生 macOS App 开发/打包/签名/分发(自包含 `.app`、SHA + 公证)。
 - [docs/known-limitations.md](./docs/known-limitations.md):已知限制。
 - [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md):第三方快照与移植规则署名。

@@ -1,5 +1,4 @@
-packages:
-  - gui
+packages: []
 
 allowBuilds:
   '@swc/core': true

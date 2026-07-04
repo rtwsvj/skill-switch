@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+### 新增 Added
+- **`mcp-scan` 命令 — 运行时 MCP 审计 + rug-pull 基线(roadmap 阶段 3 旗舰)**:闭合静态审计装不下的最后一块——MCP server 的工具清单只有连上才能看到,且可能被偷偷改掉(rug-pull)。`skill-switch mcp-scan` opt-in 连接配置里的 MCP server,取实时工具清单,复用既有 80+ 条静态规则审计工具描述(tool-poisoning / prompt-injection / 外泄 / 不可见字符),并把 `{name, description, inputSchema}` 哈希入基线,再扫时检测 `mcp/tool-definition-changed`(high,rug-pull 嫌疑)与 `mcp/tool-added`(medium)。**7 条安全姿态**:绝不自动连接(无 flag 只列);逐 server 显式同意(`--server` 单点 / `--all` 需 `--yes` / TTY 逐个 y/N);stdio 明说"这会启动本地进程";**绝不调用 `tools/call`**(测试断言 mock server 全程未收到);10s 超时硬杀(SIGTERM→SIGKILL / AbortController);http 仅限 localhost 或 https,headers/env VALUE 绝不入输出/日志/基线;默认 report-only,`--ci` 才按 critical/high 阻断。stdio 子进程不继承父环境,只透传配置里显式声明的 env + 一个安全的 PATH;响应体上限 2MB,超限立即断开。基线文件 `<home>/.skill-switch/mcp-scan-baseline.json` 与 `audit --configs` 的 config-baseline **独立**(前者看 server 怎么跑,后者看 server 暴露什么),互补不重叠。零新依赖。
+
+### 变更 Changed
+- **桌面 App 迁移到原生 SwiftUI,退役 Tauri GUI**:macOS 前端从 Tauri v2 + React 迁移到 SwiftUI(里程碑 1–5:总览 / 技能 / 安全 / 维护 / 历史 / 使用 六屏 + 写操作确认弹窗 + 自动快照 + zh-CN / en / ja / es 四语言应用内切换 + 跟随系统明暗主题)。`gui/` 整个目录(`gui/src-tauri/` 的 Rust 壳、`gui/src/` 的 React、Tauri 配置、React 单元测试、`gui/scripts/tui.mjs`、`gui/scripts/check-entitlements.mjs` 等)随此版本一并退役;只保留过 README 引用的 5 张截图,迁至 `assets/screenshots/`。Linux / Windows 用户继续走 npm CLI(`npx @rtwsvj/skill-switch`),桌面 App 只发 macOS。
+- **CLI 打包脚本迁至 `scripts/`**:`gui/scripts/bundle-cli.mjs` → `scripts/bundle-cli.mjs`,`gui/scripts/bundle-cli-bun.mjs` → `scripts/bundle-cli-bun.mjs`。Node SEA 产物输出从 `gui/src-tauri/bin/skill-switch-cli-<triple>` 改为 `dist/sea/skill-switch-cli-<triple>`(命名/triple 保留);`esbuild@^0.28.1` 与 `postject@1.0.0-alpha.6` 从 `gui/package.json` 同版本平移到根 `devDependencies`(零新依赖,零升版)。`pnpm-workspace.yaml` 删 `packages: - gui`。根 `package.json` 新增 `"bundle:cli"` 脚本。
+- **`release.yml` 原生化**:整条流水线改为 `macos-14` runner 跑原生流水线(checkout → pnpm install → pnpm test → `bash macos/build-app.sh` → `ditto -c -k --keepParent` 打 zip → softprops action 上传 GitHub Release)。**签名 + 公证仍由维护者本地跑 `macos/sign-notarize.sh`**(Apple 凭据不进 CI),CI 产物是未签名包供预览试用。删掉 tauri-action 跨平台矩阵与 Windows / Linux runner。
+- **macOS 桌面产物名统一为 `skill-switch.app`**:`dist/SkillSwitch.app` → `dist/skill-switch.app`,`macos/build-app.sh` 的 `$APP`、提示文字、`.gitignore` 同步;`macos/sign-notarize.sh` 与 `Info.plist` 的 `CFBundleName` / `CFBundleDisplayName` 一致;`src/core/uninstall.ts` 按 `skill-switch.app` basename 识别 App 卸载路径不变。`App` 内置 CLI 路径从 `Contents/MacOS/skill-switch-cli`(Tauri 时代)改为 `Contents/Resources/skill-switch-cli`(原生 App 实际产物路径),README 的 `ln -sf` 示例同步。
+- **截图路径迁至 `assets/screenshots/`**:`gui/docs/{g1-overview,g1-skills,g1-audit,g1-usage,p1-i18n-zh-CN}.png` 已 `git mv` 到 `assets/screenshots/`,README 中英同步。
+- **文档/README**:CLI 描述里 `pnpm --dir gui tauri dev` 改为 `(cd macos && swift run)`;`pnpm release` 描述改为原生产物 `macos/dist/skill-switch.app`;`pnpm --dir gui sign` 改为 `cd macos && ./sign-notarize.sh`。Tauri 技术栈相关表述全部换成原生 SwiftUI(能力描述与 `macos/` 现状对齐,不夸大)。
+- **测试重写**:`tests/gui-sidecar.test.ts` → `tests/sea-cli.test.ts`,删掉 Tauri 特有的 capabilities / externalBin / DashboardShell 等断言,只保留 SEA 打包回归本体(构建 SEA、真子进程跑 `<产物> scan` 断言 argv 分流);`tests/w3-bun.test.ts` 的 `bundle-cli-bun.mjs` 路径与产物路径同步;`tests/readme.test.ts` 截图路径与 GUI 开发入口断言同步。
+
 ## [0.9.0] - 2026-07-01
 
 > 自 v0.6.0(npm 上最后一个已发布版本)以来累积的所有内容一次发布:含原 0.7 / 0.8 批次 + 第三波(RE2/shadcn/bun)+ 第四波「集众家之所长」+ SkillsMP 源 + GUI 各屏 shadcn 迁移。

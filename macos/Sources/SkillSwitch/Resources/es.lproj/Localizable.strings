@@ -1,0 +1,178 @@
+/* Navigation (sidebar + screen titles) */
+"nav.overview" = "Resumen";
+"nav.skills" = "Habilidades";
+"nav.safety" = "Seguridad";
+"nav.ops" = "Mantenimiento";
+"nav.history" = "Historial";
+"nav.usage" = "Uso";
+
+/* Language picker (toolbar menu) */
+"language.menu" = "Idioma";
+"language.system" = "Seguir el sistema";
+"language.zhHans" = "简体中文";
+"language.en" = "English";
+"language.ja" = "日本語";
+"language.es" = "Español";
+
+/* Status / banner / errors */
+"status.cliConnected" = "CLI conectado";
+"status.cliDisconnected" = "CLI no conectado";
+"status.refreshedAt" = "Actualizado a las %@";
+"status.processing" = "Procesando…";
+"status.sectionLoadFailed" = "Error al cargar";
+"status.fatalCliNotFound" = "No se puede contactar con el CLI de skill-switch. Define la variable de entorno SKILL_SWITCH_ROOT=<raíz del repo> o SKILL_SWITCH_CLI=<ejecutable>.";
+"status.toolbarRefresh" = "Actualizar";
+"status.menuRefresh" = "Actualizar";
+
+/* Theme — severity / verdict */
+"severity.critical" = "Crítico";
+"severity.high" = "Alto";
+"severity.medium" = "Medio";
+"severity.low" = "Bajo";
+"verdict.safe" = "Seguro";
+"verdict.review" = "Revisar";
+"verdict.danger" = "Peligro";
+
+/* Operations — generic */
+"ops.snapshotPrefix" = "Copia de seguridad automática antes de los cambios.";
+"ops.snapshotWithLabel" = "Copia de seguridad automática antes de los cambios (%@).";
+"ops.failed" = "Error de %@: %@";
+
+/* Operations — toggle */
+"ops.toggle.enable" = "Activar";
+"ops.toggle.disable" = "Desactivar";
+"ops.toggle.ok.enabled" = "%@ activado. %@";
+"ops.toggle.ok.disabled" = "%@ desactivado. %@";
+
+/* Operations — remove */
+"ops.remove" = "Eliminar";
+"ops.remove.ok" = "%@ (%@) eliminado. %@";
+
+/* Operations — sync */
+"ops.sync" = "Sincronizar";
+"ops.sync.ok" = "Sincronización completa, %d cambio(s). %@";
+
+/* Operations — restore */
+"ops.restore" = "Restaurar";
+"ops.restore.ok" = "Restaurado a %@. El estado actual también está respaldado: puede volver a restaurarlo.";
+
+/* Operations — install */
+"ops.install" = "Instalar";
+"ops.install.blocked" = "La auditoría bloqueó %d habilidad(es) (puntuación baja). Marca \"Continuar aunque sea bloqueado\" solo si confías en el origen.";
+"ops.install.ok" = "%@ instalado. %@";
+"ops.install.listSeparator" = ", ";
+
+/* Operations — screen */
+"ops.title" = "Instalar y mantener";
+"ops.subtitle" = "Cada escritura hace copia de seguridad antes; deshacer con un clic.";
+
+/* Install card */
+"ops.install.label" = "Instalar";
+"ops.install.intro" = "Añade una habilidad nueva a la herramienta seleccionada. Se audita primero; las fuentes peligrosas se bloquean por defecto.";
+"ops.install.field.source" = "Origen";
+"ops.install.field.target" = "Instalar en";
+"ops.install.field.mode" = "Guardar como";
+"ops.install.field.source.placeholder" = "URL de Git o carpeta local";
+"ops.install.mode.copy" = "Copiar";
+"ops.install.mode.symlink" = "Enlace";
+"ops.install.force" = "Continuar aunque sea bloqueado (bajo tu responsabilidad)";
+"ops.install.force.reason" = "Motivo para continuar (obligatorio, se registra)";
+"ops.install.button" = "Instalar";
+"ops.install.confirm.title" = "¿Instalar esta habilidad?";
+"ops.install.confirm.force.btn" = "Omitir bloqueo e instalar";
+"ops.install.confirm.normal.btn" = "Instalar";
+"ops.install.confirm.cancel" = "Cancelar";
+"ops.install.confirm.force.msg" = "Esto omite el bloqueo de seguridad. Continúa solo si confías plenamente en el origen.";
+"ops.install.confirm.normal.msg" = "La auditoría se ejecuta antes de instalar; solo se escribe si pasa. Copia de seguridad antes.";
+
+/* Sync card */
+"ops.sync.label" = "Sincronizar";
+"ops.sync.intro" = "Realinea las habilidades con el manifiesto guardado, corrigiendo las que faltan o son inconsistentes. Previsualiza antes de aplicar.";
+"ops.sync.preview.btn" = "Previsualizar";
+"ops.sync.preview.failed" = "Error de previsualización: %@";
+"ops.sync.empty" = "El manifiesto ya coincide con el disco: no hay que sincronizar.";
+"ops.sync.changes" = "%d cambio(s):";
+"ops.sync.apply.btn" = "Aplicar sincronización";
+"ops.sync.confirm.title" = "¿Aplicar cambios de sincronización?";
+"ops.sync.confirm.btn" = "Aplicar";
+"ops.sync.confirm.cancel" = "Cancelar";
+"ops.sync.confirm.msg" = "Aplica el manifiesto al disco. Copia de seguridad antes; restaura desde Historial si es necesario.";
+
+/* Sync action kinds */
+"ops.action.create" = "Crear";
+"ops.action.replace" = "Reemplazar";
+"ops.action.remove" = "Eliminar";
+"ops.action.configEnable" = "Activar";
+"ops.action.configDisable" = "Desactivar";
+
+/* Overview */
+"overview.demoHome" = "Inicio demo (no toca la configuración real)";
+"overview.metrics.agents" = "Herramientas conectadas";
+"overview.metrics.skills" = "Habilidades totales";
+"overview.metrics.zombies" = "Nunca usadas";
+"overview.metrics.health.ok" = "Correcto";
+"overview.metrics.health.label" = "Chequeo de salud";
+"overview.attention" = "Cola de atención";
+"overview.attention.count" = "%d elemento(s)";
+"overview.attention.empty" = "No hay nada que atender ahora.";
+"overview.attention.blocked" = "Bloqueado · puntuación %d";
+"overview.attention.readFailed" = "Error de lectura";
+
+/* Skills */
+"skills.subtitle.count" = "%d habilidad(es)";
+"skills.intro" = "Estas habilidades vienen de varias herramientas de IA. Desactivar o eliminar hace copia de seguridad antes; restaura desde Historial.";
+"skills.empty" = "Aún no hay habilidades.";
+"skills.pill.enabled" = "Activada";
+"skills.pill.disabled" = "Desactivada";
+"skills.pill.readFailed" = "Error de lectura";
+"skills.row.dir" = "Carpeta";
+"skills.row.path" = "Ruta";
+"skills.row.desc" = "Descripción";
+"skills.row.error" = "Error";
+"skills.confirm.enable.title" = "¿Activar esta habilidad?";
+"skills.confirm.disable.title" = "¿Desactivar esta habilidad?";
+"skills.confirm.remove.title" = "¿Eliminar esta habilidad?";
+"skills.confirm.enable.msg" = "Activar %@. Se hace copia de seguridad antes; puedes restaurar desde Historial.";
+"skills.confirm.disable.msg" = "Desactivar %@ (solo apaga; los archivos quedan en disco y pueden volver a activarse). Copia de seguridad antes.";
+"skills.confirm.remove.msg" = "Eliminar %1$@ de %2$@. Copia de seguridad antes; restaura desde Historial si te arrepientes.";
+"skills.confirm.enable.btn" = "Activar";
+"skills.confirm.disable.btn" = "Desactivar";
+"skills.confirm.remove.btn" = "Eliminar";
+"skills.confirm.cancel" = "Cancelar";
+"skills.action.enable" = "Activar";
+"skills.action.disable" = "Desactivar";
+"skills.action.remove" = "Eliminar";
+
+/* Safety */
+"safety.subtitle" = "%d habilidad(es) auditada(s)";
+"safety.metric.safe" = "Seguras";
+"safety.metric.review" = "Revisar";
+"safety.metric.blocked" = "Bloqueadas";
+"safety.cross.label" = "Riesgos entre habilidades";
+"safety.findings.count" = "%d hallazgo(s)";
+"safety.findings.empty" = "No se detectaron riesgos evidentes.";
+"safety.pill.blocked" = "Bloqueado";
+
+/* History */
+"history.subtitle.count" = "%d copia(s) de seguridad";
+"history.intro" = "Tu \"botón de deshacer\": cada cambio se respalda antes; vuelve a cualquier punto con un clic.";
+"history.empty" = "Aún no hay copias de seguridad. Tras el primer cambio, aparecerán aquí puntos restaurables.";
+"history.action.restore" = "Restaurar hasta aquí";
+"history.confirm.title" = "¿Restaurar esta copia?";
+"history.confirm.btn" = "Restaurar";
+"history.confirm.cancel" = "Cancelar";
+"history.confirm.msg" = "Se sobrescribirá el estado actual con \"%@\". Antes se hace otra copia de seguridad: aún puedes volver.";
+"history.load.failed" = "Error al cargar copias: %@";
+
+/* Usage */
+"usage.since.since" = "Desde %@";
+"usage.since.all" = "Todo el tiempo";
+"usage.metric.scanned" = "Registros escaneados";
+"usage.metric.invocations" = "Invocaciones";
+"usage.metric.used" = "Habilidades usadas";
+"usage.metric.zombies" = "Nunca usadas";
+"usage.topTitle" = "Más invocadas";
+"usage.count" = "%d vez/veces";
+"usage.zombies.label" = "Habilidades nunca usadas";
+"usage.zombies.empty" = "No hay habilidades zombi.";
+"usage.zombies.pill" = "Nunca usada";

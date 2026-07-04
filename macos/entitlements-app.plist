@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- SwiftUI 主程序:最小 entitlement,不需要 JIT / 可写可执行内存(那些只给内置 CLI)。
+	     主程序会 spawn 内置 CLI 子进程 —— 同一 Developer ID 签名,无需 disable-library-validation。 -->
+</dict>
+</plist>

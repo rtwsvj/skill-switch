@@ -17,7 +17,9 @@ npx @rtwsvj/skill-switch audit --configs  # also scan ~/.claude, MCP, and agent 
 
 Or drop the [GitHub Action](docs/github-action.md) into CI to audit every PR and upload results to code-scanning.
 
-On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and roll back — every write is **snapshotted first and one-click reversible**, and dangerous skills are blocked before they install. Available as a **CLI** (`npx @rtwsvj/skill-switch`) and a signed + notarized **desktop app (GUI)**.
+On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and roll back — every write is **snapshotted first and one-click reversible**, and dangerous skills are blocked before they install. Available as a **CLI** (`npx @rtwsvj/skill-switch`) and a signed + notarized **native macOS app** (SwiftUI).
+
+> Status: **v0.9.0** is shipped across all channels — npm `@rtwsvj/skill-switch@0.9.0` is `latest`, the GitHub Release `v0.9.0` carries a Developer ID-signed + Apple-notarized DMG, and the macOS app `skill-switch.app` is published alongside the CLI.
 
 ![demo](assets/demo.svg)
 
@@ -27,10 +29,10 @@ AI coding agents increasingly run on *skills* — reusable bundles of instructio
 
 ## Screenshots
 
-![Overview](gui/docs/g1-overview.png)
-![Skills](gui/docs/g1-skills.png)
-![Security audit](gui/docs/g1-audit.png)
-![Usage](gui/docs/g1-usage.png)
+![Overview](assets/screenshots/g1-overview.png)
+![Skills](assets/screenshots/g1-skills.png)
+![Security audit](assets/screenshots/g1-audit.png)
+![Usage](assets/screenshots/g1-usage.png)
 
 ## Highlights
 
@@ -49,12 +51,16 @@ AI coding agents increasingly run on *skills* — reusable bundles of instructio
 
 The app only writes to your tools' skill directories (`~/.claude`, `~/.codex`, `~/.gemini`, …) when you explicitly click Install / Disable / Delete / Sync / Restore — and it snapshots before every write.
 
+### What the native app does
+
+A SwiftUI shell over the same CLI — six sidebar screens: **Overview** / **Skills** / **Safety** / **Maintenance** / **History** / **Usage**. Writes (`install` / `toggle` / `sync` / `remove` / `restore`) go through a native confirmation dialog + automatic pre-write snapshot, with audit results surfaced inline. **4 languages** (English / 简体中文 / 日本語 / Español) with an in-app toolbar switcher; light/dark theme follows the system.
+
 ## CLI
 
-The CLI ships inside the app at `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli`. Link it onto your `PATH`:
+The CLI ships inside the app at `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli`. Link it onto your `PATH`:
 
 ```bash
-ln -sf /Applications/skill-switch.app/Contents/MacOS/skill-switch-cli /usr/local/bin/skill-switch
+ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
 skill-switch --help
 ```
 
@@ -81,9 +87,12 @@ skill-switch --help
 | `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). |
 | `packs` | **Discover packs from usage:** `packs suggest` reads your local conversations (skill names only) to suggest bundles of skills you use together; `packs save <id> [--enrich]` freezes one into a portable `pack.json` (`--enrich` back-fills sources from the lock for cross-machine reinstall); `packs install <pack.json|builtin-id>` installs a pack onto a new machine / another agent (`--lock` writes a reproducible lock; optional skills don't block on failure); `packs list [--builtin]` lists packs / builtin starter packs; `packs show <file>` inspects one; supports `extends` inheritance. |
 | `mcp` | Run skill-switch as an **MCP server** (stdio) so agents like Cursor / Claude Code can call its **read-only** audit tools (`skill_switch_scan` / `status` / `audit`) in real time. Zero-dependency; never writes disk over this path. `--list-tools` to list exposed tools. |
+| `mcp-scan` | **Runtime MCP audit (opt-in)**: connect to MCP servers from your configs, fetch the **live** tool list, audit tool descriptions with the 80+ static rules (catches tool poisoning), and fingerprint each tool definition into a baseline — on later scans a changed definition is flagged as a **rug-pull suspect** (`mcp/tool-definition-changed`, high; new tools medium). Safety posture: with no flags it only lists servers and **never connects**; `--server "<source>::<name>"` gives per-server explicit consent (TTY confirms one by one; non-TTY requires `--yes`; a stdio server means launching the configured command — stated before connecting); http is localhost-only, everything else must be https; **never calls tools** (`tools/call`); hard timeout kill (`--timeout <ms>`); header/env values never reach output or the baseline. `--reset-baseline` re-accepts the current list; `--ci` exits 1 on critical/high. See [docs/mcp-scan.md](docs/mcp-scan.md). |
 | `lock` | Inspect the lock; `--verify` re-hashes disk to compare. |
 | `export` | Bundle skills.json + skills.lock.json into a portable .ssp archive (read-only). |
 | `import` | Restore skills.json + skills.lock.json from a .ssp archive (does not sync to disk). |
+| `apm-import` | Interop with **microsoft/apm** (read-only): parse `apm.yml` / `apm.lock.yaml` and map its skill primitives into skill-switch's governance model. Defaults to a dry-run preview; `--apply` writes the declaration. Non-skill primitives (prompts / agents / hooks) are explicitly skipped. Never executes commands from the file; never hits the network. |
+| `registry` | Read-only search from the official **MCP Registry**, the GitHub `marketplace.json`, and **SkillsMP** (optional, requires your own `SKILLSMP_TOKEN`), then **audit-and-install** skills / MCP servers (`registry search <query>`, `registry install <id>`). Strictly opt-in (only this command ever hits the network); HTTPS-only; zero telemetry; zero new deps; reuses the existing parse → clone → audit → gate pipeline. Dangerous sources are blocked by default and require `--force` with a recorded reason; remote content is never executed. The SkillsMP token is sent only to skillsmp.com, never logged, and never persisted by skill-switch. |
 | `uninstall` | One-command uninstall of skill-switch itself. |
 | `watch` | Detect skills on disk that bypass the governance layer (on disk but not declared); `--once` for a single pass, default is live watch. |
 | `completion` | Print a bash / zsh / fish shell completion script. `eval "$(skill-switch completion bash)"` enables Tab completion immediately; or specify `zsh`/`fish`. |
@@ -106,11 +115,11 @@ pnpm install
 pnpm cli --help                          # = skill-switch
 pnpm cli scan --home tests/fixtures/home-basic
 pnpm test
-pnpm --dir gui tauri dev                 # run the GUI locally
-pnpm release                             # build .app / .dmg (unsigned)
+(cd macos && swift run)                 # run the native macOS app locally
+pnpm release                             # build skill-switch.app (unsigned)
 ```
 
-The bundled CLI is a **Node SEA sidecar**, so the app runs CLI calls without a system `node`. Signing + notarization (Developer ID required) is documented in [docs/release/signing.md](docs/release/signing.md).
+`pnpm release` runs `scripts/release.mjs`: tests + typecheck + `npm pack --dry-run` + `bash macos/build-app.sh`, producing `macos/dist/skill-switch.app`. The bundled CLI is a **Node SEA sidecar**, so the app runs CLI calls without a system `node`. Signing + notarization (Developer ID required) is documented in [macos/README.md](macos/README.md).
 
 ## More docs
 

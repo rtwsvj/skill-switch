@@ -8,8 +8,8 @@ This document is a contributor-oriented overview of how skill-switch is structur
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  GUI (Tauri v2 + React)                                  │
-│  gui/src-tauri/  +  gui/src/                             │
+│  GUI (native macOS app, SwiftUI)                          │
+│  macos/Sources/  →  macos/dist/skill-switch.app           │
 │  Invokes CLI via a bundled Node SEA sidecar              │
 └────────────────────────┬────────────────────────────────┘
                          │ subprocess / shell-out
@@ -86,14 +86,15 @@ Exit code contract:
 
 ---
 
-## GUI (`gui/`)
+## GUI (`macos/`)
 
-The GUI is a **Tauri v2** application with a **React** frontend.
+The GUI is a **native macOS app** written in **SwiftUI**, shipped as `macos/dist/skill-switch.app`. The earlier Tauri v2 / React implementation under `gui/` was retired with v0.9.0.
 
-- `gui/src/` — React source: `App.tsx` is the root component; views are organized under `components/`. State is React local state; data is fetched lazily (core dashboard on load; audit and stats only when the user navigates to those views).
-- `gui/src-tauri/` — Rust Tauri shell. The Tauri layer handles the macOS app bundle, window management, and the CSP (Content Security Policy) that restricts the WebView's network access to `ipc:` only.
-- **CLI sidecar**: the GUI never calls core TypeScript modules directly. Instead it shells out to `skill-switch-cli`, which is bundled as a **Node Single Executable Application (SEA)** sidecar at `gui/src-tauri/bin/skill-switch-cli-<triple>`. The SEA is built by `gui/scripts/bundle-cli.mjs` using esbuild (to produce a single CJS bundle) + Node's `--experimental-sea-config` + `postject`. The App therefore does not require a system `node` to run.
-- `gui/fixtures/` — JSON fixtures used by GUI unit tests (vitest + React Testing Library) to exercise components without running the real CLI.
+- `macos/Sources/` — Swift sources. `App.swift` is the root; the six screens (Overview / Skills / Safety / Maintenance / History / Usage) live as one file each under `Views/`. Reads data by shelling out to the CLI with `--json`, then decodes via `Codable`. State lives in a single `AppState` `ObservableObject`: all sections load on launch via `reload()`, and the toolbar refresh re-runs it.
+- `macos/Package.swift` — Swift package manifest for the SwiftUI app target. The release binary lands at `macos/.build/release/SkillSwitch` and is bundled into the `.app` by `macos/build-app.sh`.
+- `macos/build-app.sh` — produces an unsigned, self-contained `macos/dist/skill-switch.app` (SwiftUI binary + bundled Node SEA CLI + app icon). Run via `pnpm release` for the full pipeline (test + typecheck + pack dry-run + build).
+- `macos/sign-notarize.sh` — Developer ID signing + Apple notarization + DMG packaging for distribution. Signing is split: the bundled CLI (`Contents/Resources/skill-switch-cli`, a Node SEA sidecar) holds the JIT entitlements it needs to run V8; the SwiftUI host (`Contents/MacOS/SkillSwitch`) gets a minimal entitlements set.
+- **CLI sidecar**: the GUI never calls core TypeScript modules directly. Instead it shells out to `skill-switch-cli`, which is bundled as a **Node Single Executable Application (SEA)** at `dist/sea/skill-switch-cli-<triple>`. The SEA is built by `scripts/bundle-cli.mjs` using esbuild (to produce a single CJS bundle) + Node's `--experimental-sea-config` + `postject`. The `.app` therefore does not require a system `node` to run CLI commands.
 
 ---
 

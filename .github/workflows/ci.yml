@@ -39,12 +39,22 @@ jobs:
       - name: Coverage gate
         run: pnpm test:coverage
 
-      # 抓 GUI 生产构建回归(import/JSX/语法级);Tauri 原生构建仍属本地/macOS。
-      - name: Build GUI
-        run: pnpm --dir gui build
+  # 原生 macOS App 自检:编译 SwiftUI + i18n 资源完整性。Tauri 已退役,
+  # 不再跑 gui 的 build/i18n:check。产物签名仍走 macos/sign-notarize.sh 由维护者本地手跑。
+  # swift build 与 check-i18n.sh 均不依赖 Node/pnpm,此 job 不装依赖(完整打包在 release.yml)。
+  macos-app:
+    runs-on: macos-14
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # i18n 漏译检测:扫 gui/src 的 t() 调用,对比四个 locale 文件。
-      # 只读(status 命令不写文件),新增漏译 key 即失败。
-      # 配置见 gui/i18next.config.mjs。
-      - name: i18n check
-        run: pnpm --dir gui i18n:check
+      - name: Build SwiftUI app
+        working-directory: macos
+        run: swift build
+
+      - name: i18n completeness check
+        working-directory: macos
+        run: bash scripts/check-i18n.sh

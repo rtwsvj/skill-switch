@@ -1,13 +1,10 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-
-// 动态读取版本号,避免发版时忘改硬编码的 DMG 文件名
-const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
 
 function run(label, command, args) {
   console.log(`\n==> ${label}`);
@@ -38,15 +35,16 @@ function requireArtifact(path) {
 run('Vitest suite', 'pnpm', ['test']);
 run('TypeScript typecheck', 'pnpm', ['typecheck']);
 run('npm package dry-run', 'npm', ['pack', '--dry-run', '--json']);
-run('Tauri app and dmg build', 'pnpm', ['--dir', 'gui', 'tauri', 'build']);
+run('Native macOS app build (skill-switch.app, unsigned)', 'bash', ['macos/build-app.sh']);
 
 const artifacts = [
-  requireArtifact('gui/src-tauri/target/release/bundle/macos/skill-switch.app'),
-  requireArtifact('gui/src-tauri/target/release/bundle/macos/skill-switch.app/Contents/MacOS/skill-switch-cli'),
-  requireArtifact(`gui/src-tauri/target/release/bundle/dmg/skill-switch_${version}_aarch64.dmg`),
+  requireArtifact('macos/dist/skill-switch.app'),
+  requireArtifact('macos/dist/skill-switch.app/Contents/MacOS/SkillSwitch'),
+  requireArtifact('macos/dist/skill-switch.app/Contents/Resources/skill-switch-cli'),
 ];
 
 console.log('\nRelease build artifacts:');
 for (const artifact of artifacts) {
   console.log(`- ${artifact.path} (${artifact.detail})`);
 }
+console.log('\n下一步:维护者本地跑 macos/sign-notarize.sh 完成签名 + 公证,产出 dist/skill-switch_<ver>_aarch64.dmg 上传到 Release。');

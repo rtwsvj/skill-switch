@@ -31,34 +31,63 @@ describe('README', () => {
     expect(readmeCommands()).toEqual(cliCommands());
   });
 
-  it('documents release-facing usage, safety, GUI, and screenshots', () => {
+  it('documents release-facing usage, safety, native GUI, and screenshots', () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
     for (const required of [
       '跨 agent 的 skill 治理层',
       '## GUI',
-      'pnpm --dir gui tauri dev',
-      'gui/docs/g1-overview.png',
-      'gui/docs/g1-audit.png',
-      'gui/docs/p1-i18n-zh-CN.png',
+      // 原生 macOS App 开发入口(详见 macos/README.md)
+      '(cd macos && swift run)',
+      // 截图已从 gui/docs/ 迁到 assets/screenshots/
+      'assets/screenshots/g1-overview.png',
+      'assets/screenshots/g1-audit.png',
+      'assets/screenshots/p1-i18n-zh-CN.png',
+      // i18n 四语言覆盖
       'zh-CN',
       'en',
       'ja',
       'es',
+      // 文档结构钉
       'Exit Codes',
       'Safety Model',
       '装前快照',
       '确认 + 快照 + audit',
       'install/toggle/sync/remove/restore',
       'clone + run',
-      'pnpm release',
-      'Node SEA sidecar',
+      // 原生产物路径(pnpm release 描述)
+      'macos/dist/skill-switch.app',
+      // 内置 SEA sidecar(产物名统一小写)
+      'skill-switch-cli',
+      // 原生 App 内置 CLI 路径(改过 Resources,不再是 MacOS/)
+      '/Applications/skill-switch.app/Contents/Resources/skill-switch-cli',
     ]) {
       expect(readme).toContain(required);
     }
     // 版本号 / DMG 文件名用模式匹配,避免每次发版都要改测试(原先硬编码 v0.4.0 很脆)
     expect(readme).toMatch(/状态:\*\*v\d+\.\d+\.\d+\*\*/);
     expect(readme).toMatch(/skill-switch_\d+\.\d+\.\d+_aarch64\.dmg/);
+    // Tauri 时代的 GUI 入口 / 旧文档术语 必须清掉
     expect(readme).not.toContain('只读白名单');
     expect(readme).not.toContain('read-only dashboard sidecar');
+    expect(readme).not.toContain('pnpm --dir gui tauri dev');
+    expect(readme).not.toContain('gui/docs/');
+    expect(readme).not.toContain('gui/src-tauri/bin/');
+  });
+
+  it('README.en.md keeps screenshots, native GUI entry, and parity with 中文版', () => {
+    const readmeEn = readFileSync(join(ROOT, 'README.en.md'), 'utf8');
+    for (const required of [
+      'assets/screenshots/g1-overview.png',
+      'assets/screenshots/g1-skills.png',
+      'assets/screenshots/g1-audit.png',
+      'assets/screenshots/g1-usage.png',
+      '(cd macos && swift run)',
+      'macos/dist/skill-switch.app',
+      '/Applications/skill-switch.app/Contents/Resources/skill-switch-cli',
+    ]) {
+      expect(readmeEn).toContain(required);
+    }
+    expect(readmeEn).not.toContain('gui/docs/');
+    expect(readmeEn).not.toContain('pnpm --dir gui tauri dev');
   });
 });
