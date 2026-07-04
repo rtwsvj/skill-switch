@@ -5,6 +5,9 @@
 
 ## [Unreleased]
 
+### 新增 Added
+- **`mcp-scan` 命令 — 运行时 MCP 审计 + rug-pull 基线(roadmap 阶段 3 旗舰)**:闭合静态审计装不下的最后一块——MCP server 的工具清单只有连上才能看到,且可能被偷偷改掉(rug-pull)。`skill-switch mcp-scan` opt-in 连接配置里的 MCP server,取实时工具清单,复用既有 80+ 条静态规则审计工具描述(tool-poisoning / prompt-injection / 外泄 / 不可见字符),并把 `{name, description, inputSchema}` 哈希入基线,再扫时检测 `mcp/tool-definition-changed`(high,rug-pull 嫌疑)与 `mcp/tool-added`(medium)。**7 条安全姿态**:绝不自动连接(无 flag 只列);逐 server 显式同意(`--server` 单点 / `--all` 需 `--yes` / TTY 逐个 y/N);stdio 明说"这会启动本地进程";**绝不调用 `tools/call`**(测试断言 mock server 全程未收到);10s 超时硬杀(SIGTERM→SIGKILL / AbortController);http 仅限 localhost 或 https,headers/env VALUE 绝不入输出/日志/基线;默认 report-only,`--ci` 才按 critical/high 阻断。stdio 子进程不继承父环境,只透传配置里显式声明的 env + 一个安全的 PATH;响应体上限 2MB,超限立即断开。基线文件 `<home>/.skill-switch/mcp-scan-baseline.json` 与 `audit --configs` 的 config-baseline **独立**(前者看 server 怎么跑,后者看 server 暴露什么),互补不重叠。零新依赖。
+
 ### 变更 Changed
 - **桌面 App 迁移到原生 SwiftUI,退役 Tauri GUI**:macOS 前端从 Tauri v2 + React 迁移到 SwiftUI(里程碑 1–5:总览 / 技能 / 安全 / 维护 / 历史 / 使用 六屏 + 写操作确认弹窗 + 自动快照 + zh-CN / en / ja / es 四语言应用内切换 + 跟随系统明暗主题)。`gui/` 整个目录(`gui/src-tauri/` 的 Rust 壳、`gui/src/` 的 React、Tauri 配置、React 单元测试、`gui/scripts/tui.mjs`、`gui/scripts/check-entitlements.mjs` 等)随此版本一并退役;只保留过 README 引用的 5 张截图,迁至 `assets/screenshots/`。Linux / Windows 用户继续走 npm CLI(`npx @rtwsvj/skill-switch`),桌面 App 只发 macOS。
 - **CLI 打包脚本迁至 `scripts/`**:`gui/scripts/bundle-cli.mjs` → `scripts/bundle-cli.mjs`,`gui/scripts/bundle-cli-bun.mjs` → `scripts/bundle-cli-bun.mjs`。Node SEA 产物输出从 `gui/src-tauri/bin/skill-switch-cli-<triple>` 改为 `dist/sea/skill-switch-cli-<triple>`(命名/triple 保留);`esbuild@^0.28.1` 与 `postject@1.0.0-alpha.6` 从 `gui/package.json` 同版本平移到根 `devDependencies`(零新依赖,零升版)。`pnpm-workspace.yaml` 删 `packages: - gui`。根 `package.json` 新增 `"bundle:cli"` 脚本。

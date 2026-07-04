@@ -90,6 +90,7 @@ skill-switch --help
 | `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
 | `packs` | 从对话用法**发现套餐**:`packs suggest` 读本机对话(只数 skill 名)建议常一起用的 skill 组成套餐;`packs save <id> [--enrich]` 固化成可携带的 `pack.json`(`--enrich` 从 lock 回填来源以便跨机重装);`packs install <pack.json|内置id>` 把套餐一键装到新机/另一个 agent(`--lock` 写可复现锁、可选 skill 失败不阻断);`packs list [--builtin]` 列出套餐/内置 starter 套餐;`packs show <file>` 查看;支持 `extends` 继承。 | `skill-switch packs install security-review` |
 | `mcp` | 把 skill-switch 跑成 **MCP server**(stdio):让 Cursor / Claude Code 等 agent 实时调用它的**只读**审计工具(`skill_switch_scan` / `status` / `audit`)。零依赖,绝不经此写磁盘。`--list-tools` 查看暴露的工具。 | `skill-switch mcp` |
+| `mcp-scan` | **运行时 MCP 审计(opt-in)**:连接配置里的 MCP server 取**实时**工具清单,用 80+ 静态规则审计工具描述(抓 tool-poisoning),并把每个工具的定义哈希成基线——再扫时定义变了就报 **rug-pull 嫌疑**(`mcp/tool-definition-changed` high;新工具 medium)。安全姿态:不带 flag 只列出、**绝不连接**;`--server "<source>::<name>"` 逐个显式同意(TTY 逐个确认,非 TTY 须 `--yes`;stdio server = 启动配置里的命令,连接前明示);http 仅限 localhost,其余必须 https;**绝不调用工具**(`tools/call`);超时硬杀(`--timeout <ms>`);header/env 值绝不进输出与基线。`--reset-baseline` 重新接受当前清单;`--ci` 有 critical/high 时 exit 1。详见 [docs/mcp-scan.md](docs/mcp-scan.md)。 | `skill-switch mcp-scan --server ".claude/mcp.json::fs" --yes` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
 | `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |

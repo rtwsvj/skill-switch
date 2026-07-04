@@ -16,6 +16,7 @@ import { registerInstallCommand } from './commands/install.ts';
 import { registerLintCommand } from './commands/lint.ts';
 import { registerLockCommand } from './commands/lock.ts';
 import { registerMcpCommand } from './commands/mcp.ts';
+import { registerMcpScanCommand } from './commands/mcp-scan.ts';
 import { registerPacksCommand } from './commands/packs.ts';
 import { registerRemoveCommand } from './commands/remove.ts';
 import { registerRestoreCommand } from './commands/restore.ts';
@@ -87,6 +88,8 @@ export function buildProgram(): Command {
   registerCiCommand(program);
   program.commands.at(-1)?.helpGroup('安全');
   registerExplainCommand(program);
+  program.commands.at(-1)?.helpGroup('安全');
+  registerMcpScanCommand(program);
   program.commands.at(-1)?.helpGroup('安全');
 
   // ── 治理 ──────────────────────────────────────────────────────────────────
