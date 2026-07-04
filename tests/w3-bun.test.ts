@@ -22,7 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // bundle-cli-bun.mjs 导出的纯函数
-const bundleCliBunPath = resolve(repoRoot, 'gui', 'scripts', 'bundle-cli-bun.mjs');
+const bundleCliBunPath = resolve(repoRoot, 'scripts', 'bundle-cli-bun.mjs');
 
 // ── bun 可用性检测 ──────────────────────────────────────────────────────────
 
@@ -105,8 +105,8 @@ describe('W3 bun 路径：纯函数验证（始终运行，不依赖 bun 二进�
       } else {
         expect(path).not.toMatch(/\.exe$/);
       }
-      // 输出目录在 gui/src-tauri/bin/ 下
-      expect(path).toContain(join('gui', 'src-tauri', 'bin', 'skill-switch-cli'));
+      // 输出目录在 dist/sea/ 下(Tauri 退役后 CLI 产物统一根 dist/sea/)
+      expect(path).toContain(join('dist', 'sea', 'skill-switch-cli'));
     }
   });
 

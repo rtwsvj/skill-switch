@@ -25,11 +25,11 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 ## Screenshots
 
-![总览](gui/docs/g1-overview.png)
-![技能](gui/docs/g1-skills.png)
-![安全体检](gui/docs/g1-audit.png)
-![使用统计](gui/docs/g1-usage.png)
-![多语言 zh-CN](gui/docs/p1-i18n-zh-CN.png)
+![总览](assets/screenshots/g1-overview.png)
+![技能](assets/screenshots/g1-skills.png)
+![安全体检](assets/screenshots/g1-audit.png)
+![使用统计](assets/screenshots/g1-usage.png)
+![多语言 zh-CN](assets/screenshots/p1-i18n-zh-CN.png)
 
 ## 安装(macOS,Apple Silicon)
 
@@ -41,24 +41,27 @@ App 只在你点「安装/停用/删除/同步/还原」时才写入本机各工
 
 ## GUI 全部能力
 
-顶栏:**语言**切换、**高级**开关(默认关;打开后才显示底层命令条和一致性明细等技术信息)。界面语言覆盖 **zh-CN**、**en**、**ja**、**es** 四种。
+原生 macOS App(SwiftUI,壳外调 `skill-switch` CLI 取数据,核心引擎一行不动)。侧边栏六屏:
 
-- **总览**:四个指标——已接入的工具、技能总数、从未用过(零调用)、健康检查(声明/锁/磁盘是否一致);**安装与维护**面板;**关注队列**(名称不一致 / 解析报错 / 被体检拦下的 skill)。
+- **总览**:四个指标——已接入的工具、技能总数、从未用过(零调用)、健康检查(声明/锁/磁盘是否一致);**安装与维护**入口;**关注队列**(名称不一致 / 解析报错 / 被体检拦下的 skill)。
 - **技能**:每个 skill 一行,状态(已启用/已停用),每行两个按钮——**停用/启用**、**删除**。停用会暂时关掉并保留在列表(随时可再启用);删除彻底移除。两者都先自动备份。
 - **安全**:每个 skill 的安全评分 + 裁决(SAFE/REVIEW/DANGER)+ 命中的风险点;评分 < 70 或有 critical/high 的会被拦。
+- **维护**:**安装**(来源 git/本地 → 目标工具 → 保存方式 →「安装」,装前自动体检,危险源进「被拦」列表,确需安装勾「遇到拦截也继续」)、**同步**(先「预览」再「开始同步」)。
+- **历史**:列出所有自动快照(`~/.skill-switch/backups/`),每个一行,点「还原」回到那一刻。
 - **使用**:每个 skill 的触发次数,并列出「僵尸」skill(装了却从没被调用)。
-- **安装与维护(写操作)**:**安装**(来源 git/本地 → 目标工具 → 保存方式 →「安装」,装前自动体检,危险源进「被拦」列表,确需安装勾「遇到拦截也继续」)、**同步**(先「预览」再「开始同步」)、**撤销(历史备份)**(「查看备份」选一个还原)。
 
-GUI 写操作走 `install/toggle/sync/remove/restore`,统一**确认 + 快照 + audit** 护栏:弹确认框 → 执行前自动拍快照(界面显示备份路径)→ 完成后刷新。
+顶栏:**语言**切换、**刷新**、明暗主题(跟随系统)。界面语言覆盖 **zh-CN**、**en**、**ja**、**es** 四种,应用内即时切换。
+
+GUI 写操作走 `install/toggle/sync/remove/restore`,统一**确认 + 快照 + audit** 护栏:弹原生确认框 → 执行前自动拍快照(界面显示备份路径)→ 完成后刷新。
 
 ## CLI 全部能力
 
 ### 让 `skill-switch` 命令可用
 
-装好 App 后,CLI 已随 App 带上,在 `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli`。链到 PATH 即可直接用:
+装好 App 后,CLI 已随 App 带上,在 `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli`。链到 PATH 即可直接用:
 
 ```bash
-ln -sf /Applications/skill-switch.app/Contents/MacOS/skill-switch-cli /usr/local/bin/skill-switch
+ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
 skill-switch --help
 ```
 
@@ -148,16 +151,17 @@ pnpm install
 pnpm cli --help                          # = skill-switch
 pnpm cli scan --home tests/fixtures/home-basic
 pnpm test
-pnpm --dir gui tauri dev                 # 本地起 GUI
-pnpm release                             # 一键产出 .app / .dmg(不签名)
+(cd macos && swift run)                 # 本地起原生 macOS App
+pnpm release                             # 一键产出 .app(不签名)
 ```
 
-`pnpm release` 产出 `gui/src-tauri/target/release/bundle/dmg/skill-switch_0.9.0_aarch64.dmg`。打包后的 CLI 用 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用。
+`pnpm release` 跑 `scripts/release.mjs`:测试 + typecheck + `npm pack --dry-run` + `bash macos/build-app.sh`,产出 `macos/dist/skill-switch.app`(内置自包含 **Node SEA sidecar**,所以 App 不需要系统 `node` 也能跑 CLI 调用)。
 
-签名 + 公证(需 Developer ID,见 [docs/release/signing.md](docs/release/signing.md)):
+签名 + 公证(需 Developer ID,见 [macos/README.md](macos/README.md)):
 
 ```bash
-APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui sign
+cd macos
+APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" ./sign-notarize.sh
 ```
 
 ## 更多文档
@@ -170,6 +174,6 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: <你的身份>" pnpm --dir gui
 - [docs/roadmap.md](./docs/roadmap.md):路线图——近期加固、中期功能、远期探索。
 - [docs/troubleshooting.md](./docs/troubleshooting.md):常见问题与解决方法（Gatekeeper、CLI 路径、audit 拦截、doctor 漂移、备份还原、卸载）。
 - [docs/architecture.md](./docs/architecture.md):贡献者架构概述——核心模块、CLI 层、GUI、vendored 快照与数据模型。
-- [docs/release/signing.md](./docs/release/signing.md):macOS 签名与公证。
+- [macos/README.md](./macos/README.md):原生 macOS App 开发/打包/签名/分发(自包含 `.app`、SHA + 公证)。
 - [docs/known-limitations.md](./docs/known-limitations.md):已知限制。
 - [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md):第三方快照与移植规则署名。

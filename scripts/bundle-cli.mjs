@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(scriptDir, '..', '..');
-const outBase = resolve(scriptDir, '..', 'src-tauri', 'bin', 'skill-switch-cli');
+const repoRoot = resolve(scriptDir, '..');
+const outBase = resolve(repoRoot, 'dist', 'sea', 'skill-switch-cli');
 const seaFuse = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 
 function unique(values) {
@@ -69,7 +69,7 @@ function runOptional(command, args, label) {
 }
 
 function postjectBin() {
-  return resolve(scriptDir, '..', 'node_modules', '.bin', process.platform === 'win32' ? 'postject.cmd' : 'postject');
+  return resolve(repoRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'postject.cmd' : 'postject');
 }
 
 function postjectArgs(outfile, blobPath) {
@@ -101,7 +101,7 @@ function seaNodeExecutable() {
     [
       'Unable to find a Node executable with the SEA fuse marker.',
       'Homebrew Node may be a small dynamic-link stub without the marker.',
-      'Set SKILL_SWITCH_SEA_NODE to an official Node executable, then rerun pnpm --dir gui bundle:cli.',
+      'Set SKILL_SWITCH_SEA_NODE to an official Node executable, then rerun pnpm bundle:cli.',
     ].join(' '),
   );
 }
@@ -113,7 +113,7 @@ const nodeForSea = seaNodeExecutable();
 
 await mkdir(dirname(outfile), { recursive: true });
 const result = await build({
-  entryPoints: [resolve(scriptDir, '..', '..', 'src', 'cli', 'index.ts')],
+  entryPoints: [resolve(repoRoot, 'src', 'cli', 'index.ts')],
   bundle: true,
   platform: 'node',
   target: 'node20',

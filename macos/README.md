@@ -25,8 +25,8 @@ swift run
 ## 打包(自包含,未签名)
 
 ```bash
-./build-app.sh          # → dist/SkillSwitch.app(内置 SEA CLI + 图标,无需 node)
-open dist/SkillSwitch.app
+./build-app.sh          # → dist/skill-switch.app(内置 SEA CLI + 图标,无需 node)
+open dist/skill-switch.app
 ```
 
 ## 签名 + 公证 + 分发(需 Apple Developer 凭据 —— 维护者手动)
@@ -49,4 +49,4 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: 你的名字 (TEAMID)" \
 - ✅ 里程碑 3:自包含打包(内置 SEA CLI + 图标 + `build-app.sh`)
 - ✅ 里程碑 4:签名/公证脚本 + entitlements(等 Apple 凭据即可分发)
 - ✅ 里程碑 5:i18n 四语言(zh-Hans / en / ja / es)+ 应用内切换(toolbar globe menu)
-- ⏳ 待办:退役 `gui/`(Tauri)后把 `bundle-cli.mjs` 迁出、release.yml 接入原生 App 构建
+- ✅ 退役 `gui/`(Tauri)后把 `bundle-cli.mjs` 迁至根 `scripts/`、`release.yml` 接入原生 App 构建

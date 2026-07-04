@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SkillSwitch.app 签名 + 公证 + 装订 + 打 DMG(macOS 分发)。脚本不碰你的密码。
+# skill-switch.app 签名 + 公证 + 装订 + 打 DMG(macOS 分发)。脚本不碰你的密码。
 #
 # 一次性前置(你自己做):
 #   1) 有 Apple Developer Program 会员($99/年),keychain 里装好
@@ -17,7 +17,7 @@ set -euo pipefail
 NOTARY_PROFILE="${NOTARY_PROFILE:-skill-switch-notary}"
 cd "$(dirname "$0")"
 
-APP="dist/SkillSwitch.app"
+APP="dist/skill-switch.app"
 CLI="$APP/Contents/Resources/skill-switch-cli"
 DMG="dist/skill-switch_0.9.0_aarch64.dmg"
 
