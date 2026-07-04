@@ -19,6 +19,8 @@ Or drop the [GitHub Action](docs/github-action.md) into CI to audit every PR and
 
 On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and roll back — every write is **snapshotted first and one-click reversible**, and dangerous skills are blocked before they install. Available as a **CLI** (`npx @rtwsvj/skill-switch`) and a signed + notarized **native macOS app** (SwiftUI).
 
+> Status: **v0.9.0** is shipped across all channels — npm `@rtwsvj/skill-switch@0.9.0` is `latest`, the GitHub Release `v0.9.0` carries a Developer ID-signed + Apple-notarized DMG, and the macOS app `skill-switch.app` is published alongside the CLI.
+
 ![demo](assets/demo.svg)
 
 ## Why
@@ -88,6 +90,8 @@ skill-switch --help
 | `lock` | Inspect the lock; `--verify` re-hashes disk to compare. |
 | `export` | Bundle skills.json + skills.lock.json into a portable .ssp archive (read-only). |
 | `import` | Restore skills.json + skills.lock.json from a .ssp archive (does not sync to disk). |
+| `apm-import` | Interop with **microsoft/apm** (read-only): parse `apm.yml` / `apm.lock.yaml` and map its skill primitives into skill-switch's governance model. Defaults to a dry-run preview; `--apply` writes the declaration. Non-skill primitives (prompts / agents / hooks) are explicitly skipped. Never executes commands from the file; never hits the network. |
+| `registry` | Read-only search from the official **MCP Registry**, the GitHub `marketplace.json`, and **SkillsMP** (optional, requires your own `SKILLSMP_TOKEN`), then **audit-and-install** skills / MCP servers (`registry search <query>`, `registry install <id>`). Strictly opt-in (only this command ever hits the network); HTTPS-only; zero telemetry; zero new deps; reuses the existing parse → clone → audit → gate pipeline. Dangerous sources are blocked by default and require `--force` with a recorded reason; remote content is never executed. The SkillsMP token is sent only to skillsmp.com, never logged, and never persisted by skill-switch. |
 | `uninstall` | One-command uninstall of skill-switch itself. |
 | `watch` | Detect skills on disk that bypass the governance layer (on disk but not declared); `--once` for a single pass, default is live watch. |
 | `completion` | Print a bash / zsh / fish shell completion script. `eval "$(skill-switch completion bash)"` enables Tab completion immediately; or specify `zsh`/`fish`. |
