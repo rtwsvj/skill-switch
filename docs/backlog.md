@@ -2,7 +2,7 @@
 
 > 本文档基于对 11 个竞品(trivy、gitleaks、semgrep、checkov、grype/syft、1Password CLI、gh CLI、pre-commit、osv-scanner、snyk、dependabot)的深度 UX 与功能研究,提炼出的优先级路线图。项目发货时会从本文档拉动相应项进 CHANGELOG,保持长期可视。
 
-**现状:**优先级 A/B/C 的部分项已在 v0.9(Unreleased)实现中;参见 [CHANGELOG](../CHANGELOG.md)。
+**现状:**优先级 A、B 的全部项已分别在 v0.8.0(2026-06-27)发货;优先级 C 的部分项已在 v0.8.0 发货(`packs install`、`packs save --enrich`、`extends` 继承、内置 starter 套餐、`PackSkillRef.optional?` + `packs install --lock`);优先级 D 的全部项已在 v0.8.0 发货(`drift --review`、`diff` 叙述化摘要);优先级 E 已部分发货(v0.8.0 主从布局 + 状态徽章 + 撤销 toast,批量操作仍未发货);🚩 大战略赌注中「MCP server」已在 v0.8.0 发货,「跨 IDE 市场分发 & 公开套餐 registry」部分发货(Homebrew / Scoop manifest 已发,npm CLI 已发,Linux/Windows 桌面包未发,公开精选包 registry 未发;v0.9.0 增加 `registry` 命令只读搜索官方 MCP Registry / GitHub `marketplace.json` / SkillsMP 并经审计后安装)。详见 [CHANGELOG](../CHANGELOG.md)。
 
 ---
 
@@ -10,7 +10,7 @@
 
 上手快、反馈明确的核心功能。重点是让新用户看到即时价值,降低采用摩擦。
 
-### 🎯 help 分组 + QUICK START 块
+### ✅ help 分组 + QUICK START 块(v0.8.0)
 
 **价值:**20+ 命令现在平铺,新手看不清优先级。分组后能一眼找到最常用命令。
 
@@ -20,7 +20,7 @@
 
 ---
 
-### 🎯 `status` 一览命令
+### ✅ `status` 一览命令(v0.8.0)
 
 **价值:**用户想快速诊断「现在怎么样」——skills 总数、风险评分、漂移现状、上次更新时间。一条命令看清全局。
 
@@ -30,7 +30,7 @@
 
 ---
 
-### 🎯 可操作的空状态
+### ✅ 可操作的空状态(v0.8.0)
 
 **价值:**audit/show/list 等命令返回空时,提示用户「下一步该做什么」(如「0 个 skills —— 试试 `skill-switch init` 发现已装的」)。
 
@@ -40,7 +40,7 @@
 
 ---
 
-### 🎯 操作结尾计数小结
+### ✅ 操作结尾计数小结(v0.8.0)
 
 **价值:**sync/install 后输出「启用 N 个、停用 M 个、已快照 K 次」之类的摘要,让用户明确感受到实际改动。
 
@@ -54,7 +54,7 @@
 
 让 skill-switch 能融入已有的团队工作流与 CI 基础设施。
 
-### 🎯 JUnit XML 输出
+### ✅ JUnit XML 输出(v0.8.0)
 
 **价值:**CI 生态需要多种格式:SARIF 上传 code-scanning,GitHub Annotations 用 `--format github`,但 Jenkins/GitLab/CircleCI 等仍需 JUnit XML。
 
@@ -64,7 +64,7 @@
 
 ---
 
-### 🎯 `--exit-code <n>` 覆盖
+### ✅ `--exit-code <n>` 覆盖(v0.8.0)
 
 **价值:**「只报告,不失败」场景(如 pull-request 反馈):findings 照常输出,但总是 exit 0。也支持 `--exit-code 1` 表「仅高严重度失败」。
 
@@ -74,7 +74,7 @@
 
 ---
 
-### 🎯 严重度过滤 `--min-severity`
+### ✅ 严重度过滤 `--min-severity`(v0.8.0)
 
 **价值:**只关心 high/critical 的团队不想被 low-severity 刷屏。`audit --min-severity high` 直接在审计阶段过滤。
 
@@ -84,7 +84,7 @@
 
 ---
 
-### 🎯 行内注释抑制
+### ✅ 行内注释抑制(v0.8.0)
 
 **价值:**技能或配置文件本身含有抑制注解,就能局部关闭审计(如 `# skill-switch:suppress mcp/server-added` 单行)。自动生成修复建议时也插入该注解。
 
@@ -94,7 +94,7 @@
 
 ---
 
-### 🎯 pre-commit 钩子脚手架
+### ✅ pre-commit 钩子脚手架(v0.8.0)
 
 **价值:**开发者用 `skill-switch pre-commit-install` 自动生成 `.pre-commit-hooks.yaml` 条目,git push 前自动审计(无需额外依赖)。
 

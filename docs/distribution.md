@@ -112,7 +112,7 @@ curl -L -O https://github.com/rtwsvj/skill-switch/releases/latest/download/skill
 
 # 2. 双击挂载,把 skill-switch.app 拖进「应用程序」
 # 3. 链 CLI 到 PATH
-ln -sf /Applications/skill-switch.app/Contents/MacOS/skill-switch-cli /usr/local/bin/skill-switch
+ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
 skill-switch --help
 ```
 
@@ -135,21 +135,21 @@ skill-switch --help
 ## 6. bun compile（实验性，面向开发者）
 
 > ⚠ **实验阶段**：bun 路径尚未取代 Node SEA，两条路径并列存在。
-> 待验证充分（Tauri sidecar 集成、CI 全平台冒烟）后再正式切换。
+> 待验证充分（sidecar 集成、CI 全平台冒烟）后再正式切换。
 
 ### 原理
 
 [Bun](https://bun.sh/) 可将 TypeScript 源码直接编译成单文件原生可执行文件，
 无需 Node.js 运行时——与 Node SEA（`bundle-cli.mjs`）目标相同，但实现路径不同：
 
-| 维度           | Node SEA（当前正式路径）          | bun compile（实验路径）             |
-| -------------- | --------------------------------- | ----------------------------------- |
-| 打包工具       | esbuild → Node SEA + postject     | bun build --compile                 |
-| 冷启动速度     | ~8–12 s（含 Node 解压开销）       | <100 ms（原生可执行，无 VM 启动）   |
-| 跨平台编译     | 须在目标平台运行                  | 同上（须在目标平台运行）            |
-| 产物命名       | `skill-switch-cli-<triple>`       | 相同                                |
-| 输出目录       | `gui/src-tauri/bin/`              | 相同                                |
-| Tauri 集成状态 | ✅ 已验证                          | 🚧 待验证（产物格式待 Tauri 确认）  |
+| 维度           | Node SEA（当前正式路径）              | bun compile（实验路径）             |
+| -------------- | ------------------------------------- | ----------------------------------- |
+| 打包工具       | esbuild → Node SEA + postject         | bun build --compile                 |
+| 冷启动速度     | ~8–12 s（含 Node 解压开销）           | <100 ms（原生可执行，无 VM 启动）   |
+| 跨平台编译     | 须在目标平台运行                      | 同上（须在目标平台运行）            |
+| 产物命名       | `skill-switch-cli-<triple>`           | 相同                                |
+| 输出目录       | `dist/sea/`                           | 相同                                |
+| 桌面 App 集成  | ✅ 已验证（`macos/build-app.sh` 接入） | 🚧 待验证（产物格式待 macOS 确认）  |
 
 ### 构建步骤（本地开发）
 
@@ -160,20 +160,21 @@ pnpm install
 # 验证 bun 可用
 pnpm exec bun --version
 
-# 构建（产物写到 gui/src-tauri/bin/skill-switch-cli-<triple>）
+# 构建（产物写到 dist/sea/skill-switch-cli-<triple>）
 pnpm bundle:cli:bun
 
 # 快速冒烟验证
-./gui/src-tauri/bin/skill-switch-cli-$(rustc --print host-tuple) --version
+./dist/sea/skill-switch-cli-$(uname -m | sed 's/arm64/aarch64/;s/x86_64/x64/') --version
 ```
 
 ### 已知限制与坑
 
 1. **`node:sea` 不兼容**：`src/cli/index.ts` 导入了 `node:sea`（Node 内置），bun 不提供此模块。
-   `bundle-cli-bun.mjs` 用一个临时 wrapper 入口绕过，不改动 `src/` 下任何文件。
+   `scripts/bundle-cli-bun.mjs` 用一个临时 wrapper 入口绕过，不改动 `src/` 下任何文件。
 
-2. **Tauri sidecar 集成待验证**：Tauri 对 `externalBin` 产物的签名/公证要求与 Node SEA 相同，
-   但 bun 产物是纯原生二进制，理论上更容易通过公证；尚未在 CI 全流程中验证。
+2. **桌面 App sidecar 集成待验证**：原生 macOS App 通过 `Contents/Resources/skill-switch-cli` 内置 CLI，
+   其签名/公证要求与 Node SEA 相同；但 bun 产物是纯原生二进制，理论上更容易通过公证，
+   尚未在 `macos/sign-notarize.sh` 全流程中验证。
 
 3. **re2 原生模块**：`re2` 是 Node 原生扩展（`.node`），bun 1.x 对 Node 原生扩展的支持有限，
    bun compile 可能无法正确打包 `re2`——如遇问题，需用 `--external re2` 并随二进制附带 `.node` 文件。
@@ -187,8 +188,9 @@ pnpm bundle:cli:bun
 
 1. `pnpm release` 在本机做本地 smoke test(需 macOS + Developer ID)。
 2. 推送 git tag(`git tag v0.X.Y && git push origin v0.X.Y`)。
-3. `.github/workflows/release.yml` 自动在三平台构建并上传到 GitHub Release。
-4. 更新 `packaging/skill-switch.rb`(Homebrew)和 `packaging/skill-switch.json`(Scoop),同步到对应 tap/bucket 仓库。
-5. `npm publish --access public`(CLI npm 包)。
+3. `.github/workflows/release.yml` 在 `macos-14` runner 上自动构建 `macos/dist/skill-switch.app` 并打 zip 上传到 GitHub Release。
+4. 维护者本地跑 `macos/sign-notarize.sh` 出 Developer ID 签名 + Apple 公证的 DMG(`dist/skill-switch_<ver>_aarch64.dmg`),手动附到同一 Release。
+5. 更新 `packaging/skill-switch.rb`(Homebrew)和 `packaging/skill-switch.json`(Scoop),同步到对应 tap/bucket 仓库。
+6. `npm publish --access public`(CLI npm 包)。
 
 > 详细签名公证步骤见 [docs/release/signing.md](./release/signing.md)。

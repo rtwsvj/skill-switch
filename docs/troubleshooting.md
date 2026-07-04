@@ -30,14 +30,14 @@ macOS Gatekeeper 对从网络下载的应用进行首次开启确认。这是系
 
 **原因 / Cause**
 
-CLI 随 App 内置，路径为 `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli`，但该路径默认不在系统的 `PATH` 中。
+CLI 随 App 内置，路径为 `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli`，但该路径默认不在系统的 `PATH` 中。
 
 **怎么办 / Fix**
 
 创建一个符号链接把 CLI 映射到 `/usr/local/bin`（或任何已在 `PATH` 中的目录）：
 
 ```bash
-ln -sf /Applications/skill-switch.app/Contents/MacOS/skill-switch-cli /usr/local/bin/skill-switch
+ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
 ```
 
 链接后验证：

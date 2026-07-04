@@ -19,7 +19,7 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 在审计之上,它还是个**跨 agent 的 skill 治理层**:盘点 / 开关 / 安装 / 同步 / 回滚——所有写操作**先自动备份、可一键回滚**,危险 skill 装前即被拦。**命令行(CLI)** 与**桌面 App(GUI)** 两种用法,能力对等。
 
-> 状态:**v0.9.0**(发布准备就绪)。发布后:CLI 走 npm(`npx @rtwsvj/skill-switch`),macOS 桌面 App 提供 Developer ID 签名 + Apple 公证的 DMG。(npm 当前最新为 0.6.0;0.9.0 的 tag + 发布由维护者手动完成。)
+> 状态:**v0.9.0**(已全渠道发布)。npm 包 `@rtwsvj/skill-switch@0.9.0` 为 latest,GitHub Release(`v0.9.0`)附 Developer ID 签名 + Apple 公证的 DMG,macOS 桌面 App `skill-switch.app` 与 CLI 同号发布。
 
 ![demo](assets/demo.svg)
 
@@ -123,7 +123,7 @@ skill-switch uninstall
 - `--dry-run`:只列会删什么,不真删。
 - `--yes`:跳过确认。
 
-> 只装了 App、没链接 CLI:直接跑 `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli uninstall`。
+> 只装了 App、没链接 CLI:直接跑 `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli uninstall`。
 > 手动兜底:`rm -rf /Applications/skill-switch.app ~/.skill-switch`,再删掉你建过的 `skill-switch` 链接。
 
 ## Safety Model(为什么可以放心点)
