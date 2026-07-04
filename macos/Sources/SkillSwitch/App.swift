@@ -26,7 +26,7 @@ struct SkillSwitchApp: App {
         .windowStyle(.titleBar)
         .commands {
             CommandGroup(after: .toolbar) {
-                Button("刷新") { Task { await state.reload() } }
+                Button(L10n.shared.t("status.menuRefresh")) { Task { await state.reload() } }
                     .keyboardShortcut("r", modifiers: .command)
             }
         }
@@ -37,14 +37,15 @@ enum Screen: String, CaseIterable, Identifiable {
     case overview, skills, safety, operations, history, usage
     var id: String { rawValue }
 
-    var title: String {
+    // 标题从 L10n 取(@MainActor 因为 L10n.shared 在主线程);SwiftUI 视图 body 都是 MainActor,调用无碍。
+    @MainActor var title: String {
         switch self {
-        case .overview: return "总览"
-        case .skills: return "技能"
-        case .safety: return "安全"
-        case .operations: return "维护"
-        case .history: return "历史"
-        case .usage: return "使用"
+        case .overview: return L10n.shared.t("nav.overview")
+        case .skills: return L10n.shared.t("nav.skills")
+        case .safety: return L10n.shared.t("nav.safety")
+        case .operations: return L10n.shared.t("nav.ops")
+        case .history: return L10n.shared.t("nav.history")
+        case .usage: return L10n.shared.t("nav.usage")
         }
     }
     var icon: String {
@@ -61,6 +62,7 @@ enum Screen: String, CaseIterable, Identifiable {
 
 struct RootView: View {
     @EnvironmentObject var state: AppState
+    @ObservedObject private var l10n = L10n.shared
     @State private var selection: Screen = .overview
 
     var body: some View {
@@ -74,11 +76,13 @@ struct RootView: View {
                     Divider()
                     HStack(spacing: 6) {
                         Circle().fill(state.fatalError == nil ? Color.green : Color.red).frame(width: 7, height: 7)
-                        Text(state.fatalError == nil ? "已连接 CLI" : "CLI 未连接")
+                        Text(state.fatalError == nil
+                             ? l10n.t("status.cliConnected")
+                             : l10n.t("status.cliDisconnected"))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     if let at = state.loadedAt {
-                        Text("刷新于 \(at.formatted(date: .omitted, time: .shortened))")
+                        Text(l10n.t("status.refreshedAt", at.formatted(date: .omitted, time: .shortened)))
                             .font(.caption2).foregroundStyle(.tertiary)
                     }
                 }
@@ -101,8 +105,9 @@ struct RootView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button { Task { await state.reload() } } label: {
                         Image(systemName: "arrow.clockwise")
-                    }.help("刷新").disabled(state.isLoading)
+                    }.help(l10n.t("status.toolbarRefresh")).disabled(state.isLoading)
                 }
+                ToolbarItem(placement: .primaryAction) { languageMenu }
             }
         }
         .overlay(alignment: .top) {
@@ -118,10 +123,39 @@ struct RootView: View {
         .overlay(alignment: .bottom) { banner }
     }
 
+    // 语言切换入口:toolbar 上的地球图标菜单,跟随系统 + 四种具体语言。
+    private var languageMenu: some View {
+        Menu {
+            ForEach(Self.languageOptions, id: \.code) { opt in
+                Button {
+                    l10n.language = opt.code
+                } label: {
+                    if l10n.language == opt.code {
+                        Label(l10n.t(opt.labelKey), systemImage: "checkmark")
+                    } else {
+                        Text(l10n.t(opt.labelKey))
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "globe")
+        }
+        .help(l10n.t("language.menu"))
+    }
+
+    // 菜单项 = (内部代码, 翻译 key)。写死而不是动态拼 "language." + code,让 i18n 检查能直接看到每个 key。
+    private static let languageOptions: [(code: String, labelKey: String)] = [
+        ("system", "language.system"),
+        ("zh-Hans", "language.zhHans"),
+        ("en", "language.en"),
+        ("ja", "language.ja"),
+        ("es", "language.es"),
+    ]
+
     // 写操作反馈:成功(绿)/ 失败(红)/ 处理中。3 秒后自动消失。
     @ViewBuilder private var banner: some View {
         if state.busy {
-            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("处理中…") }
+            HStack(spacing: 8) { ProgressView().controlSize(.small); Text(l10n.t("status.processing")) }
                 .padding(10).background(.regularMaterial, in: Capsule()).padding(.bottom, 16)
         } else if let msg = state.toast {
             Label(msg, systemImage: "checkmark.circle.fill")

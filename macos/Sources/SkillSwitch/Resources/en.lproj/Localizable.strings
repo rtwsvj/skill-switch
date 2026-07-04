@@ -1,0 +1,178 @@
+/* Navigation (sidebar + screen titles) */
+"nav.overview" = "Overview";
+"nav.skills" = "Skills";
+"nav.safety" = "Safety";
+"nav.ops" = "Maintenance";
+"nav.history" = "History";
+"nav.usage" = "Usage";
+
+/* Language picker (toolbar menu) */
+"language.menu" = "Language";
+"language.system" = "Follow System";
+"language.zhHans" = "简体中文";
+"language.en" = "English";
+"language.ja" = "日本語";
+"language.es" = "Español";
+
+/* Status / banner / errors */
+"status.cliConnected" = "CLI Connected";
+"status.cliDisconnected" = "CLI Disconnected";
+"status.refreshedAt" = "Refreshed at %@";
+"status.processing" = "Working…";
+"status.sectionLoadFailed" = "Load failed";
+"status.fatalCliNotFound" = "Cannot reach the skill-switch CLI. Set environment variable SKILL_SWITCH_ROOT=<repo root> or SKILL_SWITCH_CLI=<executable>.";
+"status.toolbarRefresh" = "Refresh";
+"status.menuRefresh" = "Refresh";
+
+/* Theme — severity / verdict */
+"severity.critical" = "Critical";
+"severity.high" = "High";
+"severity.medium" = "Medium";
+"severity.low" = "Low";
+"verdict.safe" = "Safe";
+"verdict.review" = "Review";
+"verdict.danger" = "Danger";
+
+/* Operations — generic */
+"ops.snapshotPrefix" = "Auto-snapshot taken before changes.";
+"ops.snapshotWithLabel" = "Auto-snapshot taken before changes (%@).";
+"ops.failed" = "%@ failed: %@";
+
+/* Operations — toggle */
+"ops.toggle.enable" = "Enable";
+"ops.toggle.disable" = "Disable";
+"ops.toggle.ok.enabled" = "Enabled %@. %@";
+"ops.toggle.ok.disabled" = "Disabled %@. %@";
+
+/* Operations — remove */
+"ops.remove" = "Remove";
+"ops.remove.ok" = "Removed %@ (%@). %@";
+
+/* Operations — sync */
+"ops.sync" = "Sync";
+"ops.sync.ok" = "Sync complete, %d change(s). %@";
+
+/* Operations — restore */
+"ops.restore" = "Restore";
+"ops.restore.ok" = "Restored to %@. The current state is also snapshotted — you can still roll forward.";
+
+/* Operations — install */
+"ops.install" = "Install";
+"ops.install.blocked" = "Safety blocked %d skill(s) (low score). Tick \"Continue even if blocked\" only if you trust the source.";
+"ops.install.ok" = "Installed %@. %@";
+"ops.install.listSeparator" = ", ";
+
+/* Operations — screen */
+"ops.title" = "Install & Maintenance";
+"ops.subtitle" = "Every write auto-snapshots first; one-click rollback.";
+
+/* Install card */
+"ops.install.label" = "Install";
+"ops.install.intro" = "Drop a new skill into the selected tool. Safety-checked first; dangerous sources are blocked by default.";
+"ops.install.field.source" = "Source";
+"ops.install.field.target" = "Install into";
+"ops.install.field.mode" = "Save as";
+"ops.install.field.source.placeholder" = "Git URL or local folder";
+"ops.install.mode.copy" = "Copy";
+"ops.install.mode.symlink" = "Symlink";
+"ops.install.force" = "Continue even if blocked by safety (at your own risk)";
+"ops.install.force.reason" = "Reason to install anyway (required, kept on record)";
+"ops.install.button" = "Install";
+"ops.install.confirm.title" = "Install this skill?";
+"ops.install.confirm.force.btn" = "Skip safety block & install";
+"ops.install.confirm.normal.btn" = "Install";
+"ops.install.confirm.cancel" = "Cancel";
+"ops.install.confirm.force.msg" = "This skips the safety block. Continue only if you fully trust the source.";
+"ops.install.confirm.normal.msg" = "Safety check runs before install; nothing is written unless it passes. Auto-snapshot before changes.";
+
+/* Sync card */
+"ops.sync.label" = "Sync";
+"ops.sync.intro" = "Re-align skills with the saved manifest, fixing missing or inconsistent ones. Preview before applying.";
+"ops.sync.preview.btn" = "Preview";
+"ops.sync.preview.failed" = "Preview failed: %@";
+"ops.sync.empty" = "Manifest already matches disk — nothing to sync.";
+"ops.sync.changes" = "%d change(s):";
+"ops.sync.apply.btn" = "Apply sync";
+"ops.sync.confirm.title" = "Apply sync changes?";
+"ops.sync.confirm.btn" = "Apply";
+"ops.sync.confirm.cancel" = "Cancel";
+"ops.sync.confirm.msg" = "Apply the manifest to disk. Auto-snapshot first; restore from History if needed.";
+
+/* Sync action kinds */
+"ops.action.create" = "Create";
+"ops.action.replace" = "Replace";
+"ops.action.remove" = "Remove";
+"ops.action.configEnable" = "Enable";
+"ops.action.configDisable" = "Disable";
+
+/* Overview */
+"overview.demoHome" = "Demo home (won't touch real config)";
+"overview.metrics.agents" = "Connected tools";
+"overview.metrics.skills" = "Total skills";
+"overview.metrics.zombies" = "Never used";
+"overview.metrics.health.ok" = "OK";
+"overview.metrics.health.label" = "Health check";
+"overview.attention" = "Attention queue";
+"overview.attention.count" = "%d item(s)";
+"overview.attention.empty" = "Nothing needs attention right now.";
+"overview.attention.blocked" = "Blocked · score %d";
+"overview.attention.readFailed" = "Read failed";
+
+/* Skills */
+"skills.subtitle.count" = "%d skill(s)";
+"skills.intro" = "These skills come from various AI tools. Disabling or removing will auto-snapshot first; restore from History.";
+"skills.empty" = "No skills yet.";
+"skills.pill.enabled" = "Enabled";
+"skills.pill.disabled" = "Disabled";
+"skills.pill.readFailed" = "Read failed";
+"skills.row.dir" = "Folder";
+"skills.row.path" = "Path";
+"skills.row.desc" = "Description";
+"skills.row.error" = "Error";
+"skills.confirm.enable.title" = "Enable this skill?";
+"skills.confirm.disable.title" = "Disable this skill?";
+"skills.confirm.remove.title" = "Remove this skill?";
+"skills.confirm.enable.msg" = "Enable %@. Auto-snapshot first; you can restore from History anytime.";
+"skills.confirm.disable.msg" = "Disable %@ (just turns it off; the files stay on disk and can be re-enabled). Auto-snapshot first.";
+"skills.confirm.remove.msg" = "Remove %@ from %@. Auto-snapshot first; restore from History if you change your mind.";
+"skills.confirm.enable.btn" = "Enable";
+"skills.confirm.disable.btn" = "Disable";
+"skills.confirm.remove.btn" = "Remove";
+"skills.confirm.cancel" = "Cancel";
+"skills.action.enable" = "Enable";
+"skills.action.disable" = "Disable";
+"skills.action.remove" = "Remove";
+
+/* Safety */
+"safety.subtitle" = "%d skill(s) audited";
+"safety.metric.safe" = "Safe";
+"safety.metric.review" = "Review";
+"safety.metric.blocked" = "Blocked";
+"safety.cross.label" = "Cross-skill collusion risks";
+"safety.findings.count" = "%d finding(s)";
+"safety.findings.empty" = "No obvious risks found.";
+"safety.pill.blocked" = "Blocked";
+
+/* History */
+"history.subtitle.count" = "%d snapshot(s)";
+"history.intro" = "Your \"undo button\": every change is auto-snapshotted first; roll back to any point in one click.";
+"history.empty" = "No snapshots yet. After the first change, restorable points will show up here.";
+"history.action.restore" = "Restore to here";
+"history.confirm.title" = "Restore this snapshot?";
+"history.confirm.btn" = "Restore";
+"history.confirm.cancel" = "Cancel";
+"history.confirm.msg" = "Will overwrite the current state with \"%@\". Another snapshot is taken before overwriting — you can still roll forward.";
+"history.load.failed" = "Failed to load snapshots: %@";
+
+/* Usage */
+"usage.since.since" = "Since %@";
+"usage.since.all" = "All time";
+"usage.metric.scanned" = "Records scanned";
+"usage.metric.invocations" = "Skill invocations";
+"usage.metric.used" = "Skills used";
+"usage.metric.zombies" = "Never used";
+"usage.topTitle" = "Most called";
+"usage.count" = "%d time(s)";
+"usage.zombies.label" = "Skills never used";
+"usage.zombies.empty" = "No zombie skills.";
+"usage.zombies.pill" = "Never used";

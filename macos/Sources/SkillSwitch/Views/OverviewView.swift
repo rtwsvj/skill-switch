@@ -2,23 +2,29 @@ import SwiftUI
 
 struct OverviewView: View {
     @EnvironmentObject var state: AppState
+    @ObservedObject private var l10n = L10n.shared
     private let cols = [GridItem(.adaptive(minimum: 200), spacing: 14)]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "总览", subtitle: state.homeOverride != nil ? "演示目录(不碰真实配置)" : nil) {
+                ScreenHeader(title: l10n.t("nav.overview"),
+                             subtitle: state.homeOverride != nil ? l10n.t("overview.demoHome") : nil) {
                     Task { await state.reload() }
                 }
 
                 LazyVGrid(columns: cols, spacing: 14) {
-                    MetricCard(icon: "cpu", value: "\(state.agentCount)", label: "已接入的工具", tone: .accent)
-                    MetricCard(icon: "puzzlepiece.extension", value: "\(state.skillCount)", label: "技能总数")
-                    MetricCard(icon: "moon.zzz", value: "\(state.zombieCount)", label: "从未用过",
+                    MetricCard(icon: "cpu", value: "\(state.agentCount)",
+                               label: l10n.t("overview.metrics.agents"), tone: .accent)
+                    MetricCard(icon: "puzzlepiece.extension", value: "\(state.skillCount)",
+                               label: l10n.t("overview.metrics.skills"))
+                    MetricCard(icon: "moon.zzz", value: "\(state.zombieCount)",
+                               label: l10n.t("overview.metrics.zombies"),
                                tone: state.zombieCount > 0 ? .warn : .neutral)
                     MetricCard(icon: state.healthOK ? "heart.text.square" : "exclamationmark.triangle",
-                               value: state.healthOK ? "正常" : "\(state.doctorIssueCount)",
-                               label: "健康检查", tone: state.healthOK ? .good : .danger)
+                               value: state.healthOK ? l10n.t("overview.metrics.health.ok") : "\(state.doctorIssueCount)",
+                               label: l10n.t("overview.metrics.health.label"),
+                               tone: state.healthOK ? .good : .danger)
                 }
 
                 attention
@@ -33,20 +39,20 @@ struct OverviewView: View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Label("关注队列", systemImage: "bell.badge").font(.headline)
+                    Label(l10n.t("overview.attention"), systemImage: "bell.badge").font(.headline)
                     Spacer()
-                    Pill(text: "\(blocked.count + mismatches.count) 项",
+                    Pill(text: l10n.t("overview.attention.count", blocked.count + mismatches.count),
                          tone: (blocked.count + mismatches.count) > 0 ? .warn : .neutral)
                 }
                 if blocked.isEmpty && mismatches.isEmpty {
-                    Text("目前没有需要处理的问题。").font(.callout).foregroundStyle(.secondary)
+                    Text(l10n.t("overview.attention.empty")).font(.callout).foregroundStyle(.secondary)
                 } else {
                     ForEach(blocked) { r in
                         HStack {
                             Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(.red)
                             Text(r.name ?? r.path)
                             Spacer()
-                            Pill(text: "被拦下 · 评分 \(r.score)", tone: .danger)
+                            Pill(text: l10n.t("overview.attention.blocked", r.score), tone: .danger)
                         }
                     }
                     ForEach(mismatches) { s in
@@ -54,7 +60,7 @@ struct OverviewView: View {
                             Image(systemName: "questionmark.circle.fill").foregroundStyle(.orange)
                             Text(s.displayName)
                             Spacer()
-                            Pill(text: "读取失败", tone: .warn)
+                            Pill(text: l10n.t("overview.attention.readFailed"), tone: .warn)
                         }
                     }
                 }

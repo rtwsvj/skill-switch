@@ -2,20 +2,25 @@ import SwiftUI
 
 struct SafetyView: View {
     @EnvironmentObject var state: AppState
+    @ObservedObject private var l10n = L10n.shared
     private let cols = [GridItem(.adaptive(minimum: 170), spacing: 14)]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "安全", subtitle: "\(state.audit.total) 个技能已体检") {
+                ScreenHeader(title: l10n.t("nav.safety"),
+                             subtitle: l10n.t("safety.subtitle", state.audit.total)) {
                     Task { await state.reload() }
                 }
 
                 LazyVGrid(columns: cols, spacing: 14) {
-                    MetricCard(icon: "checkmark.shield.fill", value: "\(state.safeCount)", label: "安全", tone: .good)
-                    MetricCard(icon: "shield.lefthalf.filled", value: "\(state.reviewCount)", label: "建议看看",
+                    MetricCard(icon: "checkmark.shield.fill", value: "\(state.safeCount)",
+                               label: l10n.t("safety.metric.safe"), tone: .good)
+                    MetricCard(icon: "shield.lefthalf.filled", value: "\(state.reviewCount)",
+                               label: l10n.t("safety.metric.review"),
                                tone: state.reviewCount > 0 ? .warn : .neutral)
-                    MetricCard(icon: "exclamationmark.octagon.fill", value: "\(state.blockedCount)", label: "被拦下",
+                    MetricCard(icon: "exclamationmark.octagon.fill", value: "\(state.blockedCount)",
+                               label: l10n.t("safety.metric.blocked"),
                                tone: state.blockedCount > 0 ? .danger : .neutral)
                 }
 
@@ -23,7 +28,7 @@ struct SafetyView: View {
                 if !cross.isEmpty {
                     Card(tone: .danger) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Label("跨技能协同风险", systemImage: "link.badge.plus").font(.headline)
+                            Label(l10n.t("safety.cross.label"), systemImage: "link.badge.plus").font(.headline)
                             ForEach(cross) { findingRow($0) }
                         }
                     }
@@ -50,11 +55,14 @@ struct SafetyView: View {
                 }
                 HStack(spacing: 6) {
                     Pill(text: r.verdict.label, tone: r.verdict.tone)
-                    if r.blocked == true { Pill(text: "被拦下", tone: .danger) }
-                    if !r.findings.isEmpty { Text("\(r.findings.count) 条发现").font(.caption).foregroundStyle(.secondary) }
+                    if r.blocked == true { Pill(text: l10n.t("safety.pill.blocked"), tone: .danger) }
+                    if !r.findings.isEmpty {
+                        Text(l10n.t("safety.findings.count", r.findings.count))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 if r.findings.isEmpty {
-                    Text("没有发现明显风险。").font(.callout).foregroundStyle(.secondary)
+                    Text(l10n.t("safety.findings.empty")).font(.callout).foregroundStyle(.secondary)
                 } else {
                     ForEach(r.findings) { findingRow($0) }
                 }

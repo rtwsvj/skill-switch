@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OperationsView: View {
     @EnvironmentObject var state: AppState
+    @ObservedObject private var l10n = L10n.shared
 
     // 同步
     @State private var plan: SyncRunResult?
@@ -20,8 +21,8 @@ struct OperationsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "安装与维护",
-                             subtitle: "所有写操作先自动备份,可一键回滚") {
+                ScreenHeader(title: l10n.t("ops.title"),
+                             subtitle: l10n.t("ops.subtitle")) {
                     Task { await state.reload() }
                 }
 
@@ -37,35 +38,38 @@ struct OperationsView: View {
     @ViewBuilder private var installCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
-                Label("安装", systemImage: "square.and.arrow.down").font(.headline)
-                Text("把新技能放进所选工具;安装前先做安全检查,危险源默认拦下。")
+                Label(l10n.t("ops.install.label"), systemImage: "square.and.arrow.down").font(.headline)
+                Text(l10n.t("ops.install.intro"))
                     .font(.caption).foregroundStyle(.secondary)
 
-                field("来源") {
-                    TextField("Git 地址或本地文件夹", text: $source).textFieldStyle(.roundedBorder)
+                field(l10n.t("ops.install.field.source")) {
+                    TextField(l10n.t("ops.install.field.source.placeholder"),
+                              text: $source).textFieldStyle(.roundedBorder)
                 }
                 HStack {
-                    field("装到") {
+                    field(l10n.t("ops.install.field.target")) {
                         TextField("claude-code", text: $agent).textFieldStyle(.roundedBorder).frame(width: 160)
                     }
-                    field("保存方式") {
+                    field(l10n.t("ops.install.field.mode")) {
                         Picker("", selection: $mode) {
-                            Text("复制").tag("copy"); Text("链接").tag("symlink")
+                            Text(l10n.t("ops.install.mode.copy")).tag("copy")
+                            Text(l10n.t("ops.install.mode.symlink")).tag("symlink")
                         }.pickerStyle(.segmented).frame(width: 140)
                     }
                     Spacer()
                 }
-                Toggle("遇到安全拦截也继续(风险自负)", isOn: $force)
+                Toggle(l10n.t("ops.install.force"), isOn: $force)
                     .toggleStyle(.checkbox).font(.callout)
                 if force {
-                    TextField("仍要安装的理由(必填,会留痕)", text: $forceReason).textFieldStyle(.roundedBorder)
+                    TextField(l10n.t("ops.install.force.reason"),
+                              text: $forceReason).textFieldStyle(.roundedBorder)
                 }
 
                 HStack {
                     Button {
                         confirmInstall = true
                     } label: {
-                        Label("安装", systemImage: "square.and.arrow.down")
+                        Label(l10n.t("ops.install.button"), systemImage: "square.and.arrow.down")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(source.trimmingCharacters(in: .whitespaces).isEmpty
@@ -74,14 +78,14 @@ struct OperationsView: View {
                 }
             }
         }
-        .confirmationDialog("要安装这个技能吗?", isPresented: $confirmInstall) {
-            Button(force ? "跳过拦截并安装" : "安装", role: force ? .destructive : nil) {
+        .confirmationDialog(l10n.t("ops.install.confirm.title"), isPresented: $confirmInstall) {
+            Button(force ? l10n.t("ops.install.confirm.force.btn") : l10n.t("ops.install.confirm.normal.btn"),
+                   role: force ? .destructive : nil) {
                 Task { await state.install(source: source, agent: agent, mode: mode, force: force, forceReason: forceReason) }
             }
-            Button("取消", role: .cancel) {}
+            Button(l10n.t("ops.install.confirm.cancel"), role: .cancel) {}
         } message: {
-            Text(force ? "会跳过安全拦截继续安装。仅在确认来源可信时继续。"
-                       : "安装前会先做安全检查,通过后才写入。改动前自动备份。")
+            Text(force ? l10n.t("ops.install.confirm.force.msg") : l10n.t("ops.install.confirm.normal.msg"))
         }
     }
 
@@ -89,14 +93,14 @@ struct OperationsView: View {
     @ViewBuilder private var syncCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
-                Label("同步", systemImage: "arrow.triangle.2.circlepath").font(.headline)
-                Text("按已保存的清单重新整理技能,修复缺失或不一致。先预览再应用。")
+                Label(l10n.t("ops.sync.label"), systemImage: "arrow.triangle.2.circlepath").font(.headline)
+                Text(l10n.t("ops.sync.intro"))
                     .font(.caption).foregroundStyle(.secondary)
 
                 HStack {
                     Button {
                         Task { await preview() }
-                    } label: { Label("先预览", systemImage: "eye") }
+                    } label: { Label(l10n.t("ops.sync.preview.btn"), systemImage: "eye") }
                     .buttonStyle(.bordered)
                     if planning { ProgressView().controlSize(.small) }
                 }
@@ -107,10 +111,10 @@ struct OperationsView: View {
                 if let plan {
                     let changes = plan.actions.filter { $0.kind != "noop" }
                     if changes.isEmpty {
-                        Text("清单与磁盘一致,无需同步。").font(.callout).foregroundStyle(.secondary)
+                        Text(l10n.t("ops.sync.empty")).font(.callout).foregroundStyle(.secondary)
                     } else {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("\(changes.count) 项会变化:").font(.callout.weight(.medium))
+                            Text(l10n.t("ops.sync.changes", changes.count)).font(.callout.weight(.medium))
                             ForEach(changes) { a in
                                 HStack {
                                     Pill(text: actionLabel(a.kind), tone: actionTone(a.kind))
@@ -120,7 +124,7 @@ struct OperationsView: View {
                             }
                             Button {
                                 confirmSync = true
-                            } label: { Label("开始同步", systemImage: "arrow.triangle.2.circlepath") }
+                            } label: { Label(l10n.t("ops.sync.apply.btn"), systemImage: "arrow.triangle.2.circlepath") }
                             .buttonStyle(.borderedProminent)
                             .padding(.top, 4)
                         }
@@ -128,28 +132,31 @@ struct OperationsView: View {
                 }
             }
         }
-        .confirmationDialog("应用同步变更?", isPresented: $confirmSync) {
-            Button("开始同步") { Task { await state.applySync(); plan = nil } }
-            Button("取消", role: .cancel) {}
+        .confirmationDialog(l10n.t("ops.sync.confirm.title"), isPresented: $confirmSync) {
+            Button(l10n.t("ops.sync.confirm.btn")) { Task { await state.applySync(); plan = nil } }
+            Button(l10n.t("ops.sync.confirm.cancel"), role: .cancel) {}
         } message: {
-            Text("按清单把技能应用到磁盘。改动前会自动备份,可从「历史」还原。")
+            Text(l10n.t("ops.sync.confirm.msg"))
         }
     }
 
     private func preview() async {
         planning = true; planError = nil; plan = nil
         do { plan = try await state.syncPlan() }
-        catch { planError = "预览失败:\((error as? CLIError)?.message ?? error.localizedDescription)" }
+        catch {
+            let msg = (error as? CLIError)?.message ?? error.localizedDescription
+            planError = l10n.t("ops.sync.preview.failed", msg)
+        }
         planning = false
     }
 
     private func actionLabel(_ kind: String) -> String {
         switch kind {
-        case "create": return "新建"
-        case "replace": return "更新"
-        case "remove": return "移除"
-        case "config-enable": return "启用"
-        case "config-disable": return "停用"
+        case "create": return l10n.t("ops.action.create")
+        case "replace": return l10n.t("ops.action.replace")
+        case "remove": return l10n.t("ops.action.remove")
+        case "config-enable": return l10n.t("ops.action.configEnable")
+        case "config-disable": return l10n.t("ops.action.configDisable")
         default: return kind
         }
     }

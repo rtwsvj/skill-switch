@@ -49,14 +49,15 @@ final class AppState: ObservableObject {
 
         let (s, a, st, d) = await (scanR, auditR, statsR, doctorR)
 
-        if let s { scan = s } else { sectionErrors["scan"] = "加载失败" }
-        if let a { audit = a } else { sectionErrors["audit"] = "加载失败" }
-        if let st { stats = st } else { sectionErrors["stats"] = "加载失败" }
-        if let d { doctor = d } else { sectionErrors["doctor"] = "加载失败" }
+        let failedLabel = L10n.shared.t("status.sectionLoadFailed")
+        if let s { scan = s } else { sectionErrors["scan"] = failedLabel }
+        if let a { audit = a } else { sectionErrors["audit"] = failedLabel }
+        if let st { stats = st } else { sectionErrors["stats"] = failedLabel }
+        if let d { doctor = d } else { sectionErrors["doctor"] = failedLabel }
 
         // 四块全挂 → 大概率 CLI 路径不通,给出可操作的致命提示。
         if s == nil && a == nil && st == nil && d == nil {
-            fatalError = "调不到 skill-switch CLI。请设环境变量 SKILL_SWITCH_ROOT=<仓库根> 或 SKILL_SWITCH_CLI=<可执行文件>。"
+            fatalError = L10n.shared.t("status.fatalCliNotFound")
         }
 
         loadedAt = Date()
@@ -67,7 +68,10 @@ final class AppState: ObservableObject {
     // 全部复用 CLI 的护栏:装前审计 + 写前快照。这里只负责调用 + 报告 + 重载。
 
     private func snapshotNote(_ snaps: [SnapshotView]) -> String {
-        snaps.first.map { "改动前已自动备份(\($0.label))。" } ?? ""
+        if let s = snaps.first {
+            return L10n.shared.t("ops.snapshotWithLabel", s.label)
+        }
+        return ""
     }
 
     /// 通用写操作外壳:置 busy → 跑 op → 成功记 toast + 重载,失败记 actionError。
@@ -80,33 +84,37 @@ final class AppState: ObservableObject {
             toast = msg
             await reload()
         } catch {
-            actionError = "\(label)失败:\((error as? CLIError)?.message ?? error.localizedDescription)"
+            let errMsg = (error as? CLIError)?.message ?? error.localizedDescription
+            actionError = L10n.shared.t("ops.failed", label, errMsg)
         }
         busy = false
     }
 
     func toggle(_ name: String, enabled: Bool) async {
-        await runWrite(enabled ? "启用" : "停用") {
+        let actionLabel = L10n.shared.t(enabled ? "ops.toggle.enable" : "ops.toggle.disable")
+        await runWrite(actionLabel) {
             let r = try await CLI.runJSON(
                 ["toggle", name, enabled ? "--on" : "--off", "--json"] + self.homeArgs(),
                 as: ToggleRunResult.self)
-            return "\(r.enabled ? "已启用" : "已停用") \(r.name)。\(self.snapshotNote(r.snapshots))"
+            return L10n.shared.t(enabled ? "ops.toggle.ok.enabled" : "ops.toggle.ok.disabled",
+                                 r.name, self.snapshotNote(r.snapshots))
         }
     }
 
     func remove(_ name: String, agent: String) async {
-        await runWrite("删除") {
+        await runWrite(L10n.shared.t("ops.remove")) {
             let r = try await CLI.runJSON(
                 ["remove", name, "--agent", agent, "--json"] + self.homeArgs(),
                 as: RemoveRunResult.self)
-            return "已删除 \(r.name)(\(r.agent))。\(self.snapshotNote(r.snapshots))"
+            return L10n.shared.t("ops.remove.ok", r.name, r.agent, self.snapshotNote(r.snapshots))
         }
     }
 
     func applySync() async {
-        await runWrite("同步") {
+        await runWrite(L10n.shared.t("ops.sync")) {
             let r = try await CLI.runJSON(["sync", "--json"] + self.homeArgs(), as: SyncRunResult.self)
-            return "同步完成,\(r.actions.filter { $0.kind != "noop" }.count) 项变更。\(self.snapshotNote(r.snapshots))"
+            let n = r.actions.filter { $0.kind != "noop" }.count
+            return L10n.shared.t("ops.sync.ok", n, self.snapshotNote(r.snapshots))
         }
     }
 
@@ -116,16 +124,16 @@ final class AppState: ObservableObject {
     }
 
     func restore(snapshotId: String) async {
-        await runWrite("还原") {
+        await runWrite(L10n.shared.t("ops.restore")) {
             let r = try await CLI.runJSON(
                 ["restore", "--id", snapshotId, "--json"] + self.homeArgs(),
                 as: RestoreRunResult.self)
-            return "已还原到 \(r.snapshot.label)。当前状态也已备份,可再还原回来。"
+            return L10n.shared.t("ops.restore.ok", r.snapshot.label)
         }
     }
 
     func install(source: String, agent: String, mode: String, force: Bool, forceReason: String) async {
-        await runWrite("安装") {
+        await runWrite(L10n.shared.t("ops.install")) {
             var args = ["install", source, "--agent", agent, "--mode", mode]
             if force { args += ["--force"] }
             if force, !forceReason.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -134,10 +142,12 @@ final class AppState: ObservableObject {
             args.append("--json")
             let r = try await CLI.runJSON(args + self.homeArgs(), as: InstallRunResult.self)
             if !r.blocked.isEmpty {
-                return "安全检查拦下 \(r.blocked.count) 个技能(评分过低)。确认来源可信可勾选「遇拦截也继续」。"
+                return L10n.shared.t("ops.install.blocked", r.blocked.count)
             }
-            let snap = r.snapshotPath != nil ? "改动前已自动备份。" : ""
-            return "已安装 \(r.installed.map { $0.name }.joined(separator: "、"))。\(snap)"
+            let snap = r.snapshotPath != nil ? L10n.shared.t("ops.snapshotPrefix") : ""
+            let sep = L10n.shared.t("ops.install.listSeparator")
+            let names = r.installed.map { $0.name }.joined(separator: sep)
+            return L10n.shared.t("ops.install.ok", names, snap)
         }
     }
 

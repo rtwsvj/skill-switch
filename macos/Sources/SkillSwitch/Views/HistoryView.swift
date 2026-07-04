@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HistoryView: View {
     @EnvironmentObject var state: AppState
+    @ObservedObject private var l10n = L10n.shared
     @State private var snapshots: [SnapshotView] = []
     @State private var loading = false
     @State private var error: String?
@@ -10,10 +11,11 @@ struct HistoryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "历史", subtitle: "\(snapshots.count) 个备份") {
+                ScreenHeader(title: l10n.t("nav.history"),
+                             subtitle: l10n.t("history.subtitle.count", snapshots.count)) {
                     Task { await load() }
                 }
-                Text("你的「后悔药」:每次改动前都会自动备份,随时可一键还原回某个时间点。")
+                Text(l10n.t("history.intro"))
                     .font(.callout).foregroundStyle(.secondary)
 
                 if loading {
@@ -21,7 +23,7 @@ struct HistoryView: View {
                 } else if let error {
                     Card(tone: .warn) { Text(error).font(.callout).foregroundStyle(.secondary) }
                 } else if snapshots.isEmpty {
-                    Card { Text("还没有备份记录。做过改动后,这里会出现可还原的时间点。").foregroundStyle(.secondary) }
+                    Card { Text(l10n.t("history.empty")).foregroundStyle(.secondary) }
                 } else {
                     ForEach(snapshots) { snap in
                         Card {
@@ -35,7 +37,7 @@ struct HistoryView: View {
                                 Button {
                                     pendingRestore = snap
                                 } label: {
-                                    Label("还原到此", systemImage: "arrow.uturn.backward")
+                                    Label(l10n.t("history.action.restore"), systemImage: "arrow.uturn.backward")
                                 }
                                 .buttonStyle(.bordered)
                                 .disabled(snap.snapshotId == nil || state.busy)
@@ -48,18 +50,18 @@ struct HistoryView: View {
         }
         .task { await load() }
         .confirmationDialog(
-            "还原这个备份?",
+            l10n.t("history.confirm.title"),
             isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
             presenting: pendingRestore
         ) { snap in
-            Button("还原") {
+            Button(l10n.t("history.confirm.btn")) {
                 if let id = snap.snapshotId {
                     Task { await state.restore(snapshotId: id); await load() }
                 }
             }
-            Button("取消", role: .cancel) {}
+            Button(l10n.t("history.confirm.cancel"), role: .cancel) {}
         } message: { snap in
-            Text("会用「\(snap.label)」覆盖当前状态。覆盖前会再自动备份当前状态,仍可还原回来。")
+            Text(l10n.t("history.confirm.msg", snap.label))
         }
     }
 
@@ -72,7 +74,9 @@ struct HistoryView: View {
             let result = try await CLI.runJSON(args, as: RestoreListResult.self)
             snapshots = result.snapshots
         } catch {
-            self.error = "加载备份失败:\((error as? CLIError)?.message ?? error.localizedDescription)"
+            let msg = (error as? CLIError)?.message ?? error.localizedDescription
+            // catch 内部 error 同名遮蔽,用 l10n 时不会引用 self,但这里要保留上层 self.error 的赋值
+            self.error = l10n.t("history.load.failed", msg)
             snapshots = []
         }
         loading = false

@@ -5,11 +5,13 @@ import PackageDescription
 // 用原生视图渲染。核心引擎(TS CLI)一行不动。
 let package = Package(
     name: "SkillSwitch",
+    defaultLocalization: "zh-Hans",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
             name: "SkillSwitch",
-            path: "Sources/SkillSwitch"
+            path: "Sources/SkillSwitch",
+            resources: [.process("Resources")]
         )
     ]
 )

@@ -1,0 +1,178 @@
+/* Navigation (sidebar + screen titles) */
+"nav.overview" = "概要";
+"nav.skills" = "スキル";
+"nav.safety" = "安全性";
+"nav.ops" = "メンテナンス";
+"nav.history" = "履歴";
+"nav.usage" = "使用状況";
+
+/* Language picker (toolbar menu) */
+"language.menu" = "言語";
+"language.system" = "システムに従う";
+"language.zhHans" = "简体中文";
+"language.en" = "English";
+"language.ja" = "日本語";
+"language.es" = "Español";
+
+/* Status / banner / errors */
+"status.cliConnected" = "CLI 接続中";
+"status.cliDisconnected" = "CLI 未接続";
+"status.refreshedAt" = "%@ に更新";
+"status.processing" = "処理中…";
+"status.sectionLoadFailed" = "読み込み失敗";
+"status.fatalCliNotFound" = "skill-switch CLI に到達できません。環境変数 SKILL_SWITCH_ROOT=<リポジトリルート> または SKILL_SWITCH_CLI=<実行ファイル> を設定してください。";
+"status.toolbarRefresh" = "更新";
+"status.menuRefresh" = "更新";
+
+/* Theme — severity / verdict */
+"severity.critical" = "重大";
+"severity.high" = "高";
+"severity.medium" = "中";
+"severity.low" = "低";
+"verdict.safe" = "安全";
+"verdict.review" = "要確認";
+"verdict.danger" = "危険";
+
+/* Operations — generic */
+"ops.snapshotPrefix" = "変更前に自動バックアップ済み。";
+"ops.snapshotWithLabel" = "変更前に自動バックアップ済み(%@)。";
+"ops.failed" = "%@ 失敗:%@";
+
+/* Operations — toggle */
+"ops.toggle.enable" = "有効化";
+"ops.toggle.disable" = "無効化";
+"ops.toggle.ok.enabled" = "%@ を有効化しました。%@";
+"ops.toggle.ok.disabled" = "%@ を無効化しました。%@";
+
+/* Operations — remove */
+"ops.remove" = "削除";
+"ops.remove.ok" = "%@(%@) を削除しました。%@";
+
+/* Operations — sync */
+"ops.sync" = "同期";
+"ops.sync.ok" = "同期完了、%d 件の変更。%@";
+
+/* Operations — restore */
+"ops.restore" = "復元";
+"ops.restore.ok" = "%@ に復元しました。現在の状態もバックアップ済み — さらに進めることもできます。";
+
+/* Operations — install */
+"ops.install" = "インストール";
+"ops.install.blocked" = "セキュリティ検査が %d 件のスキルをブロックしました(スコア過低)。「ブロック時も続行」にチェックを入れるのは信頼できるソースのときだけにしてください。";
+"ops.install.ok" = "%@ をインストールしました。%@";
+"ops.install.listSeparator" = "、";
+
+/* Operations — screen */
+"ops.title" = "インストールとメンテナンス";
+"ops.subtitle" = "書き込み前に自動バックアップ、ワンクリックで巻き戻し可能。";
+
+/* Install card */
+"ops.install.label" = "インストール";
+"ops.install.intro" = "選択したツールに新しいスキルを追加します。インストール前に安全検査を実施し、危険なソースは既定でブロックされます。";
+"ops.install.field.source" = "ソース";
+"ops.install.field.target" = "インストール先";
+"ops.install.field.mode" = "保存方式";
+"ops.install.field.source.placeholder" = "Git URL またはローカルフォルダ";
+"ops.install.mode.copy" = "コピー";
+"ops.install.mode.symlink" = "シンボリックリンク";
+"ops.install.force" = "ブロックされた場合も続行(自己責任)";
+"ops.install.force.reason" = "続行する理由(必須、記録されます)";
+"ops.install.button" = "インストール";
+"ops.install.confirm.title" = "このスキルをインストールしますか?";
+"ops.install.confirm.force.btn" = "ブロックをスキップしてインストール";
+"ops.install.confirm.normal.btn" = "インストール";
+"ops.install.confirm.cancel" = "キャンセル";
+"ops.install.confirm.force.msg" = "これは安全ブロックをスキップします。ソースを完全に信頼できる場合にのみ続行してください。";
+"ops.install.confirm.normal.msg" = "インストール前に安全検査を実施し、通過した場合のみ書き込みます。変更前に自動バックアップされます。";
+
+/* Sync card */
+"ops.sync.label" = "同期";
+"ops.sync.intro" = "保存済みマニフェストにスキルを再整列し、欠落や不整合を修復します。適用前にプレビュー。";
+"ops.sync.preview.btn" = "プレビュー";
+"ops.sync.preview.failed" = "プレビュー失敗:%@";
+"ops.sync.empty" = "マニフェストはディスクと一致しています — 同期の必要はありません。";
+"ops.sync.changes" = "%d 件の変更:";
+"ops.sync.apply.btn" = "同期を実行";
+"ops.sync.confirm.title" = "同期の変更を適用しますか?";
+"ops.sync.confirm.btn" = "実行";
+"ops.sync.confirm.cancel" = "キャンセル";
+"ops.sync.confirm.msg" = "マニフェストをディスクに適用します。変更前に自動バックアップされ、「履歴」から復元できます。";
+
+/* Sync action kinds */
+"ops.action.create" = "作成";
+"ops.action.replace" = "更新";
+"ops.action.remove" = "削除";
+"ops.action.configEnable" = "有効化";
+"ops.action.configDisable" = "無効化";
+
+/* Overview */
+"overview.demoHome" = "デモホーム(実設定には触れません)";
+"overview.metrics.agents" = "連携済みツール";
+"overview.metrics.skills" = "スキル総数";
+"overview.metrics.zombies" = "未使用";
+"overview.metrics.health.ok" = "正常";
+"overview.metrics.health.label" = "ヘルスチェック";
+"overview.attention" = "要確認リスト";
+"overview.attention.count" = "%d 件";
+"overview.attention.empty" = "いま対応が必要な項目はありません。";
+"overview.attention.blocked" = "ブロック · スコア %d";
+"overview.attention.readFailed" = "読み込み失敗";
+
+/* Skills */
+"skills.subtitle.count" = "%d 件のスキル";
+"skills.intro" = "これらは各 AI ツールがインストールしたスキルです。無効化/削除は事前に自動バックアップされ、「履歴」から復元できます。";
+"skills.empty" = "まだスキルはありません。";
+"skills.pill.enabled" = "有効";
+"skills.pill.disabled" = "無効";
+"skills.pill.readFailed" = "読み込み失敗";
+"skills.row.dir" = "フォルダ";
+"skills.row.path" = "パス";
+"skills.row.desc" = "説明";
+"skills.row.error" = "エラー";
+"skills.confirm.enable.title" = "このスキルを有効化しますか?";
+"skills.confirm.disable.title" = "このスキルを無効化しますか?";
+"skills.confirm.remove.title" = "このスキルを削除しますか?";
+"skills.confirm.enable.msg" = "%@ を有効化します。事前に自動バックアップされ、「履歴」からいつでも復元できます。";
+"skills.confirm.disable.msg" = "%@ を無効化します(オフにするだけでファイルはディスクに残り、いつでも再有効化できます)。事前に自動バックアップされます。";
+"skills.confirm.remove.msg" = "%@ から %@ を削除します。事前に自動バックアップされ、誤削除時は「履歴」から復元できます。";
+"skills.confirm.enable.btn" = "有効化";
+"skills.confirm.disable.btn" = "無効化";
+"skills.confirm.remove.btn" = "削除";
+"skills.confirm.cancel" = "キャンセル";
+"skills.action.enable" = "有効化";
+"skills.action.disable" = "無効化";
+"skills.action.remove" = "削除";
+
+/* Safety */
+"safety.subtitle" = "%d 件のスキル監査済み";
+"safety.metric.safe" = "安全";
+"safety.metric.review" = "要確認";
+"safety.metric.blocked" = "ブロック";
+"safety.cross.label" = "スキル横断リスク";
+"safety.findings.count" = "%d 件の指摘";
+"safety.findings.empty" = "明らかなリスクは見つかりませんでした。";
+"safety.pill.blocked" = "ブロック";
+
+/* History */
+"history.subtitle.count" = "%d 件のバックアップ";
+"history.intro" = "「後悔薬」:変更前に毎回自動バックアップされ、どの時点にもワンクリックで戻せます。";
+"history.empty" = "まだバックアップはありません。最初の変更の後、復元可能なポイントがここに表示されます。";
+"history.action.restore" = "ここまで復元";
+"history.confirm.title" = "このバックアップを復元しますか?";
+"history.confirm.btn" = "復元";
+"history.confirm.cancel" = "キャンセル";
+"history.confirm.msg" = "現在の状態を「%@」で上書きします。上書き前にもう一つバックアップを取るので、さらに進めることもできます。";
+"history.load.failed" = "バックアップの読み込みに失敗:%@";
+
+/* Usage */
+"usage.since.since" = "%@ から";
+"usage.since.all" = "全期間";
+"usage.metric.scanned" = "スキャン済み記録";
+"usage.metric.invocations" = "スキル呼び出し";
+"usage.metric.used" = "使用済みスキル";
+"usage.metric.zombies" = "未使用";
+"usage.topTitle" = "最も呼び出されたスキル";
+"usage.count" = "%d 回";
+"usage.zombies.label" = "未使用スキル";
+"usage.zombies.empty" = "ゾンビスキルはありません。";
+"usage.zombies.pill" = "未使用";

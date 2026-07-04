@@ -1,0 +1,178 @@
+/* Navigation (sidebar + screen titles) */
+"nav.overview" = "总览";
+"nav.skills" = "技能";
+"nav.safety" = "安全";
+"nav.ops" = "维护";
+"nav.history" = "历史";
+"nav.usage" = "使用";
+
+/* Language picker (toolbar menu) */
+"language.menu" = "语言";
+"language.system" = "跟随系统";
+"language.zhHans" = "简体中文";
+"language.en" = "English";
+"language.ja" = "日本語";
+"language.es" = "Español";
+
+/* Status / banner / errors */
+"status.cliConnected" = "已连接 CLI";
+"status.cliDisconnected" = "CLI 未连接";
+"status.refreshedAt" = "刷新于 %@";
+"status.processing" = "处理中…";
+"status.sectionLoadFailed" = "加载失败";
+"status.fatalCliNotFound" = "调不到 skill-switch CLI。请设环境变量 SKILL_SWITCH_ROOT=<仓库根> 或 SKILL_SWITCH_CLI=<可执行文件>。";
+"status.toolbarRefresh" = "刷新";
+"status.menuRefresh" = "刷新";
+
+/* Theme — severity / verdict */
+"severity.critical" = "严重";
+"severity.high" = "高";
+"severity.medium" = "中";
+"severity.low" = "低";
+"verdict.safe" = "安全";
+"verdict.review" = "建议看看";
+"verdict.danger" = "危险";
+
+/* Operations — generic */
+"ops.snapshotPrefix" = "改动前已自动备份。";
+"ops.snapshotWithLabel" = "改动前已自动备份(%@)。";
+"ops.failed" = "%@失败:%@";
+
+/* Operations — toggle */
+"ops.toggle.enable" = "启用";
+"ops.toggle.disable" = "停用";
+"ops.toggle.ok.enabled" = "已启用 %@。%@";
+"ops.toggle.ok.disabled" = "已停用 %@。%@";
+
+/* Operations — remove */
+"ops.remove" = "删除";
+"ops.remove.ok" = "已删除 %@(%@)。%@";
+
+/* Operations — sync */
+"ops.sync" = "同步";
+"ops.sync.ok" = "同步完成,%d 项变更。%@";
+
+/* Operations — restore */
+"ops.restore" = "还原";
+"ops.restore.ok" = "已还原到 %@。当前状态也已备份,可再还原回来。";
+
+/* Operations — install */
+"ops.install" = "安装";
+"ops.install.blocked" = "安全检查拦下 %d 个技能(评分过低)。确认来源可信可勾选「遇拦截也继续」。";
+"ops.install.ok" = "已安装 %@。%@";
+"ops.install.listSeparator" = "、";
+
+/* Operations — screen */
+"ops.title" = "安装与维护";
+"ops.subtitle" = "所有写操作先自动备份,可一键回滚";
+
+/* Install card */
+"ops.install.label" = "安装";
+"ops.install.intro" = "把新技能放进所选工具;安装前先做安全检查,危险源默认拦下。";
+"ops.install.field.source" = "来源";
+"ops.install.field.target" = "装到";
+"ops.install.field.mode" = "保存方式";
+"ops.install.field.source.placeholder" = "Git 地址或本地文件夹";
+"ops.install.mode.copy" = "复制";
+"ops.install.mode.symlink" = "链接";
+"ops.install.force" = "遇到安全拦截也继续(风险自负)";
+"ops.install.force.reason" = "仍要安装的理由(必填,会留痕)";
+"ops.install.button" = "安装";
+"ops.install.confirm.title" = "要安装这个技能吗?";
+"ops.install.confirm.force.btn" = "跳过拦截并安装";
+"ops.install.confirm.normal.btn" = "安装";
+"ops.install.confirm.cancel" = "取消";
+"ops.install.confirm.force.msg" = "会跳过安全拦截继续安装。仅在确认来源可信时继续。";
+"ops.install.confirm.normal.msg" = "安装前会先做安全检查,通过后才写入。改动前自动备份。";
+
+/* Sync card */
+"ops.sync.label" = "同步";
+"ops.sync.intro" = "按已保存的清单重新整理技能,修复缺失或不一致。先预览再应用。";
+"ops.sync.preview.btn" = "先预览";
+"ops.sync.preview.failed" = "预览失败:%@";
+"ops.sync.empty" = "清单与磁盘一致,无需同步。";
+"ops.sync.changes" = "%d 项会变化:";
+"ops.sync.apply.btn" = "开始同步";
+"ops.sync.confirm.title" = "应用同步变更?";
+"ops.sync.confirm.btn" = "开始同步";
+"ops.sync.confirm.cancel" = "取消";
+"ops.sync.confirm.msg" = "按清单把技能应用到磁盘。改动前会自动备份,可从「历史」还原。";
+
+/* Sync action kinds */
+"ops.action.create" = "新建";
+"ops.action.replace" = "更新";
+"ops.action.remove" = "移除";
+"ops.action.configEnable" = "启用";
+"ops.action.configDisable" = "停用";
+
+/* Overview */
+"overview.demoHome" = "演示目录(不碰真实配置)";
+"overview.metrics.agents" = "已接入的工具";
+"overview.metrics.skills" = "技能总数";
+"overview.metrics.zombies" = "从未用过";
+"overview.metrics.health.ok" = "正常";
+"overview.metrics.health.label" = "健康检查";
+"overview.attention" = "关注队列";
+"overview.attention.count" = "%d 项";
+"overview.attention.empty" = "目前没有需要处理的问题。";
+"overview.attention.blocked" = "被拦下 · 评分 %d";
+"overview.attention.readFailed" = "读取失败";
+
+/* Skills */
+"skills.subtitle.count" = "%d 个技能";
+"skills.intro" = "这些技能是各个 AI 工具装的。停用 / 删除都会先自动备份,可从「历史」还原。";
+"skills.empty" = "还没有任何技能。";
+"skills.pill.enabled" = "已启用";
+"skills.pill.disabled" = "已停用";
+"skills.pill.readFailed" = "读取失败";
+"skills.row.dir" = "目录";
+"skills.row.path" = "位置";
+"skills.row.desc" = "描述";
+"skills.row.error" = "错误";
+"skills.confirm.enable.title" = "启用这个技能?";
+"skills.confirm.disable.title" = "停用这个技能?";
+"skills.confirm.remove.title" = "删除这个技能?";
+"skills.confirm.enable.msg" = "启用 %@。改动前会先自动备份,随时可从「历史」还原。";
+"skills.confirm.disable.msg" = "停用 %@(只是关掉,文件仍在磁盘,随时可再启用)。改动前会先自动备份。";
+"skills.confirm.remove.msg" = "从 %@ 删除 %@。改动前会先自动备份,误删可从「历史」一键还原。";
+"skills.confirm.enable.btn" = "启用";
+"skills.confirm.disable.btn" = "停用";
+"skills.confirm.remove.btn" = "删除";
+"skills.confirm.cancel" = "取消";
+"skills.action.enable" = "启用";
+"skills.action.disable" = "停用";
+"skills.action.remove" = "删除";
+
+/* Safety */
+"safety.subtitle" = "%d 个技能已体检";
+"safety.metric.safe" = "安全";
+"safety.metric.review" = "建议看看";
+"safety.metric.blocked" = "被拦下";
+"safety.cross.label" = "跨技能协同风险";
+"safety.findings.count" = "%d 条发现";
+"safety.findings.empty" = "没有发现明显风险。";
+"safety.pill.blocked" = "被拦下";
+
+/* History */
+"history.subtitle.count" = "%d 个备份";
+"history.intro" = "你的「后悔药」:每次改动前都会自动备份,随时可一键还原回某个时间点。";
+"history.empty" = "还没有备份记录。做过改动后,这里会出现可还原的时间点。";
+"history.action.restore" = "还原到此";
+"history.confirm.title" = "还原这个备份?";
+"history.confirm.btn" = "还原";
+"history.confirm.cancel" = "取消";
+"history.confirm.msg" = "会用「%@」覆盖当前状态。覆盖前会再自动备份当前状态,仍可还原回来。";
+"history.load.failed" = "加载备份失败:%@";
+
+/* Usage */
+"usage.since.since" = "自 %@";
+"usage.since.all" = "全部时间";
+"usage.metric.scanned" = "已扫描记录";
+"usage.metric.invocations" = "技能调用";
+"usage.metric.used" = "用过的技能";
+"usage.metric.zombies" = "从未用过";
+"usage.topTitle" = "调用最多";
+"usage.count" = "%d 次";
+"usage.zombies.label" = "从未用过的技能";
+"usage.zombies.empty" = "没有僵尸技能。";
+"usage.zombies.pill" = "从未用过";
