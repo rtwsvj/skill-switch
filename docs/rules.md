@@ -234,6 +234,15 @@ Base64 编码的危险命令、Trojan-Source 不可见字符、ANSI 终端注入
 | `mcp/server-config-changed` | high | MCP server 的 `command`/`args`/`url` 自基线起已变更——可能是 rug-pull 或被篡改，请复核后重新运行 `--write-config-baseline` |
 | `mcp/server-added` | medium | 发现基线中未记录的新 MCP server——请确认来源可信后更新基线 |
 
+### MCP 运行时 rug-pull（mcp-scan）
+
+`mcp-scan` 命令连上配置里的 MCP server，取实时工具清单并把 `{name, description, inputSchema}` 哈希入基线；再扫时若 server 偷偷改描述（tool-poisoning）或加新工具，会立即产生 finding。与 `audit --configs` 互补：后者看"server 怎么跑"，前者看"server 暴露什么给 agent"。
+
+| ruleId | 严重度 | 抓什么 |
+|--------|--------|--------|
+| `mcp/tool-definition-changed` | high | MCP 工具的 `description` 或 `inputSchema` 自基线起已变更——典型的 rug-pull 信号（agent 拿到被偷偷改过的工具描述）。请人工复核工具描述是否被注入恶意指令或参数 schema 是否被改向外渗路径，然后用 `--reset-baseline` 重新接受 |
+| `mcp/tool-added` | medium | 基线中未记录的新 MCP 工具——请确认来源可信后用 `--reset-baseline` 重新接受 |
+
 ### MCP 杂项
 
 | ruleId | 严重度 | 抓什么 |
