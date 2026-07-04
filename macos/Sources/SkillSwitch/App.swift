@@ -34,7 +34,7 @@ struct SkillSwitchApp: App {
 }
 
 enum Screen: String, CaseIterable, Identifiable {
-    case overview, skills, safety, operations, history, usage
+    case overview, skills, safety, mcp, operations, history, usage
     var id: String { rawValue }
 
     // 标题从 L10n 取(@MainActor 因为 L10n.shared 在主线程);SwiftUI 视图 body 都是 MainActor,调用无碍。
@@ -43,6 +43,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .overview: return L10n.shared.t("nav.overview")
         case .skills: return L10n.shared.t("nav.skills")
         case .safety: return L10n.shared.t("nav.safety")
+        case .mcp: return L10n.shared.t("nav.mcp")
         case .operations: return L10n.shared.t("nav.ops")
         case .history: return L10n.shared.t("nav.history")
         case .usage: return L10n.shared.t("nav.usage")
@@ -53,6 +54,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .overview: return "square.grid.2x2"
         case .skills: return "puzzlepiece.extension"
         case .safety: return "checkmark.shield"
+        case .mcp: return "server.rack"
         case .operations: return "wrench.and.screwdriver"
         case .history: return "clock.arrow.circlepath"
         case .usage: return "chart.bar"
@@ -94,6 +96,7 @@ struct RootView: View {
                 case .overview: OverviewView()
                 case .skills: SkillsView()
                 case .safety: SafetyView()
+                case .mcp: MCPView()
                 case .operations: OperationsView()
                 case .history: HistoryView()
                 case .usage: UsageView()

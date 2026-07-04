@@ -181,3 +181,89 @@ struct InstallRunResult: Codable, Sendable {
     var blocked: [BlockedEntry] = []
     var snapshotPath: String?
 }
+
+// ── MCP scan(镜像 src/cli/commands/mcp-scan.ts 的 toJson())────────────────
+//
+// list 模式(无 --server/--all,只列不连)与 scan 模式(--server/--all 命中)
+// 是两个不同的 JSON 形状,所以建两个根类型。所有字段 Optional / 默认值,
+// 容错于 CLI 后续新增字段。
+
+enum McpTransport: String, Codable, Sendable {
+    case stdio, http
+
+    // 未知值不崩整条解码(否则 CLI 将来新增 transport 会让整个屏瘫痪)。
+    // 兜底按 stdio:确认弹窗会用"将启动本地进程"的更重措辞,宁重勿轻。
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = McpTransport(rawValue: raw) ?? .stdio
+    }
+}
+
+/// list 模式:`mcp-scan --json`(无 --server/--all)。CLI 输出一条单行 note。
+struct McpScanListReport: Codable, Sendable {
+    var home: String = ""
+    var servers: [McpServerSummary] = []
+    var note: String?
+    /// list 模式无 baseline 概念;保留字段以兼容"未发现 server"时的同形输出。
+    var baselinePath: String?
+    var baselineStatus: String?
+    var findings: [AuditFinding]?
+}
+
+struct McpServerSummary: Codable, Sendable, Identifiable, Hashable {
+    var source: String = ""
+    var name: String = ""
+    var key: String = ""
+    var transport: McpTransport = .stdio
+    /// describe:CLI 给的「将执行 <command>」或「将请求 <url>」一行描述,UI 等宽显示。
+    var describe: String = ""
+    var id: String { key }
+}
+
+/// scan 模式:`mcp-scan --server <key> --yes --json`(可重复 / --all + --yes)。
+struct McpScanReport: Codable, Sendable {
+    var home: String = ""
+    var baselinePath: String = ""
+    var baselineStatus: String = "missing"
+    var servers: [McpScanServerResult] = []
+    var findings: [AuditFinding] = []
+    /// list 模式会带;scan 模式没有也不需要。
+    var note: String?
+}
+
+struct McpScanServerResult: Codable, Sendable, Identifiable, Hashable {
+    var source: String = ""
+    var name: String = ""
+    var key: String = ""
+    var transport: McpTransport = .stdio
+    var connected: Bool = false
+    var error: McpScanError?
+    var protocolVersion: String?
+    var tools: [McpScanTool] = []
+    var findings: [AuditFinding] = []
+    var rugPullFindings: [AuditFinding] = []
+    var removedTools: [String] = []
+    var id: String { key }
+
+    /// 是否有 rug-pull 类发现(决定 UI 是否显示「重新接受」按钮)。
+    var hasRugPull: Bool { !rugPullFindings.isEmpty }
+}
+
+struct McpScanError: Codable, Sendable, Hashable {
+    var code: String = ""
+    var message: String = ""
+}
+
+struct McpScanTool: Codable, Sendable, Identifiable, Hashable {
+    var name: String = ""
+    var description: String = ""
+    var id: String { name }
+}
+
+/// UI 缓存:把单 server 的 scan 结果 + 本次扫描的基线状态绑在一起。
+/// baselineStatus 在 CLI 的 JSON 顶层(McpScanReport),GUI 单 server 扫描时
+/// report.servers 通常只有一条,顺势把根 status 挂到这一条上。
+struct McpScanRow: Codable, Sendable, Hashable {
+    var result: McpScanServerResult
+    var baselineStatus: String = "missing"
+}

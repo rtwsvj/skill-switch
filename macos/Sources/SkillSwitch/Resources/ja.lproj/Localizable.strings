@@ -2,6 +2,7 @@
 "nav.overview" = "概要";
 "nav.skills" = "スキル";
 "nav.safety" = "安全性";
+"nav.mcp" = "MCP";
 "nav.ops" = "メンテナンス";
 "nav.history" = "履歴";
 "nav.usage" = "使用状況";
@@ -176,3 +177,38 @@
 "usage.zombies.label" = "未使用スキル";
 "usage.zombies.empty" = "ゾンビスキルはありません。";
 "usage.zombies.pill" = "未使用";
+
+/* MCP screen (milestone 6) */
+"mcpscan.subtitle.count" = "%d 件の server";
+"mcpscan.intro" = "これらは各 AI ツールがインストールした MCP server です。「スキャン」を押すと接続(ローカルプロセスまたはリモート endpoint)してツール一覧を監査します。既定では一覧のみ表示し、確認するまで接続しません。";
+"mcpscan.empty" = "MCP server が見つかりません。~/.claude/mcp.json、~/.cursor/mcp.json、~/.vscode/mcp.json などに設定すると、ここに自動表示されます。";
+"mcpscan.load.failed" = "server 一覧の読み込みに失敗しました。";
+"mcpscan.scan.failed" = "%1$@ のスキャン失敗:%2$@";
+"mcpscan.scan.noResult" = "スキャンは完了しましたが、この server の結果が返りませんでした。";
+"mcpscan.transport.stdio" = "ローカルプロセス";
+"mcpscan.transport.http" = "リモート endpoint";
+"mcpscan.row.source" = "設定ファイル";
+"mcpscan.row.describe" = "実行内容";
+"mcpscan.action.scan" = "スキャン";
+"mcpscan.action.rescan" = "再スキャン";
+"mcpscan.action.reset" = "今回の内容で再承認";
+"mcpscan.confirm.cancel" = "キャンセル";
+"mcpscan.confirm.scan.title" = "この MCP server に接続しますか?";
+"mcpscan.confirm.scan.btn" = "接続してスキャン";
+"mcpscan.confirm.scan.msg.stdio" = "%1$@ をスキャンします。ローカルプロセスを起動します:%2$@。skill-switch はツール一覧の読み取りのみで、ツール呼び出しは一切行いません。";
+"mcpscan.confirm.scan.msg.http" = "%1$@ をスキャンします。%2$@ にリクエストします。skill-switch はツール一覧の読み取りのみで、ツール呼び出しは一切行いません。";
+"mcpscan.confirm.reset.title" = "今回の結果を新しいベースラインとして保存しますか?";
+"mcpscan.confirm.reset.btn" = "新しいベースラインに保存";
+"mcpscan.confirm.reset.msg" = "「%@」の現在のツール一覧でベースラインを上書きします。次回スキャンではこの差分は報告されません。事前に自動バックアップされ、「履歴」から復元できます。";
+"mcpscan.result.connectFailed" = "接続失敗";
+"mcpscan.result.tools" = "%d 件のツールを受信";
+"mcpscan.result.findings" = "%d 件の指摘";
+"mcpscan.result.rugPull.title" = "前回から変わりました(確認が必要)";
+"mcpscan.result.rugPull.hint" = "ベースライン内のツール定義が変更されています。正規の更新の可能性も、悪意ある命令の混入可能性もあります。受諾前に内容を確認してください。";
+"mcpscan.result.removed" = "%d 件のツールが消えました";
+"mcpscan.baseline.pill" = "前回の記録";
+"mcpscan.baseline.established" = "「%@」— 初回スキャン、現在のツール一覧を記録しました";
+"mcpscan.baseline.compared" = "「%@」— 前回の記録と照合済み";
+"mcpscan.baseline.reset" = "「%@」— 現在の一覧を記録し直しました";
+"mcpscan.baseline.missing" = "「%@」— まだ記録がありません";
+"mcpscan.baseline.unknown" = "「%@」— 記録の状態は不明です";

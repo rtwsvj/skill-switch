@@ -2,6 +2,7 @@
 "nav.overview" = "总览";
 "nav.skills" = "技能";
 "nav.safety" = "安全";
+"nav.mcp" = "MCP";
 "nav.ops" = "维护";
 "nav.history" = "历史";
 "nav.usage" = "使用";
@@ -176,3 +177,38 @@
 "usage.zombies.label" = "从未用过的技能";
 "usage.zombies.empty" = "没有僵尸技能。";
 "usage.zombies.pill" = "从未用过";
+
+/* MCP screen (milestone 6) */
+"mcpscan.subtitle.count" = "%d 个 server";
+"mcpscan.intro" = "这些是各个 AI 工具装的 MCP server。点「扫描」会去连接它(本地进程或远端 endpoint),取回工具清单做安全体检。默认只列不连,什么时候连接你说了算。";
+"mcpscan.empty" = "没发现任何 MCP server。在 ~/.claude/mcp.json、~/.cursor/mcp.json、~/.vscode/mcp.json 等位置配置后,这里会自动出现。";
+"mcpscan.load.failed" = "加载 server 列表失败。";
+"mcpscan.scan.failed" = "扫描 %1$@ 失败:%2$@";
+"mcpscan.scan.noResult" = "扫描完成,但 CLI 没返回这个 server 的结果。";
+"mcpscan.transport.stdio" = "本地进程";
+"mcpscan.transport.http" = "远程 endpoint";
+"mcpscan.row.source" = "来源文件";
+"mcpscan.row.describe" = "将执行";
+"mcpscan.action.scan" = "扫描";
+"mcpscan.action.rescan" = "再扫一次";
+"mcpscan.action.reset" = "重新接受本次清单";
+"mcpscan.confirm.cancel" = "取消";
+"mcpscan.confirm.scan.title" = "连接这个 MCP server?";
+"mcpscan.confirm.scan.btn" = "连接并扫描";
+"mcpscan.confirm.scan.msg.stdio" = "扫描 %1$@。将启动本地进程:%2$@。skill-switch 只读取工具清单,绝不调用任何工具。";
+"mcpscan.confirm.scan.msg.http" = "扫描 %1$@。将请求 %2$@。skill-switch 只读取工具清单,绝不调用任何工具。";
+"mcpscan.confirm.reset.title" = "把这次结果记为新基线?";
+"mcpscan.confirm.reset.btn" = "记为新基线";
+"mcpscan.confirm.reset.msg" = "会把「%@」当前的工具清单覆盖写入基线,下次扫描不再报这条。改动前会自动备份,可从「历史」还原。";
+"mcpscan.result.connectFailed" = "连接失败";
+"mcpscan.result.tools" = "已收到 %d 个工具";
+"mcpscan.result.findings" = "%d 条风险";
+"mcpscan.result.rugPull.title" = "和上次不一样了(需要你确认)";
+"mcpscan.result.rugPull.hint" = "基线里记录的工具定义被改了,可能是新版,也可能是偷偷加的恶意指令。看清楚再决定是否接受。";
+"mcpscan.result.removed" = "%d 个工具不见了";
+"mcpscan.baseline.pill" = "上次记录";
+"mcpscan.baseline.established" = "「%@」第一次扫描,已记住当前工具清单";
+"mcpscan.baseline.compared" = "「%@」已和上次记录比对过";
+"mcpscan.baseline.reset" = "「%@」已重新记住当前清单";
+"mcpscan.baseline.missing" = "「%@」还没有记录";
+"mcpscan.baseline.unknown" = "「%@」上次记录状态未知";
