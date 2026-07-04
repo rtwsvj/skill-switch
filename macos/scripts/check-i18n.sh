@@ -81,9 +81,11 @@ grep -hoE '^"[^"]+"\s*=' "$RES/zh-Hans.lproj/Localizable.strings" \
 
 NS_PATTERN=$(awk '{ printf "%s|", $0 }' "$TMP/ns.keys" | sed 's/|$//')
 
-grep -hoE '"[a-z][a-zA-Z]*(\.[a-zA-Z][a-zA-Z]+)+"' "$ROOT"/*.swift "$ROOT"/Views/*.swift 2>/dev/null \
+# find 递归扫全部 Swift 源(新增子目录不漏);grep 零匹配退出码 1,套 || true 防 pipefail 误杀。
+{ find "$ROOT" -name '*.swift' -not -path "*/Resources/*" -print0 \
+    | xargs -0 grep -hoE '"[a-z][a-zA-Z]*(\.[a-zA-Z][a-zA-Z]+)+"' || true; } \
     | tr -d '"' \
-    | grep -E "^(${NS_PATTERN})" \
+    | { grep -E "^(${NS_PATTERN})" || true; } \
     | sort -u > "$TMP/refs.keys"
 
 missing=0

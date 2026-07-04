@@ -30,6 +30,7 @@ final class L10n: ObservableObject {
     var resolved: String {
         if language != "system" { return language }
         let preferred = Locale.preferredLanguages.first?.lowercased() ?? ""
+        // zh-Hant/zh-HK 等也落到简体(暂无繁体资源);日后加繁体需在此前置精确匹配。
         if preferred.hasPrefix("zh") { return "zh-Hans" }
         if preferred.hasPrefix("en") { return "en" }
         if preferred.hasPrefix("ja") { return "ja" }
@@ -37,13 +38,24 @@ final class L10n: ObservableObject {
         return "zh-Hans"
     }
 
+    // .lproj 子 bundle 按语言缓存(内容不可变,无需失效);t() 被各视图高频调用,省掉每次的文件系统查找。
+    private var bundleCache: [String: Bundle] = [:]
+
     private func bundle(for lang: String) -> Bundle {
+        if let cached = bundleCache[lang] { return cached }
+        let resolved: Bundle
         if let path = Bundle.module.path(forResource: lang, ofType: "lproj"),
-           let b = Bundle(path: path) { return b }
-        // 兜底用 zh-Hans(产品母语);再不行回 Bundle.module。
-        if let path = Bundle.module.path(forResource: "zh-Hans", ofType: "lproj"),
-           let b = Bundle(path: path) { return b }
-        return Bundle.module
+           let b = Bundle(path: path) {
+            resolved = b
+        } else if let path = Bundle.module.path(forResource: "zh-Hans", ofType: "lproj"),
+                  let b = Bundle(path: path) {
+            // 兜底用 zh-Hans(产品母语);再不行回 Bundle.module。
+            resolved = b
+        } else {
+            resolved = Bundle.module
+        }
+        bundleCache[lang] = resolved
+        return resolved
     }
 
     func t(_ key: String) -> String {

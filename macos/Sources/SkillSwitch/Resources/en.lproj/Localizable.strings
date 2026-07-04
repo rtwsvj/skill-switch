@@ -134,7 +134,7 @@
 "skills.confirm.remove.title" = "Remove this skill?";
 "skills.confirm.enable.msg" = "Enable %@. Auto-snapshot first; you can restore from History anytime.";
 "skills.confirm.disable.msg" = "Disable %@ (just turns it off; the files stay on disk and can be re-enabled). Auto-snapshot first.";
-"skills.confirm.remove.msg" = "Remove %@ from %@. Auto-snapshot first; restore from History if you change your mind.";
+"skills.confirm.remove.msg" = "Remove %1$@ from %2$@. Auto-snapshot first; restore from History if you change your mind.";
 "skills.confirm.enable.btn" = "Enable";
 "skills.confirm.disable.btn" = "Disable";
 "skills.confirm.remove.btn" = "Remove";

@@ -78,7 +78,8 @@ struct SkillsView: View {
         case .toggle(let n, let to):
             return l10n.t(to ? "skills.confirm.enable.msg" : "skills.confirm.disable.msg", n)
         case .remove(let n, let a):
-            return l10n.t("skills.confirm.remove.msg", a, n)
+            // 参数固定按(技能名, 工具)传;各语言文案用 %1$@/%2$@ 自排语序(中日与英西语序相反)。
+            return l10n.t("skills.confirm.remove.msg", n, a)
         }
     }
 

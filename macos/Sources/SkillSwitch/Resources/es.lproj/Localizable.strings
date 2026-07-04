@@ -134,7 +134,7 @@
 "skills.confirm.remove.title" = "¿Eliminar esta habilidad?";
 "skills.confirm.enable.msg" = "Activar %@. Se hace copia de seguridad antes; puedes restaurar desde Historial.";
 "skills.confirm.disable.msg" = "Desactivar %@ (solo apaga; los archivos quedan en disco y pueden volver a activarse). Copia de seguridad antes.";
-"skills.confirm.remove.msg" = "Eliminar %@ de %@. Copia de seguridad antes; restaura desde Historial si te arrepientes.";
+"skills.confirm.remove.msg" = "Eliminar %1$@ de %2$@. Copia de seguridad antes; restaura desde Historial si te arrepientes.";
 "skills.confirm.enable.btn" = "Activar";
 "skills.confirm.disable.btn" = "Desactivar";
 "skills.confirm.remove.btn" = "Eliminar";

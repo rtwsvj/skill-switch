@@ -134,7 +134,7 @@
 "skills.confirm.remove.title" = "删除这个技能?";
 "skills.confirm.enable.msg" = "启用 %@。改动前会先自动备份,随时可从「历史」还原。";
 "skills.confirm.disable.msg" = "停用 %@(只是关掉,文件仍在磁盘,随时可再启用)。改动前会先自动备份。";
-"skills.confirm.remove.msg" = "从 %@ 删除 %@。改动前会先自动备份,误删可从「历史」一键还原。";
+"skills.confirm.remove.msg" = "从 %2$@ 删除 %1$@。改动前会先自动备份,误删可从「历史」一键还原。";
 "skills.confirm.enable.btn" = "启用";
 "skills.confirm.disable.btn" = "停用";
 "skills.confirm.remove.btn" = "删除";

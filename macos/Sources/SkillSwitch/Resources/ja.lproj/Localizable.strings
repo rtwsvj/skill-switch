@@ -134,7 +134,7 @@
 "skills.confirm.remove.title" = "このスキルを削除しますか?";
 "skills.confirm.enable.msg" = "%@ を有効化します。事前に自動バックアップされ、「履歴」からいつでも復元できます。";
 "skills.confirm.disable.msg" = "%@ を無効化します(オフにするだけでファイルはディスクに残り、いつでも再有効化できます)。事前に自動バックアップされます。";
-"skills.confirm.remove.msg" = "%@ から %@ を削除します。事前に自動バックアップされ、誤削除時は「履歴」から復元できます。";
+"skills.confirm.remove.msg" = "%2$@ から %1$@ を削除します。事前に自動バックアップされ、誤削除時は「履歴」から復元できます。";
 "skills.confirm.enable.btn" = "有効化";
 "skills.confirm.disable.btn" = "無効化";
 "skills.confirm.remove.btn" = "削除";
