@@ -22,6 +22,8 @@ SKILL_SWITCH_HOME=/tmp/demo-home \
 swift run
 ```
 
+隐藏启动参数(截图/演示脚本用):`-initialScreen <overview|skills|safety|mcp|operations|history|usage>` 预选侧边栏屏;`-appLanguage <zh-Hans|en|ja|es>` 预设界面语言(经 UserDefaults 参数域,不写偏好)。
+
 ## 打包(自包含,未签名)
 
 ```bash

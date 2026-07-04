@@ -65,7 +65,10 @@ enum Screen: String, CaseIterable, Identifiable {
 struct RootView: View {
     @EnvironmentObject var state: AppState
     @ObservedObject private var l10n = L10n.shared
-    @State private var selection: Screen = .overview
+    // 初始屏支持 `-initialScreen <rawValue>` 启动参数(UserDefaults 参数域),
+    // 供截图/演示脚本预选侧边栏;语言同理走 `-appLanguage <code>`(L10n 天然读到)。
+    @State private var selection: Screen =
+        Screen(rawValue: UserDefaults.standard.string(forKey: "initialScreen") ?? "") ?? .overview
 
     var body: some View {
         NavigationSplitView {

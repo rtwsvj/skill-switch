@@ -29,7 +29,7 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 ![技能](assets/screenshots/g1-skills.png)
 ![安全体检](assets/screenshots/g1-audit.png)
 ![使用统计](assets/screenshots/g1-usage.png)
-![多语言 zh-CN](assets/screenshots/p1-i18n-zh-CN.png)
+![多语言(英文界面)](assets/screenshots/p1-i18n-en.png)
 
 ## 安装(macOS,Apple Silicon)
 
