@@ -45,6 +45,15 @@ cp "$BIN" "$APP/Contents/MacOS/SkillSwitch"; chmod +x "$APP/Contents/MacOS/Skill
 cp "$CLI" "$APP/Contents/Resources/skill-switch-cli"; chmod +x "$APP/Contents/Resources/skill-switch-cli"
 [ -n "$ICNS" ] && cp "$ICNS" "$APP/Contents/Resources/AppIcon.icns"
 
+# SPM 资源 bundle(放 Localizable.strings 等)。漏拷会运行时炸,直接报错退出。
+RES_BUNDLE=".build/release/SkillSwitch_SkillSwitch.bundle"
+if [ ! -d "$RES_BUNDLE" ]; then
+    echo "✗ 资源 bundle 不存在: $RES_BUNDLE" >&2
+    exit 1
+fi
+cp -R "$RES_BUNDLE" "$APP/Contents/Resources/SkillSwitch_SkillSwitch.bundle"
+echo "    resource bundle = $RES_BUNDLE"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

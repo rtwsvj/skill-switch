@@ -23,12 +23,13 @@ extension AuditSeverity {
         case .medium, .low: return .warn
         }
     }
-    var label: String {
+    // 文案走 L10n;@MainActor 因为 L10n.shared 在主线程。
+    @MainActor var label: String {
         switch self {
-        case .critical: return "严重"
-        case .high: return "高"
-        case .medium: return "中"
-        case .low: return "低"
+        case .critical: return L10n.shared.t("severity.critical")
+        case .high: return L10n.shared.t("severity.high")
+        case .medium: return L10n.shared.t("severity.medium")
+        case .low: return L10n.shared.t("severity.low")
         }
     }
 }
@@ -41,11 +42,11 @@ extension AuditVerdict {
         case .DANGER: return .danger
         }
     }
-    var label: String {
+    @MainActor var label: String {
         switch self {
-        case .SAFE: return "安全"
-        case .REVIEW: return "建议看看"
-        case .DANGER: return "危险"
+        case .SAFE: return L10n.shared.t("verdict.safe")
+        case .REVIEW: return L10n.shared.t("verdict.review")
+        case .DANGER: return L10n.shared.t("verdict.danger")
         }
     }
 }
@@ -112,6 +113,7 @@ struct Pill: View {
 
 /// 屏标题栏:标题 + 右侧刷新。
 struct ScreenHeader: View {
+    @ObservedObject private var l10n = L10n.shared
     let title: String
     var subtitle: String?
     var onReload: (() -> Void)?
@@ -126,7 +128,7 @@ struct ScreenHeader: View {
             if let onReload {
                 Button { onReload() } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless)
-                    .help("刷新")
+                    .help(l10n.t("status.toolbarRefresh"))
             }
         }
     }

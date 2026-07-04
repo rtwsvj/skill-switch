@@ -11,45 +11,26 @@ private enum SkillAction: Identifiable {
         }
     }
     var isDestructive: Bool { if case .remove = self { return true }; return false }
-    var confirmTitle: String {
-        switch self {
-        case .toggle(_, let to): return to ? "启用这个技能?" : "停用这个技能?"
-        case .remove: return "删除这个技能?"
-        }
-    }
-    var confirmMessage: String {
-        switch self {
-        case .toggle(let n, let to):
-            return to ? "启用 \(n)。改动前会先自动备份,随时可从「历史」还原。"
-                      : "停用 \(n)(只是关掉,文件仍在磁盘,随时可再启用)。改动前会先自动备份。"
-        case .remove(let n, let a):
-            return "从 \(a) 删除 \(n)。改动前会先自动备份,误删可从「历史」一键还原。"
-        }
-    }
-    var confirmButton: String {
-        switch self {
-        case .toggle(_, let to): return to ? "启用" : "停用"
-        case .remove: return "删除"
-        }
-    }
 }
 
 struct SkillsView: View {
     @EnvironmentObject var state: AppState
+    @ObservedObject private var l10n = L10n.shared
     @State private var openId: String?
     @State private var pending: SkillAction?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "技能", subtitle: "\(state.scan.total) 个技能") {
+                ScreenHeader(title: l10n.t("nav.skills"),
+                             subtitle: l10n.t("skills.subtitle.count", state.scan.total)) {
                     Task { await state.reload() }
                 }
-                Text("这些技能是各个 AI 工具装的。停用 / 删除都会先自动备份,可从「历史」还原。")
+                Text(l10n.t("skills.intro"))
                     .font(.callout).foregroundStyle(.secondary)
 
                 if state.scan.skills.isEmpty {
-                    Card { Text("还没有任何技能。").foregroundStyle(.secondary) }
+                    Card { Text(l10n.t("skills.empty")).foregroundStyle(.secondary) }
                 } else {
                     ForEach(state.scan.skills) { skill in
                         skillRow(skill)
@@ -60,16 +41,16 @@ struct SkillsView: View {
         }
         .disabled(state.busy)
         .confirmationDialog(
-            pending?.confirmTitle ?? "",
+            dialogTitle(pending),
             isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
             presenting: pending
         ) { action in
-            Button(action.confirmButton, role: action.isDestructive ? .destructive : nil) {
+            Button(dialogConfirmBtn(action), role: action.isDestructive ? .destructive : nil) {
                 perform(action)
             }
-            Button("取消", role: .cancel) {}
+            Button(l10n.t("skills.confirm.cancel"), role: .cancel) {}
         } message: { action in
-            Text(action.confirmMessage)
+            Text(dialogMessage(action))
         }
     }
 
@@ -82,6 +63,35 @@ struct SkillsView: View {
         }
     }
 
+    private func dialogTitle(_ action: SkillAction?) -> String {
+        guard let action else { return "" }
+        switch action {
+        case .toggle(_, let to):
+            return l10n.t(to ? "skills.confirm.enable.title" : "skills.confirm.disable.title")
+        case .remove:
+            return l10n.t("skills.confirm.remove.title")
+        }
+    }
+
+    private func dialogMessage(_ action: SkillAction) -> String {
+        switch action {
+        case .toggle(let n, let to):
+            return l10n.t(to ? "skills.confirm.enable.msg" : "skills.confirm.disable.msg", n)
+        case .remove(let n, let a):
+            // 参数固定按(技能名, 工具)传;各语言文案用 %1$@/%2$@ 自排语序(中日与英西语序相反)。
+            return l10n.t("skills.confirm.remove.msg", n, a)
+        }
+    }
+
+    private func dialogConfirmBtn(_ action: SkillAction) -> String {
+        switch action {
+        case .toggle(_, let to):
+            return l10n.t(to ? "skills.confirm.enable.btn" : "skills.confirm.disable.btn")
+        case .remove:
+            return l10n.t("skills.confirm.remove.btn")
+        }
+    }
+
     @ViewBuilder private func skillRow(_ skill: SkillRecord) -> some View {
         let isOpen = openId == skill.id
         Card(tone: skill.error != nil ? .warn : .neutral) {
@@ -91,9 +101,10 @@ struct SkillsView: View {
                     Text(skill.displayName).font(.headline)
                     Spacer()
                     if let enabled = skill.enabled {
-                        Pill(text: enabled ? "已启用" : "已停用", tone: enabled ? .good : .neutral)
+                        Pill(text: l10n.t(enabled ? "skills.pill.enabled" : "skills.pill.disabled"),
+                             tone: enabled ? .good : .neutral)
                     }
-                    if skill.error != nil { Pill(text: "读取失败", tone: .warn) }
+                    if skill.error != nil { Pill(text: l10n.t("skills.pill.readFailed"), tone: .warn) }
                     Image(systemName: isOpen ? "chevron.up" : "chevron.down").foregroundStyle(.tertiary)
                 }
                 HStack(spacing: 6) {
@@ -116,14 +127,15 @@ struct SkillsView: View {
             Button {
                 pending = .toggle(name: skill.name ?? skill.dirName, to: !enabled)
             } label: {
-                Label(enabled ? "停用" : "启用", systemImage: enabled ? "pause.circle" : "play.circle")
+                Label(l10n.t(enabled ? "skills.action.disable" : "skills.action.enable"),
+                      systemImage: enabled ? "pause.circle" : "play.circle")
             }
             .buttonStyle(.bordered)
 
             Button(role: .destructive) {
                 pending = .remove(name: skill.name ?? skill.dirName, agent: skill.agents.first ?? "")
             } label: {
-                Label("删除", systemImage: "trash")
+                Label(l10n.t("skills.action.remove"), systemImage: "trash")
             }
             .buttonStyle(.bordered)
             .tint(.red)
@@ -135,10 +147,10 @@ struct SkillsView: View {
 
     @ViewBuilder private func detail(_ skill: SkillRecord) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            row("目录", skill.dirName)
-            row("位置", skill.relSkillsDir)
-            if let d = skill.description, !d.isEmpty { row("描述", d) }
-            if let e = skill.error { row("错误", e) }
+            row(l10n.t("skills.row.dir"), skill.dirName)
+            row(l10n.t("skills.row.path"), skill.relSkillsDir)
+            if let d = skill.description, !d.isEmpty { row(l10n.t("skills.row.desc"), d) }
+            if let e = skill.error { row(l10n.t("skills.row.error"), e) }
         }
     }
 

@@ -48,4 +48,5 @@ APPLE_SIGNING_IDENTITY="Developer ID Application: 你的名字 (TEAMID)" \
 - ✅ 里程碑 2:写操作(确认弹窗 + 快照 + 反馈横幅)
 - ✅ 里程碑 3:自包含打包(内置 SEA CLI + 图标 + `build-app.sh`)
 - ✅ 里程碑 4:签名/公证脚本 + entitlements(等 Apple 凭据即可分发)
-- ⏳ 待办:i18n 四语言(现中文优先)、退役 `gui/`(Tauri)后把 `bundle-cli.mjs` 迁出、release.yml 接入原生 App 构建
+- ✅ 里程碑 5:i18n 四语言(zh-Hans / en / ja / es)+ 应用内切换(toolbar globe menu)
+- ⏳ 待办:退役 `gui/`(Tauri)后把 `bundle-cli.mjs` 迁出、release.yml 接入原生 App 构建
