@@ -2,7 +2,7 @@
 
 > 本文档基于对 11 个竞品(trivy、gitleaks、semgrep、checkov、grype/syft、1Password CLI、gh CLI、pre-commit、osv-scanner、snyk、dependabot)的深度 UX 与功能研究,提炼出的优先级路线图。项目发货时会从本文档拉动相应项进 CHANGELOG,保持长期可视。
 
-**现状:**优先级 A、B 的全部项已分别在 v0.8.0(2026-06-27)发货;优先级 C 的部分项已在 v0.8.0 发货(`packs install`、`packs save --enrich`、`extends` 继承、内置 starter 套餐、`PackSkillRef.optional?` + `packs install --lock`);优先级 D 的全部项已在 v0.8.0 发货(`drift --review`、`diff` 叙述化摘要);优先级 E 已部分发货(v0.8.0 主从布局 + 状态徽章 + 撤销 toast,批量操作仍未发货);🚩 大战略赌注中「MCP server」已在 v0.8.0 发货,「跨 IDE 市场分发 & 公开套餐 registry」部分发货(Homebrew / Scoop manifest 已发,npm CLI 已发,Linux/Windows 桌面包未发,公开精选包 registry 未发;v0.9.0 增加 `registry` 命令只读搜索官方 MCP Registry / GitHub `marketplace.json` / SkillsMP 并经审计后安装)。详见 [CHANGELOG](../CHANGELOG.md)。
+**现状:**优先级 A、B 的全部项已分别在 v0.8.0(2026-06-27)发货;优先级 C 的部分项已在 v0.8.0 发货(`packs install`、`packs save --enrich`、`extends` 继承、内置 starter 套餐、`PackSkillRef.optional?` + `packs install --lock`);优先级 D 的全部项已在 v0.8.0 发货(`drift --review`、`diff` 叙述化摘要);优先级 E 已部分发货(v0.8.0 主从布局 + 状态徽章 + 撤销 toast,批量操作仍未发货);🚩 大战略赌注中「MCP server」已在 v0.8.0 发货,「跨 IDE 市场分发 & 公开套餐 registry」部分发货(Homebrew Formula / Scoop manifest 已随仓库提供但 tap/bucket 仓库未建,npm CLI 已发,Linux/Windows 桌面包未发,公开精选包 registry 未发;v0.9.0 增加 `registry` 命令只读搜索官方 MCP Registry / GitHub `marketplace.json` / SkillsMP 并经审计后安装)。详见 [CHANGELOG](../CHANGELOG.md)。
 
 ---
 

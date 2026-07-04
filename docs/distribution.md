@@ -24,8 +24,7 @@ skill-switch --help
 
 ## 2. Homebrew(macOS)
 
-> Homebrew tap 托管在 [rtwsvj/homebrew-tap](https://github.com/rtwsvj/homebrew-tap)。
-> Formula 源文件位于本仓库 `packaging/skill-switch.rb`,发布时同步复制到 tap 仓库。
+> Formula 源文件位于本仓库 `packaging/skill-switch.rb`。**tap 仓库(rtwsvj/homebrew-tap)尚未创建**——建立后发布时把 Formula 同步复制过去,下方安装命令才可用。
 
 ```bash
 brew tap rtwsvj/tap

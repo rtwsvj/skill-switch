@@ -60,7 +60,7 @@
 |---|---|
 | **闭合剩余 2 个审计漏判** | `javascript-string-concat-endpoint`(需 JS 常量折叠)、`cross-line-token-and-endpoint-split`(需跨行污点分析)——高误报风险,需真正的数据流分析,非小改。 |
 | **语义审计沙箱** | 在隔离环境执行 skill 观察副作用,需解决沙箱逃逸、跨平台执行、误报率。 |
-| **Linux / Windows 桌面包** | Linux 需 `.deb`/`.AppImage` 打包;Windows 需 EV Code Signing 证书(凭据步骤);CLI 的 Homebrew tap 已发,Linux/Windows 桌面 App 需独立立项(本项目目前只发 macOS 桌面 App + 跨平台 CLI)。 |
+| **Linux / Windows 桌面包 + Homebrew tap** | Linux 需 `.deb`/`.AppImage` 打包;Windows 需 EV Code Signing 证书(凭据步骤);Homebrew Formula 已随仓库提供(`packaging/`)但 tap 仓库未建;Linux/Windows 桌面 App 需独立立项(本项目目前只发 macOS 桌面 App + 跨平台 CLI)。 |
 
 ---
 
