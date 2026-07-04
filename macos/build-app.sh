@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# 打包自包含的 SkillSwitch.app(未签名)。
+# 打包自包含的 skill-switch.app(未签名)。
 #   - SwiftUI release 二进制
 #   - 内置自包含 SEA CLI(skill-switch-cli,无需系统 node)
 #   - 应用图标
-# 产物:macos/dist/SkillSwitch.app —— 交给 codesign + notarytool 签名公证(见 scripts/sign-notarize.sh)。
+# 产物:macos/dist/skill-switch.app —— 交给 codesign + notarytool 签名公证(见 scripts/sign-notarize.sh)。
 set -euo pipefail
 cd "$(dirname "$0")"
 REPO="$(cd .. && pwd)"
-APP="dist/SkillSwitch.app"
+APP="dist/skill-switch.app"
 BUILD="build"
 mkdir -p "$BUILD"
 
@@ -16,11 +16,11 @@ swift build -c release
 BIN=".build/release/SkillSwitch"
 
 echo "==> 2/5 自包含 SEA CLI"
-CLI=$(ls "$REPO"/gui/src-tauri/bin/skill-switch-cli-* 2>/dev/null | head -1 || true)
+CLI=$(ls "$REPO"/dist/sea/skill-switch-cli-* 2>/dev/null | head -1 || true)
 if [ -z "${CLI:-}" ]; then
   echo "    (构建 SEA sidecar…)"
-  ( cd "$REPO" && node gui/scripts/bundle-cli.mjs )
-  CLI=$(ls "$REPO"/gui/src-tauri/bin/skill-switch-cli-* | head -1)
+  ( cd "$REPO" && node scripts/bundle-cli.mjs )
+  CLI=$(ls "$REPO"/dist/sea/skill-switch-cli-* | head -1)
 fi
 echo "    CLI = $CLI"
 
@@ -59,7 +59,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleName</key><string>SkillSwitch</string>
+	<key>CFBundleName</key><string>skill-switch</string>
 	<key>CFBundleDisplayName</key><string>skill-switch</string>
 	<key>CFBundleIdentifier</key><string>dev.skill-switch.native</string>
 	<key>CFBundleExecutable</key><string>SkillSwitch</string>
@@ -83,4 +83,4 @@ echo "==> 5/5 完成"
 du -sh "$APP" | awk '{print "    "$0}'
 echo ""
 echo "未签名产物:$(pwd)/$APP"
-echo "签名+公证(需 Apple Developer 凭据):见 macos/README.md 或复用 gui/scripts/sign-notarize.sh"
+echo "签名+公证(需 Apple Developer 凭据):见 macos/README.md 或跑 macos/sign-notarize.sh"

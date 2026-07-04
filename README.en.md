@@ -17,7 +17,7 @@ npx @rtwsvj/skill-switch audit --configs  # also scan ~/.claude, MCP, and agent 
 
 Or drop the [GitHub Action](docs/github-action.md) into CI to audit every PR and upload results to code-scanning.
 
-On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and roll back — every write is **snapshotted first and one-click reversible**, and dangerous skills are blocked before they install. Available as a **CLI** (`npx @rtwsvj/skill-switch`) and a signed + notarized **desktop app (GUI)**.
+On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and roll back — every write is **snapshotted first and one-click reversible**, and dangerous skills are blocked before they install. Available as a **CLI** (`npx @rtwsvj/skill-switch`) and a signed + notarized **native macOS app** (SwiftUI).
 
 ![demo](assets/demo.svg)
 
@@ -27,10 +27,10 @@ AI coding agents increasingly run on *skills* — reusable bundles of instructio
 
 ## Screenshots
 
-![Overview](gui/docs/g1-overview.png)
-![Skills](gui/docs/g1-skills.png)
-![Security audit](gui/docs/g1-audit.png)
-![Usage](gui/docs/g1-usage.png)
+![Overview](assets/screenshots/g1-overview.png)
+![Skills](assets/screenshots/g1-skills.png)
+![Security audit](assets/screenshots/g1-audit.png)
+![Usage](assets/screenshots/g1-usage.png)
 
 ## Highlights
 
@@ -49,12 +49,16 @@ AI coding agents increasingly run on *skills* — reusable bundles of instructio
 
 The app only writes to your tools' skill directories (`~/.claude`, `~/.codex`, `~/.gemini`, …) when you explicitly click Install / Disable / Delete / Sync / Restore — and it snapshots before every write.
 
+### What the native app does
+
+A SwiftUI shell over the same CLI — six sidebar screens: **Overview** / **Skills** / **Safety** / **Maintenance** / **History** / **Usage**. Writes (`install` / `toggle` / `sync` / `remove` / `restore`) go through a native confirmation dialog + automatic pre-write snapshot, with audit results surfaced inline. **4 languages** (English / 简体中文 / 日本語 / Español) with an in-app toolbar switcher; light/dark theme follows the system.
+
 ## CLI
 
-The CLI ships inside the app at `/Applications/skill-switch.app/Contents/MacOS/skill-switch-cli`. Link it onto your `PATH`:
+The CLI ships inside the app at `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli`. Link it onto your `PATH`:
 
 ```bash
-ln -sf /Applications/skill-switch.app/Contents/MacOS/skill-switch-cli /usr/local/bin/skill-switch
+ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
 skill-switch --help
 ```
 
@@ -106,11 +110,11 @@ pnpm install
 pnpm cli --help                          # = skill-switch
 pnpm cli scan --home tests/fixtures/home-basic
 pnpm test
-pnpm --dir gui tauri dev                 # run the GUI locally
-pnpm release                             # build .app / .dmg (unsigned)
+(cd macos && swift run)                 # run the native macOS app locally
+pnpm release                             # build skill-switch.app (unsigned)
 ```
 
-The bundled CLI is a **Node SEA sidecar**, so the app runs CLI calls without a system `node`. Signing + notarization (Developer ID required) is documented in [docs/release/signing.md](docs/release/signing.md).
+`pnpm release` runs `scripts/release.mjs`: tests + typecheck + `npm pack --dry-run` + `bash macos/build-app.sh`, producing `macos/dist/skill-switch.app`. The bundled CLI is a **Node SEA sidecar**, so the app runs CLI calls without a system `node`. Signing + notarization (Developer ID required) is documented in [macos/README.md](macos/README.md).
 
 ## More docs
 

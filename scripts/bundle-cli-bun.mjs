@@ -5,7 +5,7 @@
  * ⚠ 这是【实验性】路径，不替换现有 Node SEA 路径（bundle-cli.mjs）。
  *
  * 产物命名规则与 SEA 路径相同：
- *   gui/src-tauri/bin/skill-switch-cli-<triple>[.exe]
+ *   dist/sea/skill-switch-cli-<triple>[.exe]
  *
  * bun 与 Node SEA 的关键区别：
  *   - bun 下 `process.isBun === 1`，但不提供 node:sea 的 `isSea()`
@@ -26,10 +26,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(scriptDir, '..', '..');
+const repoRoot = resolve(scriptDir, '..');
 
-// 产物输出目录与 SEA 路径保持一致：gui/src-tauri/bin/
-const outBase = resolve(scriptDir, '..', 'src-tauri', 'bin', 'skill-switch-cli');
+// 产物输出目录与 SEA 路径保持一致：dist/sea/
+const outBase = resolve(repoRoot, 'dist', 'sea', 'skill-switch-cli');
 
 // ── 平台/架构 → Rust target triple 映射 ────────────────────────────────────
 
@@ -114,7 +114,7 @@ export function outfilePath(triple, extension) {
 
 // ── 以下为实际构建逻辑（仅在直接运行时执行）──────────────────────────────
 
-// 用于判断脚本是否以 `node gui/scripts/bundle-cli-bun.mjs` 形式直接调用
+// 用于判断脚本是否以 `node scripts/bundle-cli-bun.mjs` 形式直接调用
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
 if (isMain) {

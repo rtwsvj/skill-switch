@@ -39,12 +39,33 @@ jobs:
       - name: Coverage gate
         run: pnpm test:coverage
 
-      # 抓 GUI 生产构建回归(import/JSX/语法级);Tauri 原生构建仍属本地/macOS。
-      - name: Build GUI
-        run: pnpm --dir gui build
+  # 原生 macOS App 自检:编译 SwiftUI + i18n 资源完整性。Tauri 已退役,
+  # 不再跑 gui 的 build/i18n:check。原生 App 产物签名仍走 macos/sign-notarize.sh 本地维护者手跑。
+  macos-app:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # i18n 漏译检测:扫 gui/src 的 t() 调用,对比四个 locale 文件。
-      # 只读(status 命令不写文件),新增漏译 key 即失败。
-      # 配置见 gui/i18next.config.mjs。
-      - name: i18n check
-        run: pnpm --dir gui i18n:check
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 原生 App build-app.sh 会通过 pnpm bundle:cli 触发 esbuild + postject,
+      # 所以这里仍需 pnpm(只装 lockfile 列出的依赖,无 --frozen-lockfile 以便首次 job 装)
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SwiftUI app
+        working-directory: macos
+        run: swift build
+
+      - name: i18n completeness check
+        working-directory: macos
+        run: bash scripts/check-i18n.sh
