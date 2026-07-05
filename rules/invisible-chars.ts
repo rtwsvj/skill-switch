@@ -6,6 +6,10 @@
 //      读取的文本藏入 skill,实现"让 LLM 执行隐秘指令"攻击。
 //   3. 废弃格式字符(U+206A–U+206F)与不可见数学运算符(U+2061–U+2064)——在正常散文或
 //      代码中几乎从不出现,出现即为可疑。
+//   4. 补充变体选择符(U+E0100–U+E01EF)——可被用于在 LLM 可见而人眼不可见的文本中携带数据
+//      (类似 Tag 块)。在 skill 文档正文中无正当用途:emoji 用 U+FE0F,常用 CJK 表意字符
+//      (U+4E00–U+9FFF)的官方变体均使用 U+FE00–U+FE0F(已排除),U+E0100+ 仅用于 CJK 扩展
+//      B+ (U+20000+)字符的 IVD 变体序列,skill 类场景几乎不会出现。
 //
 // ── 当前覆盖范围(仅高置信度攻击字符) ────────────────────────────────────────
 //
@@ -36,20 +40,30 @@
 // 规则 4: obfuscation/deprecated-bidi-format
 //   U+206A  INHIBIT SYMMETRIC SWAPPING
 //   U+206B  ACTIVATE SYMMETRIC SWAPPING
-//   U+206C  INHIBIT ARABIC FORM SHAPING
-//   U+206D  ACTIVATE ARABIC FORM SHAPING
+//   U+206C  INHIBIT ARABIC FORM SHAPPING
+//   U+206D  ACTIVATE ARABIC FORM SHAPPING
 //   U+206E  NATIONAL DIGIT SHAPES
 //   U+206F  NOMINAL DIGIT SHAPES
 //   Unicode 3.0 已将其废弃(deprecated in UAX #9);在任何合法现代文本中均不应出现。
+//
+// 规则 5: obfuscation/unicode-supplementary-variation-selectors
+//   U+E0100–U+E01EF  补充变体选择符(Supplementary Variation Selectors,VS17–VS256)
+//   与 U+FE00–U+FE0F(VS1–VS16,emoji 变体选择符 / 标准化 CJK 表意字符变体序列)不同,
+//   此范围在正常 skill 内容中没有合法用途,出现即为可疑。
+//   ⚠️ 绝不检测 U+FE00–U+FE0F——emoji(⚠️ ✅ ❤️ 等)与常用 CJK 表意字符的官方变体
+//   序列在此范围海量出现,属合法用途。
 //
 // ── 有意排除(已由相邻规则覆盖或误报风险已排除) ────────────────────────────
 //   U+200B / U+200C / U+200D / U+2060 / U+FEFF — 已由 prompt-injection/zero-width-chars 覆盖(severity: medium)
 //   U+200E / U+200F (LRM/RLM)                  — 合法用于阿拉伯语/希伯来语/波斯语双向文本,不检测
 //   U+00AD (软连字符)                            — 合法用于断字排版,不检测
+//   U+FE00–U+FE0F (VS1–VS16)                    — emoji 变体选择符 / 标准化 CJK 表意字符变体序列,
+//                                              海量合法用途;已知高误报风险,不检测。
 //
 // ── 语言/格式安全性 ────────────────────────────────────────────────────────
 //   普通中/日/韩/阿拉伯语/希伯来语/波斯语散文、Emoji ZWJ 序列、UTF-8 BOM 文件
-//   均不含以上字符,误报率极低。
+//   均不含以上字符,误报率极低。CJK 扩展 B+ 字符(U+20000+)极为罕见,使用 U+E0100+
+//   变体选择符的 IVS 序列在 skill 类场景近乎为零。
 
 import type { AuditFileRule, AuditFileTarget } from '../src/core/audit/types.ts';
 
@@ -125,6 +139,23 @@ const INVISIBLE_MATH_OPERATORS = /[⁡-⁤]/;
  * 已在 UAX #9 中废弃;任何合法现代软件均不应生成这些字符。
  */
 const DEPRECATED_BIDI_FORMAT = /[⁪-⁯]/;
+
+/**
+ * Unicode 补充变体选择符 (U+E0100–U+E01EF,VS17–VS256)。
+ * 与 U+FE00–U+FE0F(VS1–VS16,emoji 变体选择符 / 标准化 CJK 变体序列)不同,此范围
+ * 在 skill 散文、shell 脚本、代码块中没有合法用途——emoji 用 VS16、常用 CJK 表意字符
+ * (U+4E00–U+9FFF)的官方 IVS 用 VS1–VS16;此 240 码位仅服务于 CJK 扩展 B+ (U+20000+)
+ * 字符在 IVD 中注册的少数变体序列,在 skill 类场景近乎为零。
+ *
+ * 威胁模型:这些字符对人眼不可见(随 CJK 扩展 B+ 罕见字符可能更不易察觉),但 LLM 在
+ * token 层可读;攻击者可借此走私数据/隐藏指令。检测模式直接按码位区间匹配,
+ * 不维护 IVS 例外白名单(IVS 在 skill 类场景极罕见;若后续误报,可考虑按 CJK 扩展 B+
+ * 字符紧跟 U+E0100+ 的方式做例外)。
+ *
+ * ⚠️ 护栏:绝不检测 U+FE00–U+FE0F(emoji/CJK 标准化变体序列,合法用途海量)。
+ * 需要 /u 标志以访问补充多语言平面(SMP)码位。
+ */
+const SUPPLEMENTARY_VARIATION_SELECTORS = /[\u{E0100}-\u{E01EF}]/u;
 
 // ── 工具函数 ─────────────────────────────────────────────────────────────────
 
@@ -212,6 +243,26 @@ function evaluateDeprecatedBidi(target: AuditFileTarget): { line: number; excerp
   return null;
 }
 
+function evaluateSupplementaryVariationSelectors(target: AuditFileTarget): { line: number; excerpt: string } | null {
+  if (!SUPPLEMENTARY_VARIATION_SELECTORS.test(target.content)) return null;
+
+  const lines = target.content.split('\n');
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx]!;
+    // 用迭代器遍历以正确处理补充平面字符(每个字符占 2 个 UTF-16 代码单元)
+    const chars = [...line];
+    for (const ch of chars) {
+      if (SUPPLEMENTARY_VARIATION_SELECTORS.test(ch)) {
+        return {
+          line: lineIdx + 1,
+          excerpt: `发现 Unicode 补充变体选择符 ${codepointLabel(ch)}(U+E0100–U+E01EF,VS17–VS256)— 可用于在 LLM 可见的文本中走私数据;emoji/CJK 合法变体选择符在 U+FE00–U+FE0F 已排除 — "${line.trim().slice(0, 100)}"`,
+        };
+      }
+    }
+  }
+  return null;
+}
+
 // ── 规则导出 ─────────────────────────────────────────────────────────────────
 
 export const invisibleCharRules: AuditFileRule[] = [
@@ -246,5 +297,13 @@ export const invisibleCharRules: AuditFileRule[] = [
       '内容包含 Unicode 3.0 废弃双向格式字符(U+206A–U+206F),任何合法现代文本均不应包含',
     source: SECTION,
     evaluate: evaluateDeprecatedBidi,
+  },
+  {
+    id: 'obfuscation/unicode-supplementary-variation-selectors',
+    severity: 'high',
+    message:
+      '内容包含 Unicode 补充变体选择符(U+E0100–U+E01EF,VS17–VS256),在 skill 文档/代码正文中无正当用途——可能的隐藏数据/指令走私载体(emoji 与 CJK 标准化变体使用 U+FE00–U+FE0F 已显式排除)',
+    source: SECTION,
+    evaluate: evaluateSupplementaryVariationSelectors,
   },
 ];
