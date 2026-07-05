@@ -39,6 +39,8 @@ const EXPECTED_CATEGORIES = [
   'binary-masquerade',
   'taint',
   'cross-skill',
+  // 致命三要素(agentic 综合能力合成,advisory)—— OWASP Agentic 2026 独立编目项
+  'agentic',
 ] as const;
 
 const ATLAS_RE = /^atlas:AML\.T\d{4}(\.\d{3})?$/;
