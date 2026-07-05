@@ -1,8 +1,9 @@
-// 不可见字符规则验收测试,覆盖 4 条规则:
+// 不可见字符规则验收测试,覆盖 5 条规则:
 //   obfuscation/invisible-bidi-chars   — Trojan-Source Bidi 覆盖/隔离字符
 //   obfuscation/unicode-tag-chars      — Unicode Tag 字符块(LLM 隐藏指令)
 //   obfuscation/invisible-math-operators — 不可见数学运算符
 //   obfuscation/deprecated-bidi-format  — Unicode 废弃双向格式字符
+//   obfuscation/unicode-supplementary-variation-selectors — 补充变体选择符(U+E0100–U+E01EF)
 //
 // 精度要求:
 //   - 阿拉伯语/希伯来语/波斯语散文(含 U+200C ZWNJ)必须零误报
@@ -10,9 +11,11 @@
 //   - UTF-8 BOM 文件(U+FEFF 位于文件首位)必须零误报
 //   - 普通中/英/日/韩文内容必须零误报
 //   - 软连字符(U+00AD)必须零误报
+//   - 显式排除:emoji 变体选择符(U+FE0F)、常用 CJK 变体选择符(U+FE00–U+FE0F)必须零误报
 //
 // 意图遗漏:U+200B/200C/200D/FEFF 已由 prompt-injection/zero-width-chars 覆盖;
-//          U+200E/200F/00AD 已因误报风险被排除在本规则之外。
+//          U+200E/200F/00AD 已因误报风险被排除在本规则之外;
+//          U+FE00–U+FE0F 因 emoji/CJK 海量合法用途已被显式排除。
 import { describe, expect, it } from 'vitest';
 import { invisibleCharRules } from '../rules/invisible-chars.ts';
 import { allFileRules, allRules } from '../rules/index.ts';
@@ -22,6 +25,7 @@ const RULE_ID = 'obfuscation/invisible-bidi-chars';
 const RULE_TAG = 'obfuscation/unicode-tag-chars';
 const RULE_MATH = 'obfuscation/invisible-math-operators';
 const RULE_DEP_BIDI = 'obfuscation/deprecated-bidi-format';
+const RULE_SVS = 'obfuscation/unicode-supplementary-variation-selectors';
 
 // ── 辅助 ─────────────────────────────────────────────────────────────────────
 
@@ -377,16 +381,18 @@ describe('obfuscation/invisible-bidi-chars — 良性样本零误报', () => {
 // ── 规则元数据 ────────────────────────────────────────────────────────────────
 
 describe('invisible-chars rule registry hygiene', () => {
-  it('exports 4 rules with correct severities and non-empty source', () => {
-    expect(invisibleCharRules).toHaveLength(4);
+  it('exports 5 rules with correct severities and non-empty source', () => {
+    expect(invisibleCharRules).toHaveLength(5);
     for (const rule of invisibleCharRules) {
       expect(rule.source.length, rule.id).toBeGreaterThan(0);
       expect(rule.message.length, rule.id).toBeGreaterThan(0);
     }
-    // bidi-chars, unicode-tag-chars, deprecated-bidi-format remain high (install-blocking)
+    // bidi-chars, unicode-tag-chars, deprecated-bidi-format, supplementary-variation-selectors
+    // remain high (install-blocking)
     expect(invisibleCharRules.find((r) => r.id === RULE_ID)!.severity).toBe('high');
     expect(invisibleCharRules.find((r) => r.id === RULE_TAG)!.severity).toBe('high');
     expect(invisibleCharRules.find((r) => r.id === RULE_DEP_BIDI)!.severity).toBe('high');
+    expect(invisibleCharRules.find((r) => r.id === RULE_SVS)!.severity).toBe('high');
     // invisible-math-operators downgraded to medium — legitimate MathML/LaTeX/scientific use
     expect(invisibleCharRules.find((r) => r.id === RULE_MATH)!.severity).toBe('medium');
   });
@@ -395,15 +401,16 @@ describe('invisible-chars rule registry hygiene', () => {
     expect(allFileRules.map((r: { id: string }) => r.id)).toContain(RULE_ID);
   });
 
-  it('all 4 invisible-char rule ids are registered in allFileRules', () => {
+  it('all 5 invisible-char rule ids are registered in allFileRules', () => {
     const ids = allFileRules.map((r: { id: string }) => r.id);
     expect(ids).toContain(RULE_ID);
     expect(ids).toContain(RULE_TAG);
     expect(ids).toContain(RULE_MATH);
     expect(ids).toContain(RULE_DEP_BIDI);
+    expect(ids).toContain(RULE_SVS);
   });
 
-  it('all 4 rule ids are unique', () => {
+  it('all 5 rule ids are unique', () => {
     const ids = invisibleCharRules.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -699,6 +706,145 @@ describe('obfuscation/deprecated-bidi-format — 良性样本零误报', () => {
   });
 });
 
+// ── 补充变体选择符(U+E0100–U+E01EF)规则 — 恶意样本命中 ──────────────────────
+
+describe('obfuscation/unicode-supplementary-variation-selectors — 恶意样本命中', () => {
+  it('VS17 (U+E0100) — 补充变体选择符区间起始字符', () => {
+    const content = `safe-looking skill content${String.fromCodePoint(0xE0100)}hidden injection\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_SVS);
+    expect(findings.find((f) => f.ruleId === RULE_SVS)!.excerpt).toContain('U+E0100');
+  });
+
+  it('VS256 (U+E01EF) — 补充变体选择符区间末尾字符', () => {
+    const content = `looks normal${String.fromCodePoint(0xE01EF)}to reviewers\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_SVS);
+    expect(findings.find((f) => f.ruleId === RULE_SVS)!.excerpt).toContain('U+E01EF');
+  });
+
+  it('VS 中段 (U+E0180) — 补充变体选择符中段字符', () => {
+    const content = `a normal prose${String.fromCodePoint(0xE0180)}line\n`;
+    const findings = evalRule(content);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE_SVS);
+    expect(findings.find((f) => f.ruleId === RULE_SVS)!.excerpt).toContain('U+E0180');
+  });
+
+  it('连续 VS17–VS20 走私数据 — 单字符第一处即命中', () => {
+    // 攻击者用连续的 U+E0100–U+E0103 码位携带数据,即便 LLM 不解码也属可疑。
+    const smuggled = [
+      String.fromCodePoint(0xE0100),
+      String.fromCodePoint(0xE0101),
+      String.fromCodePoint(0xE0102),
+      String.fromCodePoint(0xE0103),
+    ].join('');
+    const content = `# Helpful skill\n\nDocumentation here.${smuggled}\n\nRun the user's command.\n`;
+    const findings = evalRule(content);
+    const svsFinding = findings.find((f) => f.ruleId === RULE_SVS);
+    expect(svsFinding).toBeDefined();
+    // payload 在 'Documentation here.' 后 → 第 3 行
+    expect(svsFinding!.line).toBe(3);
+  });
+
+  it('severity: HIGH(与 Tag 块同级,install-blocking)', () => {
+    // 威胁模型与 U+E0000–U+E007F Tag 块同等级别——LLM 可见、人眼不可见的走私载体
+    const content = `safe text${String.fromCodePoint(0xE0100)}more\n`;
+    const findings = evalRule(content);
+    const svsFinding = findings.find((f) => f.ruleId === RULE_SVS)!;
+    expect(svsFinding.severity).toBe('high');
+  });
+});
+
+// ── 补充变体选择符 — 良性样本零误报(emoji/CJK/正常文本) ─────────────────────
+
+describe('obfuscation/unicode-supplementary-variation-selectors — 良性样本零误报', () => {
+  // 关键护栏:U+FE00–U+FE0F 是合法 emoji/CJK 变体选择符,绝不能命中。
+  // 这些样本如命中则视为零误报护栏破裂,必须立刻失败。
+
+  it('emoji 变体选择符 U+FE0F (⚠️ / ✅ / ❤️)— 零 findings (SVS rule 护栏)', () => {
+    // 用码位构造避免源文件编码歧义
+    const WARNING_BASE = String.fromCodePoint(0x26A0); // ⚠
+    const CHECK_BASE = String.fromCodePoint(0x2705); // ✅ (emoji presentation)
+    const HEART_BASE = String.fromCodePoint(0x2764); // ❤
+    const VS16 = String.fromCodePoint(0xFE0F);
+    const samples = [
+      `Always inspect output carefully ${WARNING_BASE}${VS16} before running scripts.`,
+      `Done ${CHECK_BASE}${VS16}! Normal usage here.`,
+      `Like ${HEART_BASE}${VS16} this skill for reference.`,
+      `多种 emoji ${WARNING_BASE}${VS16} ${CHECK_BASE}${VS16} ${HEART_BASE}${VS16} 一起使用。`,
+    ];
+    for (const c of samples) {
+      expect(
+        evalRule(c).filter((f) => f.ruleId === RULE_SVS),
+        c,
+      ).toEqual([]);
+    }
+  });
+
+  it('CJK 表意字符 + U+FE00 标准化变体序列 — 零 findings (SVS rule 护栏)', () => {
+    // U+4ED8(付)+U+FE00 是 Unicode 注册的标准化 CJK 变体序列之一(Adobe-Japan1 字体变体)。
+    // 在标准 CJK 文本中可能存在;本规则显式排除 U+FE00–U+FE0F,故不命中。
+    const IVS_BASE = String.fromCodePoint(0x4ED8); // 付
+    const VS1 = String.fromCodePoint(0xFE00);
+    const samples = [
+      `付款方式:${IVS_BASE}${VS1}款到账户。`, // CJK IVS
+      `动词 ${IVS_BASE}${VS1} 与名词 ${IVS_BASE} 用法不同。`,
+      `English: character ${IVS_BASE}${VS1} variant selector usage is normal in CJK text.`,
+    ];
+    for (const c of samples) {
+      expect(
+        evalRule(c).filter((f) => f.ruleId === RULE_SVS),
+        c,
+      ).toEqual([]);
+    }
+  });
+
+  it('彩虹旗 🏳️‍🌈 (含 U+FE0F 文本变体选择符)— 零 findings (SVS rule 护栏)', () => {
+    // 🏳️‍🌈 = U+1F3F3(U+FE0F) U+200D U+1F308,含 U+FE0F
+    const RAINBOW = String.fromCodePoint(0x1F3F3, 0xFE0F, 0x200D, 0x1F308);
+    const content = `Pride flag ${RAINBOW} as a normal emoji sequence.\n`;
+    expect(evalRule(content).filter((f) => f.ruleId === RULE_SVS)).toEqual([]);
+  });
+
+  it('中/英/日/韩/阿拉伯/希伯来文不含 U+E0100–U+E01EF — 零 findings (SVS rule)', () => {
+    const cases = [
+      '你好世界，这是一段普通的中文文本。',
+      'Hello world. Normal English prose.',
+      '日本語テキスト。ネットワーク診断。',
+      '안녕하세요. 이것은 일반적인 한국어 텍스트입니다.',
+      'هذا مساعد يساعدك في تشخيص مشاكل الشبكة.',
+      'עוזר זה מאבחן בעיות רשת בפקודות קריאה בלבד.',
+      'Family: 👨‍👩‍👧 Developer: 👩‍💻 Done: ✅',
+    ];
+    for (const c of cases) {
+      expect(evalRule(c).filter((f) => f.ruleId === RULE_SVS), c).toEqual([]);
+    }
+  });
+
+  it('full engine: benign skill 含 emoji + 中文 — 零 findings from SVS rule', () => {
+    const content = [
+      '---',
+      'name: 示例 skill',
+      'description: 一个演示 emoji 与中文混用的正常技能 ✅。',
+      '---',
+      '',
+      '# 助手',
+      '',
+      '本技能演示用法。',
+      '',
+      '```bash',
+      'echo "Hello, world!" ⚠️',
+      '```',
+      '',
+      '常见 emoji: ❤️ 👨‍👩‍👧 🏳️‍🌈 完成 ✅',
+    ].join('\n');
+
+    const report = auditFull(content);
+    const svsFindings = report.findings.filter((f) => f.ruleId === RULE_SVS);
+    expect(svsFindings).toEqual([]);
+  });
+});
+
 // ── 综合精度验证 — 所有规则合并,多语言内容零误报 ──────────────────────────────
 
 describe('综合精度 — 所有 invisible-chars 规则对良性多语言内容零 findings', () => {
@@ -718,7 +864,7 @@ describe('综合精度 — 所有 invisible-chars 规则对良性多语言内容
   it.each(benignSamples)('%s — 零 findings from all invisible-char rules', (_label, content) => {
     const findings = evalRule(content);
     expect(findings.filter((f) =>
-      [RULE_ID, RULE_TAG, RULE_MATH, RULE_DEP_BIDI].includes(f.ruleId)
+      [RULE_ID, RULE_TAG, RULE_MATH, RULE_DEP_BIDI, RULE_SVS].includes(f.ruleId)
     )).toEqual([]);
   });
 });

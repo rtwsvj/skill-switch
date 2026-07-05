@@ -132,6 +132,7 @@ Base64 编码的危险命令、Trojan-Source 不可见字符、ANSI 终端注入
 | `obfuscation/invisible-bidi-chars` | high | 双向覆盖/隔离控制字符（U+202A–U+202E/U+2066–U+2069）——Trojan-Source 混淆 |
 | `obfuscation/unicode-tag-chars` | high | Unicode Tag 字符块（U+E0000–U+E007F）——可编码对人眼不可见的 ASCII 隐藏指令 |
 | `obfuscation/deprecated-bidi-format` | high | Unicode 3.0 废弃双向格式字符（U+206A–U+206F）——任何合法现代文本均不应包含 |
+| `obfuscation/unicode-supplementary-variation-selectors` | high | Unicode 补充变体选择符（U+E0100–U+E01EF，VS17–VS256）——LLM 可见的隐藏数据走私载体（emoji/CJK 合法变体 `U+FE00–U+FE0F` 已显式排除） |
 | `obfuscation/invisible-math-operators` | medium | 不可见数学运算符（U+2061–U+2064）——在非 MathML 上下文中可疑 |
 | `obfuscation/ansi-escape-injection` | high | 原始 ANSI 转义序列（ESC U+001B）——可操控终端显示或隐藏文字 |
 
