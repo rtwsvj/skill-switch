@@ -154,6 +154,181 @@ function matchableLine(line: string): string {
     : line;
 }
 
+// ── 字符串字面量拼接折叠(Wave-H:闭合最后一个审计漏判) ────────────────────────
+//
+// 攻击者把外渗 endpoint 用字符串字面量拼接拆开,绕过所有基于整串匹配的规则。
+// 本模块做零误报风险的最小子集:手写线性扫描器,只折叠单行内纯字面量之间的
+// `+` 拼接。链条中出现任何标识符、模板字符串(反引号)、`${`、数字、函数调用
+// → 该链条整体不折叠(保守优先,漏折不误折)。折叠后,把折叠行作为第三种匹配
+// 变体交给既有规则——良性代码折叠出来还是良性字符串,误报面为零。
+//
+// 性能:线性字符扫描,无正则、无回溯;单链上限 16 段,与既有
+// MAX_AUDIT_MATCH_LINE_LENGTH(2KB)截断逻辑配合,杜绝病态输入 DoS。
+
+/** 单链允许的最大段数(超过此数的额外段不并入,留在行原文中)。 */
+const MAX_FOLD_SEGMENTS = 16;
+
+/**
+ * 扫描一个字符串字面量,返回其 JS 解码后的值与结束下标(指向闭引号之后一格)。
+ * 只识别 `'` / `"` 包裹的字面量;反引号模板直接返回 null(交由外层判为非字面量)。
+ * 转义仅按规格要求处理 `\'`、`\"`、`\`\`\\`\`,其它转义(如 `\n`、`\t`、`\u00ff`)
+ * 保留原两字符,编码时由 encodeForLiteral 通过 `\\` 重新包装,保证往返一致。
+ * 未闭合(行内找不到闭引号)返回 null,外层把开引号作为普通字符保留。
+ */
+function scanStringLiteral(line: string, start: number): { value: string; end: number } | null {
+  if (start >= line.length) return null;
+  const quote = line[start];
+  if (quote !== "'" && quote !== '"') return null;
+
+  let i = start + 1;
+  let value = '';
+  while (i < line.length) {
+    const ch = line[i];
+    if (ch === quote) {
+      return { value, end: i + 1 };
+    }
+    if (ch === '\\') {
+      if (i + 1 >= line.length) return null;
+      const esc = line[i + 1];
+      if (esc === "'" || esc === '"' || esc === '\\') {
+        value += esc;
+        i += 2;
+      } else {
+        // 其它转义原样保留两字符,编码侧会统一重新加 `\\`,不影响 JS 语义。
+        value += line.slice(i, i + 2);
+        i += 2;
+      }
+    } else {
+      value += ch;
+      i++;
+    }
+  }
+  return null;
+}
+
+/**
+ * 把已解码的 JS 字符串值重新包装为指定引号风格的字面量源文本。
+ * 规则:反斜杠一律 `\\` 转义,所选引号一律 `\<quote>` 转义,其它字符原样。
+ * 手写字符循环,不用正则(与本模块扫描器约束一致)。
+ */
+function encodeForLiteral(value: string, quote: string): string {
+  let out = '';
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === '\\') {
+      out += '\\\\';
+    } else if (ch === quote) {
+      out += `\\${quote}`;
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+/**
+ * 尝试从 start 处开始折叠一条纯字面量链。
+ * 读取首段字面量后,反复:跳过空白 → 期待 `+` → 跳过空白 → 期待下一个字面量。
+ * 任意一步遇到非字面量(标识符、反引号、`${`、数字、函数调用等)→ 整体不折叠,
+ * 返回 null(由外层保留原文);链长达到 MAX_FOLD_SEGMENTS 后停止扩展,多余段
+ * 留在行原文中(避免单链无限扩张导致折叠行膨胀)。
+ * 返回非 null 时,text 为新字面量源文本,end 为链在原行中的结束下标(独占位置)。
+ */
+function tryFoldChain(
+  line: string,
+  start: number,
+): { text: string; end: number } | null {
+  const firstLit = scanStringLiteral(line, start);
+  if (firstLit === null) return null;
+
+  const quoteStyle = line[start]!;
+  const segments: string[] = [firstLit.value];
+  let end = firstLit.end;
+  // 标记是否在 `+` 之后遇到非字面量;一旦遇到,整条链放弃(规格:整体不折叠)。
+  let abortedByNonLiteral = false;
+
+  while (segments.length < MAX_FOLD_SEGMENTS) {
+    let pp = end;
+    while (pp < line.length && (line[pp] === ' ' || line[pp] === '\t')) pp++;
+    if (pp >= line.length || line[pp] !== '+') break;
+    pp++;
+    while (pp < line.length && (line[pp] === ' ' || line[pp] === '\t')) pp++;
+    if (pp >= line.length) break;
+
+    const nextCh = line[pp]!;
+    // 只接受 `'` / `"` 引号包裹的字面量;反引号、字母、数字、`(`、`$` 等一律视为
+    // 非字面量,触发"整体不折叠"保守分支。
+    if (nextCh !== "'" && nextCh !== '"') {
+      abortedByNonLiteral = true;
+      break;
+    }
+
+    const lit = scanStringLiteral(line, pp);
+    if (lit === null) {
+      abortedByNonLiteral = true;
+      break;
+    }
+
+    segments.push(lit.value);
+    end = lit.end;
+  }
+
+  if (abortedByNonLiteral) return null;
+  if (segments.length < 2) return null;
+
+  const joined = segments.join('');
+  const foldedText = quoteStyle + encodeForLiteral(joined, quoteStyle) + quoteStyle;
+  return { text: foldedText, end };
+}
+
+/**
+ * 单行内折叠纯字符串字面量的 `+` 拼接链,无可折叠时返回 null。
+ *
+ * 手写线性扫描器(不用正则)。逐字符扫:遇到 `'` 或 `"` 起始的字面量,正确处理
+ * 转义(`\'`、`\"`、`\\`);字面量结束后跳过空白,若下一个非空白字符是 `+` 且其后
+ * (跳过空白)又是引号字面量,则并入链条。链条中一旦出现标识符、反引号、`${`、
+ * 数字或函数调用 → 该链条整体不折叠(保守优先)。一行内可有多个独立链条,都折叠。
+ * 单链上限 16 段,行长沿用既有 MAX_AUDIT_MATCH_LINE_LENGTH 截断。
+ *
+ * 返回的折叠行:把每条折叠链替换为单一字面量(用原链第一段的引号风格),
+ * 行其余部分原样保留。无可折叠时返回 null,引擎跳过第三轮匹配。
+ */
+export function foldStringConcatLiterals(line: string): string | null {
+  let result = '';
+  let i = 0;
+  let changed = false;
+
+  while (i < line.length) {
+    const ch = line[i]!;
+    if (ch === "'" || ch === '"') {
+      const firstLit = scanStringLiteral(line, i);
+      if (firstLit === null) {
+        // 未闭合字面量:把开引号当普通字符保留,继续往后扫(防御性,正常 SKILL 文档
+        // 不会触发)。
+        result += ch;
+        i++;
+        continue;
+      }
+
+      const folded = tryFoldChain(line, i);
+      if (folded !== null) {
+        result += folded.text;
+        i = folded.end;
+        changed = true;
+      } else {
+        // 不可折叠(单字面量或遇非字面量阻断):原样复制首段字面量,继续扫后续。
+        result += line.slice(i, firstLit.end);
+        i = firstLit.end;
+      }
+    } else {
+      result += ch;
+      i++;
+    }
+  }
+
+  return changed ? result : null;
+}
+
 function matchableContent(content: string): string {
   if (content.length <= MAX_AUDIT_MATCH_LINE_LENGTH) return content;
   return content.split('\n').map(matchableLine).join('\n');
@@ -216,10 +391,25 @@ export function runRules(rules: AuditRule[], targets: AuditTarget[]): AuditFindi
       // 行截断作为 defense-in-depth 保留:RE2 也限大输入,原生 RegExp 更需保护。
       const lineForMatch = matchableLine(line);
       const lineNormalized = normalizeForMatch(lineForMatch);
-      // 先在原始行上匹配;若原始行无命中则在归一化行上再试一次。
-      // 归一化只改变同形字/全宽字符,不会把良性内容变成恶意内容。
+      // Wave-H:第三轮——若本行可折叠为纯字面量链(lineForMatch 与 lineNormalized
+      // 都没命中时再触发,避免对良性代码重复开销),把折叠行也喂给匹配器。
+      // 折叠不产生自身 finding,只是把折叠后的行作为第三种匹配变体交给既有规则。
+      // excerpt 仍用原始行(lineForMatch):证据保留攻击者的原样拼接写法。
+      const lineFolded =
+        foldStringConcatLiterals(lineForMatch) ?? null;
+      const foldedActive =
+        lineFolded !== null && lineFolded !== lineForMatch && lineFolded !== lineNormalized;
+      // 先在原始行上匹配;若原始行无命中则在归一化行上再试一次;仍无命中再试折叠行。
+      // 归一化只改变同形字/全宽字符,折叠只组合相邻纯字面量,二者都不会把良性内容
+      // 变成恶意内容;三轮去重结构同构,同一 (行,规则) 至多一条 finding。
       for (const { rule, matcher } of compiled) {
-        if (!matcher.test(lineForMatch) && !matcher.test(lineNormalized)) continue;
+        if (
+          !matcher.test(lineForMatch) &&
+          !matcher.test(lineNormalized) &&
+          !(foldedActive && matcher.test(lineFolded!))
+        ) {
+          continue;
+        }
         const finding: AuditFinding = {
           ruleId: rule.id,
           severity: rule.severity,
