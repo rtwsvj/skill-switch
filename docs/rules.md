@@ -161,6 +161,16 @@ Base64 编码的危险命令、Trojan-Source 不可见字符、ANSI 终端注入
 
 ---
 
+## Agentic 综合风险（agentic）
+
+OWASP Agentic Security Initiative（2026）收录的"致命三要素"能力合成——同一个 skill 同时具备三种能力时，即便代码本身无漏洞，也会被一段投毒内容（恶意 URL / PR 评论 / issue 正文 / email 正文）诱导外泄数据。与 `exfiltration/taint-source-to-sink` 的分工：taint 抓已成形的数据流（high），本规则抓能力组合层面的结构性风险（medium、advisory、report-only、不阻断 CI）。
+
+| ruleId | 严重度 | 抓什么 |
+|--------|--------|--------|
+| `agentic/lethal-trifecta` | medium | 同一文件同时具备 ① 读私有数据（env/凭据/历史/浏览器·钱包）② 摄入不可信内容（`WebFetch`/`WebSearch`/自然语言「follow this PR/issue/email」/把 fetch 输出管道到解释器/eval 注入外部内容）③ 对外发送（curl 上传/nc/scp/base64 管道等）——命中后提示用户移除其中一种能力以做架构边界隔离 |
+
+---
+
 ## MCP 配置安全（mcp）
 
 `audit --configs` 对 Claude Code/Cursor/VS Code/Windsurf/Zed 等工具的 MCP server 配置执行的检查。
@@ -326,9 +336,10 @@ Hook 在 agent 事件（如每次工具调用前后）自动执行；被植入�
 | destructive | 4 |
 | obfuscation | 6 |
 | prompt-injection | 4 |
+| agentic | 1 |
 | mcp（所有子类） | 29 |
 | settings（所有子类） | 16 |
-| **合计** | **85** |
+| **合计** | **86** |
 
 ---
 
