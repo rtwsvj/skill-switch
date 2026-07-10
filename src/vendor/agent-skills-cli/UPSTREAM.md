@@ -12,7 +12,8 @@
 | `src/core/context-budget.ts` | `context-budget.ts`(394 行) | token 估算 + 预算内组合选择(S5) |
 | `src/core/skill-lock.ts` | `skill-lock.ts`(222 行) | LockEntry 设计参考:git 来源的 version 即 commit SHA(S3 合并入 skills.lock schema) |
 
-三个文件零相对导入,外部依赖仅 `gray-matter` + node 内置模块。
+上游文件原为零相对导入。本地安全补丁将两个 `gray-matter` 调用改为
+`src/core/frontmatter.ts` 的受限 YAML 1.2 解析器；刷新上游快照时必须保留此补丁。
 
 ## 本地改动
 

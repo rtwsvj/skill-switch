@@ -10,8 +10,8 @@
 //   行为完全一致:不存在 SKILL.md 的目录继续被跳过,内容解析错误继续记 error 字段。
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import matter from 'gray-matter';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
+import { parseFrontmatter } from './frontmatter.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 
 export interface SkillRecord {
@@ -63,9 +63,7 @@ async function readSkill(
   const record: SkillRecord = { agents, relSkillsDir, dirName, dir, path: skillMdPath };
   try {
     const raw = await readFile(skillMdPath, 'utf8');
-    // 必须传 options(哪怕空对象)绕过 gray-matter 的全局缓存:
-    // 坏输入第一次抛错后会污染缓存,第二次同内容直接返回空 data 不再抛错。
-    const { data } = matter(raw, {});
+    const { data } = parseFrontmatter(raw);
     if (typeof data.name === 'string') record.name = data.name;
     if (typeof data.description === 'string') record.description = data.description;
   } catch (cause) {

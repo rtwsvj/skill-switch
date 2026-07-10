@@ -642,7 +642,7 @@ describe('watch: skillName from frontmatter (line 52)', () => {
   it('omits skillName when frontmatter parse fails (line 52 falsy branch)', async () => {
     const skillsDir = join(home, '.claude', 'skills');
     await mkdir(join(skillsDir, 'broken-md'), { recursive: true });
-    // Write a SKILL.md that will cause gray-matter to fail (binary junk)
+    // Write a SKILL.md with binary junk; the parser must fail closed or omit metadata.
     await writeFile(join(skillsDir, 'broken-md', 'SKILL.md'), Buffer.from([0x00, 0x01, 0x02, 0x03]));
 
     const report = await runWatchScan(home);

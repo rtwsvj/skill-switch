@@ -270,7 +270,7 @@ describe('scan: SKILL.md parse error populates record.error (line 65)', () => {
   it('returns a record with error field when SKILL.md contains binary junk', async () => {
     const skillsDir = join(home, '.claude', 'skills');
     await mkdir(join(skillsDir, 'bad-skill'), { recursive: true });
-    // Write binary content that makes gray-matter throw on parse
+    // Write binary content that the hardened parser must handle without aborting scan.
     await writeFile(join(skillsDir, 'bad-skill', 'SKILL.md'), Buffer.from([0x00, 0xff, 0xfe, 0x01]));
     // Also add a valid skill so we know scan itself doesn't abort
     await mkdir(join(skillsDir, 'good-skill'), { recursive: true });

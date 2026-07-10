@@ -11,7 +11,7 @@
 import { stat } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import matter from 'gray-matter';
+import { parseFrontmatter } from '../frontmatter.ts';
 import type { LintIssue } from './portability.ts';
 
 export const MAX_SKILL_NAME_LENGTH = 64;
@@ -232,8 +232,7 @@ export async function validateSkillDir(skillDir: string): Promise<string[]> {
   }
 
   try {
-    // 空 options 绕过 gray-matter 全局缓存(见 core/scan.ts 的教训)
-    const { data } = matter(raw, {});
+    const { data } = parseFrontmatter(raw);
     return validateMetadata(data, basename(skillDir));
   } catch (cause) {
     return [cause instanceof Error ? cause.message : String(cause)];

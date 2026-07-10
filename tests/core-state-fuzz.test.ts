@@ -7,7 +7,7 @@
 //   readDeclaration — valid JSON with {version,skills:[…]} → returns it;
 //                     anything else → StateFileError (not uncaught)
 //   readSkillsLock  — same contract as readDeclaration
-//   scanHome (gray-matter frontmatter parser) — errors go to record.error; never throws
+//   scanHome (hardened YAML frontmatter parser) — errors go to record.error; never throws
 import { mkdtempSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -354,10 +354,10 @@ describe('readSkillsLock — property/fuzz tests', () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// gray-matter frontmatter parser (via scanHome / readSkill)
+// Hardened YAML frontmatter parser (via scanHome / readSkill)
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe('gray-matter frontmatter parser (via scanHome) — property/fuzz tests', () => {
+describe('hardened frontmatter parser (via scanHome) — property/fuzz tests', () => {
   /** Arbitrary strings targeting common YAML/frontmatter edge cases. */
   const frontmatterString = fc.oneof(
     anyString,

@@ -11,7 +11,9 @@
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename } from 'path';
-import matter from 'gray-matter';
+// LOCAL PATCH: use the host project's hardened YAML 1.2 frontmatter parser;
+// do not restore gray-matter when refreshing this vendored snapshot.
+import { parseFrontmatter } from '../../core/frontmatter.ts';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -310,8 +312,8 @@ async function loadSkillContent(skillPath: string): Promise<SkillContent | null>
 
     try {
         const raw = await readFile(skillMd, 'utf-8');
-        const { data, content } = matter(raw);
-        const name = data.name || basename(skillPath);
+        const { data, content } = parseFrontmatter(raw);
+        const name = typeof data.name === 'string' && data.name ? data.name : basename(skillPath);
 
         const directives = extractDirectives(content);
         const topics = extractTopics(content);

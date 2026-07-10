@@ -7,9 +7,9 @@
 // 真正未知的字段才保留 error。
 import { readFile } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
-import matter from 'gray-matter';
 import { detectConflicts, type ConflictResult } from '../../vendor/agent-skills-cli/conflict-detector.ts';
 import { buildContextPlan } from '../../vendor/agent-skills-cli/context-budget.ts';
+import { parseFrontmatter } from '../frontmatter.ts';
 import { getSkillsJsonPath } from '../sync.ts';
 import { scanHome } from '../scan.ts';
 import { ALLOWED_FIELDS, validateMetadata, checkFrontmatterConventions } from './spec-validator.ts';
@@ -60,7 +60,7 @@ export async function lintSkillDir(dir: string, target: LintTarget): Promise<Ski
   const name = basename(dir);
   try {
     const raw = await readFile(`${dir}/SKILL.md`, 'utf8');
-    const { data, content } = matter(raw, {}); // 空 options 防缓存污染(S1.3 教训)
+    const { data, content } = parseFrontmatter(raw);
     const metadata = data as Record<string, unknown>;
     const specErrors = filterSpecErrors(validateMetadata(metadata, name), metadata);
     const hasPlatformExtensions = Object.keys(metadata).some((k) => KNOWN_PLATFORM_FIELDS.has(k));
