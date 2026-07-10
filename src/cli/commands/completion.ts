@@ -148,7 +148,7 @@ export function registerCompletionCommand(program: Command): void {
     )
     .action((shell: string | undefined) => {
       // 未指定 shell 时检测当前 shell。
-      const target = (shell ?? process.env['SHELL'] ?? 'bash').replace(/^.*\//, '').toLowerCase();
+      const target = (shell ?? process.env.SHELL ?? 'bash').replace(/^.*\//, '').toLowerCase();
 
       const cmds = TOP_LEVEL_COMMANDS;
       let script: string;
