@@ -67,6 +67,13 @@ function lcs(a: string[], b: string[]): Array<[number, number]> {
   return pairs;
 }
 
+// The exact dynamic-programming LCS is retained for small middle sections so
+// existing hunk/tie-breaking behavior stays byte-for-byte compatible. Larger
+// divergent sections are represented as a replacement instead of allocating
+// an unbounded m*n matrix. Common prefixes/suffixes are stripped first, so a
+// tiny edit in a very large file remains exact and linear-time.
+const MAX_EXACT_LCS_CELLS = 250_000;
+
 interface EditOp {
   type: 'context' | 'added' | 'removed';
   lineA: number; // 1-based line number in source (a), -1 for pure additions
@@ -79,13 +86,41 @@ interface EditOp {
  * line arrays using LCS-based diff.
  */
 function diffLines(a: string[], b: string[]): EditOp[] {
-  const lcsPairs = lcs(a, b);
   const ops: EditOp[] = [];
 
-  let ia = 0; // current position in a
-  let ib = 0; // current position in b
+  let prefix = 0;
+  while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) {
+    ops.push({
+      type: 'context',
+      lineA: prefix + 1,
+      lineB: prefix + 1,
+      text: a[prefix]!,
+    });
+    prefix += 1;
+  }
 
-  for (const [pa, pb] of lcsPairs) {
+  let suffix = 0;
+  while (
+    suffix < a.length - prefix &&
+    suffix < b.length - prefix &&
+    a[a.length - 1 - suffix] === b[b.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+
+  const aEnd = a.length - suffix;
+  const bEnd = b.length - suffix;
+  const middleA = a.slice(prefix, aEnd);
+  const middleB = b.slice(prefix, bEnd);
+  const exact = middleA.length * middleB.length <= MAX_EXACT_LCS_CELLS;
+  const lcsPairs = exact ? lcs(middleA, middleB) : [];
+
+  let ia = prefix; // current position in a
+  let ib = prefix; // current position in b
+
+  for (const [middlePa, middlePb] of lcsPairs) {
+    const pa = prefix + middlePa;
+    const pb = prefix + middlePb;
     // Drain removed lines from a before this LCS point
     while (ia < pa) {
       ops.push({ type: 'removed', lineA: ia + 1, lineB: -1, text: a[ia]! });
@@ -101,14 +136,23 @@ function diffLines(a: string[], b: string[]): EditOp[] {
     ia++;
     ib++;
   }
-  // Remaining lines
-  while (ia < a.length) {
+  // Remaining middle lines. For an over-budget LCS this deliberately emits a
+  // whole-section replacement: the patch is valid and deterministic while
+  // resource use remains bounded.
+  while (ia < aEnd) {
     ops.push({ type: 'removed', lineA: ia + 1, lineB: -1, text: a[ia]! });
     ia++;
   }
-  while (ib < b.length) {
+  while (ib < bEnd) {
     ops.push({ type: 'added', lineA: -1, lineB: ib + 1, text: b[ib]! });
     ib++;
+  }
+
+  while (suffix > 0) {
+    ops.push({ type: 'context', lineA: ia + 1, lineB: ib + 1, text: a[ia]! });
+    ia += 1;
+    ib += 1;
+    suffix -= 1;
   }
   return ops;
 }

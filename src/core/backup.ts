@@ -83,14 +83,34 @@ export async function listSnapshots(store: string): Promise<SnapshotInfo[]> {
   return snaps;
 }
 
-/** 防 tar path-traversal:拒绝任何绝对路径或含 `..` 段的条目(快照应只含目标目录内容)。 */
+/**
+ * Validate both archive paths and entry types before extraction.
+ *
+ * A safe-looking entry name is not sufficient: a symlink can be extracted
+ * first and a later regular entry can then write through it. Hard links and
+ * device nodes have similar surprising semantics. Snapshots are therefore
+ * intentionally limited to directories and regular files.
+ */
 async function assertSafeArchive(snapshotPath: string): Promise<void> {
-  const { stdout } = await execFileAsync('tar', ['-tzf', snapshotPath]);
-  for (const raw of stdout.split('\n')) {
+  const [{ stdout: names }, { stdout: verbose }] = await Promise.all([
+    execFileAsync('tar', ['-tzf', snapshotPath]),
+    execFileAsync('tar', ['-tvzf', snapshotPath]),
+  ]);
+
+  for (const raw of names.split('\n')) {
     const entry = raw.trim();
     if (!entry) continue;
     if (entry.startsWith('/') || entry.split('/').some((seg) => seg === '..')) {
       throw new Error(`快照含不安全路径,拒绝还原: ${entry}`);
+    }
+  }
+
+  for (const raw of verbose.split('\n')) {
+    const line = raw.trimStart();
+    if (!line) continue;
+    const type = line[0];
+    if (type !== '-' && type !== 'd') {
+      throw new Error(`快照含不安全 link/device 条目,拒绝还原: ${raw.trim()}`);
     }
   }
 }
