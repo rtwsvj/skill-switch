@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
+import { SKILL_SWITCH_VERSION } from '../version.ts';
 import { registerAddCommand } from './commands/add.ts';
 import { registerAuditCommand } from './commands/audit.ts';
 import { registerCiCommand } from './commands/ci.ts';
@@ -31,20 +29,6 @@ import { registerCompletionCommand } from './commands/completion.ts';
 import { registerApmImportCommand } from './commands/apm-import.ts';
 import { registerRegistryCommand } from './commands/registry.ts';
 
-// 同步读取本包版本号供 commander `.version()` 用(commander 需同步字符串)。
-// SEA 打包后 package.json 可能不可达——失败回退 'unknown',绝不抛。
-function readCliVersion(): string {
-  try {
-    const here = fileURLToPath(new URL('.', import.meta.url));
-    const pkg = JSON.parse(readFileSync(join(here, '..', '..', 'package.json'), 'utf8')) as {
-      version?: string;
-    };
-    return pkg.version ?? 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
-
 // 快速上手示例块:拼在帮助末尾,帮用户跳过"看了半天不知从哪开始"困境。
 // 注意缩进用 4 空格:cli-help.test 的 cliCommands() 正则 /^\s{2}([a-z][a-z-]*)/ 匹配
 // 恰好 2 空格开头的行作为子命令名;4 空格开头的示例行不会被误识别为命令。
@@ -64,7 +48,7 @@ export function buildProgram(): Command {
   const program = new Command('skill-switch');
   program
     .description('跨 Agent skill 治理工具(治理层,与各家 CRUD 工具共存分工)')
-    .version(readCliVersion(), '-V, --version', '输出版本号')
+    .version(SKILL_SWITCH_VERSION, '-V, --version', '输出版本号')
     .option('--home <dir>', '覆盖 home 根目录(默认取系统 home;测试与演练请指向假目录)')
     .addHelpText('after', QUICK_START);
 

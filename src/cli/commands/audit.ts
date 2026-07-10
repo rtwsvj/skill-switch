@@ -27,11 +27,9 @@
 //   两个标志必须配合 --configs 使用;单独使用会产生友好错误。
 //   写入时:--write-config-baseline 优先,写完 exit 0,不再继续常规审计流程。
 //   对比时:drift finding 与其它 config finding 走同一输出/退出码路径。
-import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import type { Command } from 'commander';
 import type { AuditReport } from '../../core/audit/engine.ts';
@@ -87,6 +85,7 @@ import {
 } from '../../core/audit/service.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import { sanitizeOutputText } from '../../core/security/output-safety.ts';
+import { SKILL_SWITCH_VERSION } from '../../version.ts';
 
 export {
   applyBaselineToFindings,
@@ -103,19 +102,6 @@ export {
   shouldBlockWithPolicy,
 };
 export type { AuditCoverage, AuditHomeReport, AuditHomeSkillReport, AuditIncompleteReason };
-
-// 同步读取版本号;SARIF tool.driver.version 要用。失败时回退 'unknown'。
-function readVersion(): string {
-  try {
-    const here = fileURLToPath(new URL('.', import.meta.url));
-    const pkg = JSON.parse(readFileSync(join(here, '..', '..', '..', 'package.json'), 'utf8')) as {
-      version?: string;
-    };
-    return pkg.version ?? 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
 
 /** 默认策略文件在 cwd 的文件名 */
 const POLICY_FILE_NAME = '.skill-switch-policy.json';
@@ -796,7 +782,7 @@ export function registerAuditCommand(program: Command): void {
         } else if (fmt === 'sarif') {
           // SARIF 模式:被抑制/已基线化的 finding 写入 suppressions
           // --fix 对 SARIF 输出无影响;机器消费者通过 --format json 取修复信息。
-          const doc = toSarifDocument(filteredFindings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
+          const doc = toSarifDocument(filteredFindings, SKILL_SWITCH_VERSION, policy.suppressedRuleIds, baselinedFingerprints);
           console.log(JSON.stringify(doc, null, 2));
         } else if (fmt === 'github') {
           // GitHub Actions 注解模式:每条 finding 输出一行工作流注解命令。
@@ -996,7 +982,7 @@ export function registerAuditCommand(program: Command): void {
           ],
           minSeverity,
         ));
-        const doc = toSarifDocument(allFindings, readVersion(), policy.suppressedRuleIds, baselinedFingerprints);
+        const doc = toSarifDocument(allFindings, SKILL_SWITCH_VERSION, policy.suppressedRuleIds, baselinedFingerprints);
         console.log(JSON.stringify(doc, null, 2));
       } else if (fmt === 'github') {
         // GitHub Actions 注解模式(home 全量):合并所有 skill + config findings 后输出注解。

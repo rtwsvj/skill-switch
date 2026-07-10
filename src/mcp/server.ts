@@ -5,7 +5,7 @@
 //   - stdout 是协议通道(只写 JSON-RPC),任何诊断/日志一律走 stderr,否则会污染协议。
 //   - 只暴露**只读**工具(scan / status / audit):agent 能看、能审,但 MCP 这条路绝不写用户磁盘。
 //   - handleMcpRequest 与 stdio 传输分离,便于单测(直接喂 request 对象断言 response)。
-import { readdir } from 'node:fs/promises';
+import { allFileRules, allRules } from '../../rules/index.ts';
 import { resolveHomeRoot } from '../core/paths.ts';
 import { scanHome } from '../core/scan.ts';
 import { buildStatus } from '../core/status.ts';
@@ -412,21 +412,16 @@ async function handleResourcesRead(params: Record<string, unknown>): Promise<unk
   const uri = typeof params.uri === 'string' ? params.uri : '';
 
   if (uri === 'skill-switch://rules') {
-    // 读取 rules 目录:列出所有规则文件 + 类目描述
-    const rulesDir = new URL('../../rules', import.meta.url);
-    let fileList: string[] = [];
-    try {
-      const entries = await readdir(rulesDir);
-      fileList = entries.filter((e) => e.endsWith('.ts') && e !== 'index.ts');
-    } catch {
-      // rules 目录读不到时降级返回静态类目表
-    }
+    // 直接使用已注册规则；不依赖 import.meta 或源码文件系统，兼容 CJS SEA/npm。
+    const registeredRules = [...allRules, ...allFileRules]
+      .map((rule) => ({ id: rule.id, severity: rule.severity, message: rule.message }))
+      .sort((a, b) => a.id.localeCompare(b.id));
     const content = JSON.stringify(
       {
         description: 'skill-switch 内置安全审计规则类目',
-        ruleFileCount: fileList.length || RULE_CATEGORIES.length,
+        ruleCount: registeredRules.length,
         categories: RULE_CATEGORIES,
-        files: fileList,
+        rules: registeredRules,
         note: '调用 skill_switch_audit 工具可对具体 skill 目录运行这些规则。',
       },
       null,

@@ -128,9 +128,16 @@ describe('MCP P3 — resources', () => {
     expect(c.uri).toBe('skill-switch://rules');
     expect(c.mimeType).toBe('application/json');
     // 内容应是合法 JSON,且包含 categories 字段
-    const parsed = JSON.parse(c.text) as { categories: { id: string }[] };
+    const parsed = JSON.parse(c.text) as {
+      categories: { id: string }[];
+      ruleCount: number;
+      rules: Array<{ id: string; severity: string }>;
+    };
     expect(Array.isArray(parsed.categories)).toBe(true);
     expect(parsed.categories.length).toBeGreaterThan(0);
+    expect(parsed.ruleCount).toBe(parsed.rules.length);
+    expect(parsed.ruleCount).toBeGreaterThan(40);
+    expect(parsed.rules).toEqual([...parsed.rules].sort((a, b) => a.id.localeCompare(b.id)));
     // 至少包含反向 shell 和凭据钓鱼类目
     const ids = parsed.categories.map((c) => c.id);
     expect(ids).toContain('reverse-shell');
