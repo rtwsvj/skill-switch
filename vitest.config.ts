@@ -23,11 +23,14 @@ export default defineConfig({
       ],
       // Global floor prevents broad regression; focused regression suites cover
       // the security/state/network seams that aggregate percentages can hide.
+      // 2026-07-11 measured baseline (rules included): statements 69.60,
+      // branches 64.51, functions 73.34, lines 70.59. Floors retain 2-3 points
+      // of platform variance while making the previous 57-61% gate meaningful.
       thresholds: {
-        statements: 60,
-        branches: 57,
-        functions: 61,
-        lines: 61,
+        statements: 67,
+        branches: 62,
+        functions: 70,
+        lines: 68,
       },
     },
   },
