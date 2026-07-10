@@ -12,6 +12,11 @@ let package = Package(
             name: "SkillSwitch",
             path: "Sources/SkillSwitch",
             resources: [.process("Resources")]
+        ),
+        .testTarget(
+            name: "SkillSwitchTests",
+            dependencies: ["SkillSwitch"],
+            path: "Tests/SkillSwitchTests"
         )
     ]
 )
