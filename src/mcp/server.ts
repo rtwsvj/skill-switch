@@ -9,10 +9,11 @@ import { readdir } from 'node:fs/promises';
 import { resolveHomeRoot } from '../core/paths.ts';
 import { scanHome } from '../core/scan.ts';
 import { buildStatus } from '../core/status.ts';
-import { auditHome, auditSkillDir } from '../cli/commands/audit.ts';
+import { auditHome, auditSkillDir, shouldBlock } from '../cli/commands/audit.ts';
 import { analyzeCooccurrence } from '../core/packs/cooccurrence.ts';
 import { suggestPacks } from '../core/packs/suggest.ts';
 import { buildStats } from '../core/stats.ts';
+import { sanitizeOutputText } from '../core/security/output-safety.ts';
 
 // 我们实现/对话的 MCP 协议版本。
 // 2025-06-18:加入 annotations、resources、prompts、outputSchema 等扩展能力。
@@ -65,7 +66,13 @@ function resolveHomeArg(args: Record<string, unknown>): string {
 
 /** 把一条 finding 收敛成稳定、可序列化、不含内部 Map 的形状。 */
 function slimFinding(f: { ruleId: string; severity: string; file?: string; line: number; message: string }) {
-  return { ruleId: f.ruleId, severity: f.severity, file: f.file, line: f.line, message: f.message };
+  return {
+    ruleId: sanitizeOutputText(f.ruleId),
+    severity: f.severity,
+    file: f.file === undefined ? undefined : sanitizeOutputText(f.file),
+    line: f.line,
+    message: sanitizeOutputText(f.message),
+  };
 }
 
 /** slimFinding 的 JSON Schema 声明,供 outputSchema 复用。 */
@@ -73,12 +80,36 @@ const SLIM_FINDING_SCHEMA = {
   type: 'object',
   properties: {
     ruleId:   { type: 'string' },
-    severity: { type: 'string', enum: ['high', 'medium', 'low', 'info'] },
+    severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
     file:     { type: 'string' },
     line:     { type: 'number' },
     message:  { type: 'string' },
   },
   required: ['ruleId', 'severity', 'line', 'message'],
+} as const;
+
+const AUDIT_COVERAGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    complete: { type: 'boolean' },
+    incompleteReasons: { type: 'array', items: { type: 'string' } },
+    visitedFiles: { type: 'number' },
+    scannedFiles: { type: 'number' },
+    scannedBytes: { type: 'number' },
+    readErrors: { type: 'number' },
+    fileLimitReached: { type: 'boolean' },
+    depthLimitReached: { type: 'boolean' },
+  },
+  required: [
+    'complete',
+    'incompleteReasons',
+    'visitedFiles',
+    'scannedFiles',
+    'scannedBytes',
+    'readErrors',
+    'fileLimitReached',
+    'depthLimitReached',
+  ],
 } as const;
 
 /** 所有工具共享的只读注解。 */
@@ -158,10 +189,12 @@ export const MCP_TOOLS: McpTool[] = [
             path:         { type: 'string' },
             score:        { type: 'number' },
             verdict:      { type: 'string' },
+            blocked:      { type: 'boolean' },
+            coverage:     AUDIT_COVERAGE_SCHEMA,
             findingCount: { type: 'number' },
             findings:     { type: 'array', items: SLIM_FINDING_SCHEMA },
           },
-          required: ['mode', 'path', 'score', 'verdict', 'findingCount', 'findings'],
+          required: ['mode', 'path', 'score', 'verdict', 'blocked', 'coverage', 'findingCount', 'findings'],
         },
         {
           description: 'home 模式:审计整个 home',
@@ -180,6 +213,7 @@ export const MCP_TOOLS: McpTool[] = [
                   score:       { type: 'number' },
                   verdict:     { type: 'string' },
                   blocked:     { type: 'boolean' },
+                  coverage:    AUDIT_COVERAGE_SCHEMA,
                   findings:    { type: 'array', items: SLIM_FINDING_SCHEMA },
                 },
               },
@@ -199,6 +233,8 @@ export const MCP_TOOLS: McpTool[] = [
             path: args.path,
             score: report.score,
             verdict: report.verdict,
+            blocked: shouldBlock(report),
+            coverage: report.coverage,
             findingCount: report.findings.length,
             findings: report.findings.map(slimFinding),
           },
@@ -216,6 +252,7 @@ export const MCP_TOOLS: McpTool[] = [
         score: s.score,
         verdict: s.verdict,
         blocked: s.blocked,
+        coverage: s.coverage,
         findings: s.findings.map(slimFinding),
       }));
       const anyBlocked = report.skills.some((s) => s.blocked) || report.configsBlocked === true;
@@ -290,7 +327,9 @@ export const MCP_TOOLS: McpTool[] = [
       const home = resolveHomeArg(args);
       const days =
         typeof args.days === 'number' && Number.isFinite(args.days) ? args.days : undefined;
-      const report = await buildStats(home, days);
+      // MCP 工具对外声明 readOnlyHint=true:这条路径不读/不写 stats-cache,
+      // 避免调用者通过自定义 home 产生任何持久化副作用。
+      const report = await buildStats(home, days, process.env, { cacheMode: 'disabled' });
       return JSON.stringify(
         {
           home,
@@ -509,11 +548,14 @@ function buildPromptMessages(
  * @returns 要写回的响应;若是通知(无 id 的 method,如 notifications/initialized)则返回 null。
  */
 export async function handleMcpRequest(
-  req: JsonRpcRequest,
+  input: unknown,
   serverVersion: string,
 ): Promise<JsonRpcResponse | null> {
+  const validation = validateJsonRpcRequest(input);
+  if (!validation.ok) return err(null, -32600, '无效 JSON-RPC 请求');
+  const req = validation.request;
   const id = req.id ?? null;
-  const isNotification = req.id === undefined;
+  const isNotification = !Object.hasOwn(req, 'id');
 
   switch (req.method) {
     case 'initialize':
@@ -544,21 +586,22 @@ export async function handleMcpRequest(
       });
 
     case 'tools/call': {
-      const params = (req.params ?? {}) as { name?: unknown; arguments?: unknown };
+      const params = asRecord(req.params);
+      if (!params) return err(id, -32602, 'tools/call 需要对象形式的 params');
       const tool = MCP_TOOLS.find((t) => t.name === params.name);
       if (!tool) {
-        return err(id, -32602, `未知工具: ${String(params.name)}`);
+        return err(id, -32602, `未知工具: ${sanitizeOutputText(String(params.name))}`);
       }
-      const callArgs =
-        params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments)
-          ? (params.arguments as Record<string, unknown>)
-          : {};
+      if (params.arguments !== undefined && !asRecord(params.arguments)) {
+        return err(id, -32602, 'tools/call arguments 必须是对象');
+      }
+      const callArgs = asRecord(params.arguments) ?? {};
       try {
         const text = await tool.run(callArgs);
         return ok(id, { content: [{ type: 'text', text }] });
       } catch (e) {
         // 工具执行错误:按 MCP 约定走 isError 结果(而非 JSON-RPC error),让 agent 能看到原因。
-        const message = e instanceof Error ? e.message : String(e);
+        const message = sanitizeOutputText(e instanceof Error ? e.message : String(e));
         return ok(id, { content: [{ type: 'text', text: `工具执行失败: ${message}` }], isError: true });
       }
     }
@@ -567,7 +610,8 @@ export async function handleMcpRequest(
       return ok(id, handleResourcesList());
 
     case 'resources/read': {
-      const params = (req.params ?? {}) as Record<string, unknown>;
+      const params = asRecord(req.params);
+      if (!params) return err(id, -32602, 'resources/read 需要对象形式的 params');
       const result = await handleResourcesRead(params);
       // 若内部返回了 error 字段,包装成 JSON-RPC error
       if (result && typeof result === 'object' && 'error' in result) {
@@ -581,16 +625,17 @@ export async function handleMcpRequest(
       return ok(id, { prompts: MCP_PROMPTS });
 
     case 'prompts/get': {
-      const params = (req.params ?? {}) as { name?: unknown; arguments?: unknown };
+      const params = asRecord(req.params);
+      if (!params) return err(id, -32602, 'prompts/get 需要对象形式的 params');
       const promptName = typeof params.name === 'string' ? params.name : '';
       const found = MCP_PROMPTS.find((p) => p.name === promptName);
       if (!found) {
-        return err(id, -32602, `未知 prompt: ${promptName}`);
+        return err(id, -32602, `未知 prompt: ${sanitizeOutputText(promptName)}`);
       }
-      const promptArgs =
-        params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments)
-          ? (params.arguments as Record<string, string>)
-          : {};
+      if (params.arguments !== undefined && !asRecord(params.arguments)) {
+        return err(id, -32602, 'prompts/get arguments 必须是对象');
+      }
+      const promptArgs = (asRecord(params.arguments) ?? {}) as Record<string, string>;
       const messages = buildPromptMessages(promptName, promptArgs);
       return ok(id, { description: found.description, messages });
     }
@@ -601,11 +646,210 @@ export async function handleMcpRequest(
   }
 }
 
+interface RuntimeJsonRpcRequest {
+  jsonrpc: '2.0';
+  id?: string | number | null;
+  method: string;
+  params?: unknown;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function validateJsonRpcRequest(
+  input: unknown,
+): { ok: true; request: RuntimeJsonRpcRequest } | { ok: false } {
+  const record = asRecord(input);
+  if (!record || record.jsonrpc !== '2.0' || typeof record.method !== 'string' || !record.method) {
+    return { ok: false };
+  }
+  if (
+    Object.hasOwn(record, 'id') &&
+    record.id !== null &&
+    typeof record.id !== 'string' &&
+    (typeof record.id !== 'number' || !Number.isFinite(record.id))
+  ) {
+    return { ok: false };
+  }
+  // JSON-RPC params 只能是 structured value。本 server 的方法仅接受具名对象,
+  // 但数组仍先作为合法 request 接收,由具体方法返回 -32602。
+  if (
+    Object.hasOwn(record, 'params') &&
+    record.params !== undefined &&
+    (record.params === null || typeof record.params !== 'object')
+  ) {
+    return { ok: false };
+  }
+  return { ok: true, request: record as unknown as RuntimeJsonRpcRequest };
+}
+
 function ok(id: JsonRpcResponse['id'], result: unknown): JsonRpcResponse {
   return { jsonrpc: '2.0', id, result };
 }
 function err(id: JsonRpcResponse['id'], code: number, message: string): JsonRpcResponse {
   return { jsonrpc: '2.0', id, error: { code, message } };
+}
+
+export const MCP_MAX_FRAME_BYTES = 1024 * 1024;
+export const MCP_MAX_PENDING_REQUESTS = 64;
+
+export interface McpStdioTransport {
+  /** 接收 UTF-8 解码后的任意 chunk;可包含半行或多行。 */
+  push(chunk: string): void;
+  /** 处理最后一个无换行帧,并等待所有已接受请求串行完成。 */
+  end(): Promise<void>;
+}
+
+/**
+ * 可单测的行 framing/调度器。它始终只运行一个 request handler,
+ * 并对帧大小和待处理数设硬上限,防止 stdio peer 无界占用内存。
+ */
+export function createMcpStdioTransport(
+  serverVersion: string,
+  writeResponse: (response: JsonRpcResponse) => void,
+): McpStdioTransport {
+  let buffer = '';
+  let bufferBytes = 0;
+  let discardingOversizeFrame = false;
+  let ended = false;
+  let processing = false;
+  let pending = 0;
+  const frames: string[] = [];
+  const idleWaiters: Array<() => void> = [];
+
+  const settleIdle = (): void => {
+    if (pending !== 0 || processing || frames.length !== 0) return;
+    for (const resolve of idleWaiters.splice(0)) resolve();
+  };
+
+  const handleFrame = async (line: string): Promise<void> => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    let request: unknown;
+    try {
+      request = JSON.parse(trimmed);
+    } catch {
+      writeResponse(err(null, -32700, 'JSON 解析失败'));
+      return;
+    }
+
+    try {
+      const response = await handleMcpRequest(request, serverVersion);
+      if (response) writeResponse(response);
+    } catch {
+      // 最后一层边界:未预期异常收敛为标准 internal error,不泄露堆栈也不终止 server。
+      writeResponse(err(responseIdFromUnknown(request), -32603, '内部错误'));
+    }
+  };
+
+  const drain = async (): Promise<void> => {
+    if (processing) return;
+    processing = true;
+    try {
+      while (frames.length > 0) {
+        const frame = frames.shift()!;
+        try {
+          await handleFrame(frame);
+        } finally {
+          pending -= 1;
+        }
+      }
+    } finally {
+      processing = false;
+      settleIdle();
+    }
+  };
+
+  const enqueueFrame = (frame: string): void => {
+    if (!frame.trim()) return;
+    if (pending >= MCP_MAX_PENDING_REQUESTS) {
+      const target = responseTargetFromFrame(frame);
+      if (target.shouldRespond) {
+        writeResponse(err(target.id, -32000, 'MCP 请求队列已满'));
+      }
+      return;
+    }
+    pending += 1;
+    frames.push(frame);
+    void drain();
+  };
+
+  const consumeSegment = (segment: string, endsFrame: boolean): void => {
+    if (discardingOversizeFrame) {
+      if (endsFrame) discardingOversizeFrame = false;
+      return;
+    }
+
+    const segmentBytes = Buffer.byteLength(segment, 'utf8');
+    if (bufferBytes + segmentBytes > MCP_MAX_FRAME_BYTES) {
+      buffer = '';
+      bufferBytes = 0;
+      discardingOversizeFrame = !endsFrame;
+      writeResponse(err(null, -32600, `JSON-RPC 帧超过 ${MCP_MAX_FRAME_BYTES} 字节上限`));
+      return;
+    }
+
+    buffer += segment;
+    bufferBytes += segmentBytes;
+    if (endsFrame) {
+      const frame = buffer;
+      buffer = '';
+      bufferBytes = 0;
+      enqueueFrame(frame);
+    }
+  };
+
+  return {
+    push(chunk) {
+      if (ended) throw new Error('MCP stdio transport 已结束');
+      let start = 0;
+      for (;;) {
+        const newline = chunk.indexOf('\n', start);
+        if (newline === -1) break;
+        consumeSegment(chunk.slice(start, newline), true);
+        start = newline + 1;
+      }
+      if (start < chunk.length) consumeSegment(chunk.slice(start), false);
+    },
+    async end() {
+      if (!ended) {
+        ended = true;
+        if (!discardingOversizeFrame && buffer.length > 0) enqueueFrame(buffer);
+        buffer = '';
+        bufferBytes = 0;
+        discardingOversizeFrame = false;
+      }
+      if (pending === 0 && !processing && frames.length === 0) return;
+      await new Promise<void>((resolve) => idleWaiters.push(resolve));
+    },
+  };
+}
+
+function responseIdFromUnknown(value: unknown): JsonRpcResponse['id'] {
+  const record = asRecord(value);
+  const id = record?.id;
+  return id === null || typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id))
+    ? id
+    : null;
+}
+
+function responseTargetFromFrame(
+  frame: string,
+): { shouldRespond: boolean; id: JsonRpcResponse['id'] } {
+  try {
+    const parsed = JSON.parse(frame) as unknown;
+    const record = asRecord(parsed);
+    if (record && !Object.hasOwn(record, 'id')) {
+      return { shouldRespond: false, id: null };
+    }
+    return { shouldRespond: true, id: responseIdFromUnknown(parsed) };
+  } catch {
+    return { shouldRespond: true, id: null };
+  }
 }
 
 // ── stdio 传输 ────────────────────────────────────────────────────────────────
@@ -615,43 +859,17 @@ function err(id: JsonRpcResponse['id'], code: number, message: string): JsonRpcR
  */
 export function runMcpStdioServer(serverVersion: string): Promise<void> {
   return new Promise((resolve) => {
-    let buffer = '';
     process.stdin.setEncoding('utf8');
-
-    const writeResponse = (res: JsonRpcResponse): void => {
-      process.stdout.write(`${JSON.stringify(res)}\n`);
-    };
-
-    const handleLine = async (line: string): Promise<void> => {
-      const trimmed = line.trim();
-      if (!trimmed) return;
-      let req: JsonRpcRequest;
-      try {
-        req = JSON.parse(trimmed) as JsonRpcRequest;
-      } catch {
-        writeResponse(err(null, -32700, 'JSON 解析失败'));
-        return;
-      }
-      const res = await handleMcpRequest(req, serverVersion);
-      if (res) writeResponse(res);
-    };
+    const transport = createMcpStdioTransport(serverVersion, (response) => {
+      process.stdout.write(`${JSON.stringify(response)}\n`);
+    });
 
     process.stdin.on('data', (chunk: string) => {
-      buffer += chunk;
-      // 逐行切分;每行单独处理(串行,保持 id 顺序)。
-      for (;;) {
-        const idx = buffer.indexOf('\n');
-        if (idx === -1) break;
-        const line = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 1);
-        void handleLine(line);
-      }
+      transport.push(chunk);
     });
 
     process.stdin.on('end', () => {
-      const rest = buffer;
-      buffer = '';
-      void handleLine(rest).finally(() => resolve());
+      void transport.end().finally(resolve);
     });
   });
 }

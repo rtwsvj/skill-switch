@@ -5,7 +5,13 @@
 import { readFile, stat } from 'node:fs/promises';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { scanHome } from './scan.ts';
-import { readStatsCache, writeStatsCache, type StatsCacheEntry } from './stats-cache.ts';
+import {
+  readStatsCache,
+  writeStatsCache,
+  type LegacyStatsCacheEntry,
+  type StatsCacheAggregate,
+  type StatsCacheEntry,
+} from './stats-cache.ts';
 import {
   discoverClaudeTranscriptRoots,
   listTranscriptFiles,
@@ -43,10 +49,22 @@ export interface StatsReport {
   zombies: ZombieSkill[];
 }
 
+export type StatsCacheMode = 'read-write' | 'read-only' | 'disabled';
+
+export interface BuildStatsOptions {
+  /**
+   * read-write(默认):读取并更新派生缓存;
+   * read-only:可命中现有缓存但绝不写盘;
+   * disabled:不读也不写(供声明 readOnlyHint 的 MCP 工具使用)。
+   */
+  cacheMode?: StatsCacheMode;
+}
+
 export async function buildStats(
   home: string,
   days?: number,
   env: Record<string, string | undefined> = process.env,
+  options: BuildStatsOptions = {},
 ): Promise<StatsReport> {
   const roots = discoverClaudeTranscriptRoots(home, env);
   const allFiles = await listTranscriptFiles(roots, STATS_MAX_DEPTH);
@@ -54,7 +72,8 @@ export async function buildStats(
   const since = days !== undefined ? new Date(Date.now() - days * 86_400_000) : undefined;
   const sinceMs = since?.getTime();
 
-  const cache = await readStatsCache(home);
+  const cacheMode = options.cacheMode ?? 'read-write';
+  const cache = cacheMode === 'disabled' ? undefined : await readStatsCache(home);
   const nextEntries: Record<string, StatsCacheEntry> = {};
   let scannedFiles = 0;
   let skippedFiles = 0;
@@ -63,7 +82,8 @@ export async function buildStats(
   let cacheMisses = 0;
   let totalBytes = 0;
   let truncated = false;
-  const all: SkillInvocation[] = [];
+  const byskill = new Map<string, SkillUsage>();
+  let invocationCount = 0;
 
   for (const file of allFiles) {
     if (scannedFiles >= STATS_MAX_FILES) {
@@ -92,10 +112,25 @@ export async function buildStats(
       break;
     }
 
-    const cached = cache.entries[file];
+    const cached = cache?.entries[file];
     let entry: StatsCacheEntry;
-    if (cached && cached.mtimeMs === mtimeMs && cached.size === size) {
+    if (
+      cache?.version === 2 &&
+      cached &&
+      cached.mtimeMs === mtimeMs &&
+      cached.size === size &&
+      isStatsCacheEntry(cached)
+    ) {
       entry = cached;
+      cacheHits += 1;
+    } else if (
+      cache?.version === 1 &&
+      cached &&
+      cached.mtimeMs === mtimeMs &&
+      cached.size === size &&
+      isLegacyStatsCacheEntry(cached)
+    ) {
+      entry = aggregateLegacyEntry(cached);
       cacheHits += 1;
     } else {
       let content: string;
@@ -106,35 +141,31 @@ export async function buildStats(
         continue;
       }
       const parsed = parseSkillInvocationsWithCounts(content, file);
-      entry = { mtimeMs, size, invocations: parsed.invocations, parseErrors: parsed.parseErrors };
+      entry = {
+        mtimeMs,
+        size,
+        aggregates: aggregateInvocations(parsed.invocations),
+        parseErrors: parsed.parseErrors,
+      };
       cacheMisses += 1;
     }
     nextEntries[file] = entry;
-    all.push(...entry.invocations);
+    invocationCount += mergeAggregates(entry.aggregates, since, byskill);
     parseErrors += entry.parseErrors;
     totalBytes += size;
     scannedFiles += 1;
   }
 
-  // best-effort 写回缓存(只保留本次见到的文件 → 自动淘汰已删除的)。写失败不致命。
-  try {
-    await writeStatsCache(home, { version: 1, entries: nextEntries });
-  } catch {
-    // 忽略
-  }
-
-  const windowed = since
-    ? all.filter((i) => i.timestamp !== undefined && new Date(i.timestamp) >= since)
-    : all;
-
-  const byskill = new Map<string, SkillUsage>();
-  for (const invocation of windowed) {
-    const usage = bySkillGet(byskill, invocation.skill);
-    usage.count += 1;
-    if (invocation.timestamp && (!usage.lastUsed || invocation.timestamp > usage.lastUsed)) {
-      usage.lastUsed = invocation.timestamp;
+  // best-effort 写回 v2 聚合缓存(只保留本次见到的文件)。
+  // read-only/disabled 模式绝不进入写路径,MCP 因此可以如实标注 readOnlyHint。
+  if (cacheMode === 'read-write') {
+    try {
+      await writeStatsCache(home, { version: 2, entries: nextEntries });
+    } catch {
+      // 忽略
     }
   }
+
   const usage = [...byskill.values()].sort((a, b) => b.count - a.count);
 
   // 僵尸:scan 出的已装 skill,其 name 与 dirName 都没出现在窗口内触发里
@@ -152,10 +183,102 @@ export async function buildStats(
     cacheHits,
     cacheMisses,
     truncated,
-    invocations: windowed.length,
+    invocations: invocationCount,
     usage,
     zombies,
   };
+}
+
+function aggregateInvocations(invocations: SkillInvocation[]): StatsCacheAggregate[] {
+  const bySkill = new Map<string, StatsCacheAggregate>();
+  for (const invocation of invocations) {
+    let aggregate = bySkill.get(invocation.skill);
+    if (!aggregate) {
+      aggregate = { skill: invocation.skill, count: 0, timestamps: [] };
+      bySkill.set(invocation.skill, aggregate);
+    }
+    aggregate.count += 1;
+    if (invocation.timestamp !== undefined) aggregate.timestamps.push(invocation.timestamp);
+  }
+  return [...bySkill.values()];
+}
+
+function aggregateLegacyEntry(entry: LegacyStatsCacheEntry): StatsCacheEntry {
+  return {
+    mtimeMs: entry.mtimeMs,
+    size: entry.size,
+    aggregates: aggregateInvocations(entry.invocations),
+    parseErrors: entry.parseErrors,
+  };
+}
+
+function isStatsCacheEntry(value: unknown): value is StatsCacheEntry {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const entry = value as Partial<StatsCacheEntry>;
+  return (
+    typeof entry.mtimeMs === 'number' &&
+    Number.isFinite(entry.mtimeMs) &&
+    typeof entry.size === 'number' &&
+    Number.isFinite(entry.size) &&
+    typeof entry.parseErrors === 'number' &&
+    Number.isFinite(entry.parseErrors) &&
+    Array.isArray(entry.aggregates) &&
+    entry.aggregates.every(
+      (aggregate) =>
+        aggregate !== null &&
+        typeof aggregate === 'object' &&
+        typeof aggregate.skill === 'string' &&
+        typeof aggregate.count === 'number' &&
+        Number.isSafeInteger(aggregate.count) &&
+        aggregate.count >= 0 &&
+        Array.isArray(aggregate.timestamps) &&
+        aggregate.timestamps.every((timestamp) => typeof timestamp === 'string'),
+    )
+  );
+}
+
+function isLegacyStatsCacheEntry(value: unknown): value is LegacyStatsCacheEntry {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const entry = value as Partial<LegacyStatsCacheEntry>;
+  return (
+    typeof entry.mtimeMs === 'number' &&
+    Number.isFinite(entry.mtimeMs) &&
+    typeof entry.size === 'number' &&
+    Number.isFinite(entry.size) &&
+    typeof entry.parseErrors === 'number' &&
+    Number.isFinite(entry.parseErrors) &&
+    Array.isArray(entry.invocations) &&
+    entry.invocations.every(
+      (invocation) =>
+        invocation !== null &&
+        typeof invocation === 'object' &&
+        typeof invocation.skill === 'string',
+    )
+  );
+}
+
+/** 把单文件聚合合并进报告;窗口模式下无 timestamp 的触发与旧行为一致地被排除。 */
+function mergeAggregates(
+  aggregates: StatsCacheAggregate[],
+  since: Date | undefined,
+  target: Map<string, SkillUsage>,
+): number {
+  let total = 0;
+  for (const aggregate of aggregates) {
+    const timestamps = since
+      ? aggregate.timestamps.filter((timestamp) => new Date(timestamp) >= since)
+      : aggregate.timestamps;
+    const count = since ? timestamps.length : aggregate.count;
+    if (count === 0) continue;
+
+    const usage = bySkillGet(target, aggregate.skill);
+    usage.count += count;
+    total += count;
+    for (const timestamp of timestamps) {
+      if (!usage.lastUsed || timestamp > usage.lastUsed) usage.lastUsed = timestamp;
+    }
+  }
+  return total;
 }
 
 function bySkillGet(map: Map<string, SkillUsage>, skill: string): SkillUsage {
