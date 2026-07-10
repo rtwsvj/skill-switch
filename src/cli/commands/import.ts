@@ -8,8 +8,9 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Command } from 'commander';
+import { withOperationLock } from '../../core/operation-lock.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
-import { applySync, getSkillsJsonPath, readDeclaration } from '../../core/sync.ts';
+import { applySyncUnlocked, getSkillsJsonPath, readDeclaration } from '../../core/sync.ts';
 import { snapshotAgents } from '../../core/agent-snapshots.ts';
 import { validateSkillsJson } from '../../core/lint/skills-json-validator.ts';
 import { getSkillsLockPath, writeSkillsLock } from '../../core/lock.ts';
@@ -100,19 +101,9 @@ export function registerImportCommand(program: Command): void {
       const skillsJsonPath = getSkillsJsonPath(home);
       const lockPath = getSkillsLockPath(home);
 
-      const declExists = existsSync(skillsJsonPath);
-      const lockExists = existsSync(lockPath);
-
-      if (!options.force && !options.dryRun) {
-        if (declExists) {
-          throw new Error(`skills.json 已存在,加 --force 才可覆盖: ${skillsJsonPath}`);
-        }
-        if (lockExists) {
-          throw new Error(`skills.lock.json 已存在,加 --force 才可覆盖: ${lockPath}`);
-        }
-      }
-
       if (options.dryRun) {
+        const declExists = existsSync(skillsJsonPath);
+        const lockExists = existsSync(lockPath);
         console.log('[dry-run] 以下文件将被写入(--dry-run 模式,实际不写):');
         console.log(`  ${skillsJsonPath}  (${JSON.stringify(bundle.declaration).length} bytes)`);
         console.log(`  ${lockPath}  (${JSON.stringify(bundle.lock).length} bytes)`);
@@ -122,25 +113,38 @@ export function registerImportCommand(program: Command): void {
         return;
       }
 
-      // 写入 declaration
-      await writeJsonState(skillsJsonPath, bundle.declaration);
+      const applied = await withOperationLock(home, 'import', async () => {
+        // check-and-write 必须在同一个 home 临界区；否则两个 import 都可能看到“不存在”。
+        if (!options.force) {
+          if (existsSync(skillsJsonPath)) {
+            throw new Error(`skills.json 已存在,加 --force 才可覆盖: ${skillsJsonPath}`);
+          }
+          if (existsSync(lockPath)) {
+            throw new Error(`skills.lock.json 已存在,加 --force 才可覆盖: ${lockPath}`);
+          }
+        }
 
-      // 写入 lock(用 writeSkillsLock 保证 agent|name 排序一致性)
-      await writeSkillsLock(lockPath, bundle.lock as Parameters<typeof writeSkillsLock>[1]);
+        // declaration、lock、可选快照和 apply 作为一个串行化操作执行。
+        await writeJsonState(skillsJsonPath, bundle.declaration);
+        await writeSkillsLock(lockPath, bundle.lock as Parameters<typeof writeSkillsLock>[1]);
+
+        if (!options.apply) return undefined;
+
+        const declaration = await readDeclaration(skillsJsonPath);
+        const affectedAgents = [...new Set(declaration.skills.flatMap((s) => s.agents))];
+        const snapshots = await snapshotAgents(home, affectedAgents, 'pre-import-apply');
+        const { actions } = await applySyncUnlocked(home, declaration);
+        return { snapshots, actions };
+      });
 
       console.log(`imported declaration → ${skillsJsonPath}`);
       console.log(`imported lock        → ${lockPath}`);
 
       // P3-D5:--apply 模式:import 后直接执行 applySync(快照+同步)
-      if (options.apply) {
-        const declaration = await readDeclaration(skillsJsonPath);
-        // 计算有哪些 agent 受影响,先快照
-        const affectedAgents = [...new Set(declaration.skills.flatMap((s) => s.agents))];
-        const snapshots = await snapshotAgents(home, affectedAgents, 'pre-import-apply');
-        const { actions } = await applySync(home, declaration);
-        const changed = actions.filter((a) => a.kind !== 'noop').length;
-        console.log(`✓ import --apply 完成:同步 ${changed}/${actions.length} 动作`);
-        for (const snap of snapshots) {
+      if (applied) {
+        const changed = applied.actions.filter((a) => a.kind !== 'noop').length;
+        console.log(`✓ import --apply 完成:同步 ${changed}/${applied.actions.length} 动作`);
+        for (const snap of applied.snapshots) {
           console.log(`  快照: ${snap.path}`);
         }
         return;

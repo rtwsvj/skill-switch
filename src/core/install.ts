@@ -19,6 +19,7 @@ import { snapshot } from './backup.ts';
 import { getCliVersion, recordBypasses } from './bypass-ledger.ts';
 import { assertSafeGitSource } from './git-safe.ts';
 import { getSkillsLockPath, readSkillsLock, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
+import { withOperationLock } from './operation-lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { copyDirWithoutSymlinks } from './safe-copy.ts';
 import { assertSafeSkillName, isCanonicalSkillName, isSafeSkillName } from './skill-name.ts';
@@ -128,6 +129,15 @@ export function assertSafeCloneSource(source: string): void {
 }
 
 export async function installFromSource(
+  source: string,
+  options: InstallOptions,
+): Promise<InstallResult> {
+  return withOperationLock(options.home, `install:${options.agent}`, () =>
+    installFromSourceUnlocked(source, options),
+  );
+}
+
+async function installFromSourceUnlocked(
   source: string,
   options: InstallOptions,
 ): Promise<InstallResult> {

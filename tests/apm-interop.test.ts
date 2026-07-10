@@ -6,7 +6,7 @@
 //   ④ dry-run 不写盘(临时目录断言无写入)
 //   ⑤ 解析不触发任何网络 / 子进程(monkeypatch http/https/child_process,断言零调用)
 import { mkdtempSync, readdirSync, existsSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +17,7 @@ import {
   toSkillDeclarations,
 } from '../src/core/apm-interop.ts';
 import { runApmImport } from '../src/cli/commands/apm-import.ts';
+import { acquireOperationLock } from '../src/core/operation-lock.ts';
 import { getSkillsJsonPath, readDeclaration } from '../src/core/sync.ts';
 
 const dirs: string[] = [];
@@ -233,6 +234,33 @@ describe('apm-interop: ④ dry-run 不写盘', () => {
     expect(decl.skills.every((s) => s.agents.includes('claude-code'))).toBe(true);
   });
 
+  it('--apply serializes concurrent declaration upserts without lost updates', async () => {
+    const home = tmpDir('ss-apm-concurrent-home-');
+    const work = tmpDir('ss-apm-concurrent-work-');
+    const alphaPath = join(work, 'alpha.yml');
+    const bravoPath = join(work, 'bravo.yml');
+    await writeFile(alphaPath, 'dependencies:\n  skills:\n    - name: alpha\n', 'utf8');
+    await writeFile(bravoPath, 'dependencies:\n  skills:\n    - name: bravo\n', 'utf8');
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const held = await acquireOperationLock(home, 'test-hold');
+    const imports = [
+      runApmImport(alphaPath, { home, apply: true }),
+      runApmImport(bravoPath, { home, apply: true }),
+    ];
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(existsSync(getSkillsJsonPath(home))).toBe(false);
+    } finally {
+      await held.release();
+    }
+    await Promise.all(imports);
+
+    expect((await readDeclaration(getSkillsJsonPath(home))).skills.map((skill) => skill.name).sort())
+      .toEqual(['alpha', 'bravo']);
+  });
+
   it('找不到 apm.yml → 明确报错,不写盘', async () => {
     const home = tmpDir('ss-apm-home3-');
     await expect(runApmImport(join(home, 'nope.yml'), { home })).rejects.toThrow(/找不到 apm.yml/);
@@ -247,6 +275,21 @@ describe('apm-interop: ④ dry-run 不写盘', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     await expect(runApmImport(apmPath, { home })).rejects.toThrow(/解析失败/);
     expect(existsSync(getSkillsJsonPath(home))).toBe(false);
+  });
+
+  it('--apply releases the home lock when declaration state is corrupt', async () => {
+    const home = tmpDir('ss-apm-corrupt-state-home-');
+    const work = tmpDir('ss-apm-corrupt-state-work-');
+    const apmPath = join(work, 'apm.yml');
+    await writeFile(apmPath, 'dependencies:\n  skills:\n    - name: alpha\n', 'utf8');
+    await mkdir(join(home, '.skill-switch'), { recursive: true });
+    await writeFile(getSkillsJsonPath(home), '{broken json', 'utf8');
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await expect(runApmImport(apmPath, { home, apply: true })).rejects.toThrow();
+
+    const next = await acquireOperationLock(home, 'after-apm-error', { waitMs: 50 });
+    await next.release();
   });
 });
 

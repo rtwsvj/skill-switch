@@ -5,9 +5,10 @@
 //   两者均与现有 sync / sync --dry-run 行为完全兼容。
 import type { Command } from 'commander';
 import { snapshotAgents } from '../../core/agent-snapshots.ts';
+import { withOperationLock } from '../../core/operation-lock.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import {
-  applySync,
+  applySyncUnlocked,
   getSkillsJsonPath,
   planSync,
   readAndVerifyPlanArtifact,
@@ -79,9 +80,14 @@ export function registerSyncCommand(program: Command): void {
 
       // P3-D5:--out 模式:只做 plan 并写出 artifact,不执行任何写操作
       if (options.out) {
-        const declaration = await readDeclaration(declarationPath);
-        const planned = await planSync(home, declaration);
-        const artifact = await writePlanArtifact(options.out, declarationPath, planned);
+        // 声明读取、规划和摘要写入必须看到同一个状态版本，否则 artifact 可能把
+        // 旧 actions 与新 declarationSha256 组合在一起。
+        const { artifact, planned } = await withOperationLock(home, 'sync-plan', async () => {
+          const declaration = await readDeclaration(declarationPath);
+          const planned = await planSync(home, declaration);
+          const artifact = await writePlanArtifact(options.out!, declarationPath, planned);
+          return { artifact, planned };
+        });
         if (options.json) {
           console.log(JSON.stringify({ planFile: options.out, artifact }, null, 2));
         } else {
@@ -94,41 +100,35 @@ export function registerSyncCommand(program: Command): void {
 
       // P3-D5:--plan 模式:读取 artifact,校验声明 sha256,直接用 artifact 中的 actions 执行
       if (options.plan) {
-        const artifact = await readAndVerifyPlanArtifact(options.plan, declarationPath);
-        const declaration = await readDeclaration(declarationPath);
-        const planned = artifact.actions;
-
-        const result: SyncCliResult = {
-          declarationPath,
-          dryRun: false,
-          snapshots: [],
-          actions: planned,
-        };
-
-        result.snapshots = await snapshotAgents(home, changedAgents(planned), 'pre-sync');
-        // 使用 artifact 中的 actions 执行(声明文件已校验未变,重新 apply 等价)
-        result.actions = (await applySync(home, declaration)).actions;
+        const result = await withOperationLock(home, 'sync', async (): Promise<SyncCliResult> => {
+          const artifact = await readAndVerifyPlanArtifact(options.plan!, declarationPath);
+          const declaration = await readDeclaration(declarationPath);
+          const planned = artifact.actions;
+          const snapshots = await snapshotAgents(home, changedAgents(planned), 'pre-sync');
+          // 已持有 home lock；内部实现会重新 plan，以当前磁盘状态安全应用。
+          const actions = (await applySyncUnlocked(home, declaration)).actions;
+          return { declarationPath, dryRun: false, snapshots, actions };
+        });
 
         if (options.json) console.log(JSON.stringify(result, null, 2));
         else printSyncResult(result);
         return;
       }
 
-      // 默认:与原有行为完全一致
-      const declaration = await readDeclaration(declarationPath);
-      const planned = await planSync(home, declaration);
-
-      const result: SyncCliResult = {
-        declarationPath,
-        dryRun: Boolean(options.dryRun),
-        snapshots: [],
-        actions: planned,
-      };
-
-      if (!options.dryRun) {
-        result.snapshots = await snapshotAgents(home, changedAgents(planned), 'pre-sync');
-        result.actions = (await applySync(home, declaration)).actions;
-      }
+      // dry-run 只读；真正 apply 时，把声明读取、规划、快照和写入放进同一个临界区。
+      const result: SyncCliResult = options.dryRun
+        ? await (async () => {
+            const declaration = await readDeclaration(declarationPath);
+            const actions = await planSync(home, declaration);
+            return { declarationPath, dryRun: true, snapshots: [], actions };
+          })()
+        : await withOperationLock(home, 'sync', async () => {
+            const declaration = await readDeclaration(declarationPath);
+            const planned = await planSync(home, declaration);
+            const snapshots = await snapshotAgents(home, changedAgents(planned), 'pre-sync');
+            const actions = (await applySyncUnlocked(home, declaration)).actions;
+            return { declarationPath, dryRun: false, snapshots, actions };
+          });
 
       if (options.json) console.log(JSON.stringify(result, null, 2));
       else printSyncResult(result);

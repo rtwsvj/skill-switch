@@ -11,6 +11,7 @@ import {
   writeSkillsLock,
 } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
+import { withOperationLock } from './operation-lock.ts';
 import { assertSafeSkillName } from './skill-name.ts';
 import { writeJsonState } from './state-io.ts';
 import { getSkillsJsonPath, readDeclaration, removeFromDeclaration } from './sync.ts';
@@ -52,6 +53,16 @@ function throwRemoveFailure(error: unknown, rollbackErrors: unknown[]): never {
 }
 
 export async function removeSkill(home: string, name: string, agent: AgentType): Promise<RemoveResult> {
+  return withOperationLock(home, `remove:${agent}:${name}`, () =>
+    removeSkillUnlocked(home, name, agent),
+  );
+}
+
+async function removeSkillUnlocked(
+  home: string,
+  name: string,
+  agent: AgentType,
+): Promise<RemoveResult> {
   const targetPath = targetFor(home, agent, name);
   const lockPath = getSkillsLockPath(home);
   const declarationPath = getSkillsJsonPath(home);

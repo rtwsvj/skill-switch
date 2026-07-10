@@ -23,6 +23,7 @@ import {
 } from './doctor-hash-cache.ts';
 import { readBypassLedger, type BypassRecord } from './bypass-ledger.ts';
 import { getSkillsLockPath, readSkillsLock, removeLockEntries } from './lock.ts';
+import { withOperationLock } from './operation-lock.ts';
 import { isCanonicalSkillName } from './skill-name.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import {
@@ -110,6 +111,16 @@ function sourceAbsForFix(home: string, declaration: SkillsDeclarationFile, name:
  * - missing / stale-lock → 只汇报"需手动",不写磁盘
  */
 export async function fixFindings(
+  home: string,
+  findings: DriftFinding[],
+  declaration: SkillsDeclarationFile,
+): Promise<DoctorFixReport> {
+  return withOperationLock(home, 'doctor-fix', () =>
+    fixFindingsUnlocked(home, findings, declaration),
+  );
+}
+
+async function fixFindingsUnlocked(
   home: string,
   findings: DriftFinding[],
   declaration: SkillsDeclarationFile,

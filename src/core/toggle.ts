@@ -3,9 +3,10 @@
 // 回滚 = restoreSnapshot(快照, 对应目录)。
 import { restoreSnapshot, type SnapshotInfo } from './backup.ts';
 import { snapshotAgents } from './agent-snapshots.ts';
+import { withOperationLock } from './operation-lock.ts';
 import { writeJsonState } from './state-io.ts';
 import {
-  applySync,
+  applySyncUnlocked,
   getSkillsJsonPath,
   planSync,
   readDeclaration,
@@ -50,6 +51,14 @@ export async function toggleSkill(
   name: string,
   enabled: boolean,
 ): Promise<ToggleResult> {
+  return withOperationLock(home, `toggle:${name}`, () => toggleSkillUnlocked(home, name, enabled));
+}
+
+async function toggleSkillUnlocked(
+  home: string,
+  name: string,
+  enabled: boolean,
+): Promise<ToggleResult> {
   const declarationPath = getSkillsJsonPath(home);
   const declaration = await readDeclaration(declarationPath);
   const skill = declaration.skills.find((s) => s.name === name);
@@ -81,7 +90,7 @@ export async function toggleSkill(
     await writeDeclaration(declarationPath, nextDeclaration);
     declarationWritten = true;
     syncStarted = true;
-    const { actions } = await applySync(home, nextDeclaration);
+    const { actions } = await applySyncUnlocked(home, nextDeclaration);
     return { name, enabled, declarationPath, snapshots, actions };
   } catch (error) {
     const rollbackErrors: unknown[] = [];
@@ -98,7 +107,7 @@ export async function toggleSkill(
       await restoreAgentSnapshots(snapshots).catch((rollbackError: unknown) => {
         rollbackErrors.push(rollbackError);
       });
-      await applySync(home, declaration).catch((rollbackError: unknown) => {
+      await applySyncUnlocked(home, declaration).catch((rollbackError: unknown) => {
         rollbackErrors.push(rollbackError);
       });
     }
