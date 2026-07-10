@@ -172,6 +172,22 @@ describe('buildUnifiedDiffText (integration)', () => {
     const result = await diffSkillWithContents(home, AGENT, name);
     const patch = buildUnifiedDiffText(result.diff, result.diskFiles, result.storeFiles);
     expect(patch).toBe('');
+    expect(result.diskFiles.size).toBe(0);
+    expect(result.storeFiles.size).toBe(0);
+  });
+
+  it('keeps only changed contents in memory', async () => {
+    const name = 'changed-only';
+    for (const dir of [storeDir(name), diskDir(name)]) {
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, 'unchanged-large.txt'), 'same\n'.repeat(10_000));
+    }
+    await writeFile(join(storeDir(name), 'changed.txt'), 'old\n');
+    await writeFile(join(diskDir(name), 'changed.txt'), 'new\n');
+
+    const result = await diffSkillWithContents(home, AGENT, name);
+    expect([...result.diskFiles.keys()]).toEqual(['changed.txt']);
+    expect([...result.storeFiles.keys()]).toEqual(['changed.txt']);
   });
 
   it('covers multiple changed files in one output', async () => {

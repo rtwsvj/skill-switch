@@ -1,8 +1,9 @@
 // D2:内容漂移的「改了什么」—— 对 copy 模式技能,把磁盘上的技能目录与 store 里的耐久副本
 // (install 时落的「应该是什么」)逐文件对比,产出 added / removed / modified 列表。
 // symlink 模式磁盘即源,没有独立参照,标 comparable=false。纯只读,不改任何文件。
-import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { createReadStream, existsSync } from 'node:fs';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
@@ -283,17 +284,31 @@ function diskDirFor(home: string, agent: AgentType, name: string): string | unde
  * 'removed'; present in both but with differing content is 'modified'.
  * Files with identical content are omitted.
  */
-function compareFileMaps(
-  disk: Map<string, Buffer>,
-  store: Map<string, Buffer>,
-): SkillFileDiff[] {
+interface SkillFileMetadata {
+  fullPath: string;
+  size: number;
+}
+
+async function hashFile(path: string): Promise<string> {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+  return hash.digest('hex');
+}
+
+async function compareFileMetadata(
+  disk: Map<string, SkillFileMetadata>,
+  store: Map<string, SkillFileMetadata>,
+): Promise<SkillFileDiff[]> {
   const files: SkillFileDiff[] = [];
 
-  for (const [path, diskContent] of disk) {
-    const storeContent = store.get(path);
-    if (storeContent === undefined) {
+  for (const [path, diskFile] of disk) {
+    const storeFile = store.get(path);
+    if (storeFile === undefined) {
       files.push({ path, status: 'added' }); // 磁盘有、参照没有 = 新增
-    } else if (!diskContent.equals(storeContent)) {
+    } else if (
+      diskFile.size !== storeFile.size ||
+      (await hashFile(diskFile.fullPath)) !== (await hashFile(storeFile.fullPath))
+    ) {
       files.push({ path, status: 'modified' });
     }
   }
@@ -305,9 +320,9 @@ function compareFileMaps(
   return files;
 }
 
-/** 递归列出目录下所有文件 → 相对路径 → 内容 Buffer。目录不存在则空。 */
-async function listFiles(dir: string): Promise<Map<string, Buffer>> {
-  const out = new Map<string, Buffer>();
+/** 递归列出目录元数据；内容只在确认发生变化后才读取。 */
+async function listFileMetadata(dir: string): Promise<Map<string, SkillFileMetadata>> {
+  const out = new Map<string, SkillFileMetadata>();
   if (!existsSync(dir)) return out;
   async function walk(current: string): Promise<void> {
     const entries = await readdir(current, { withFileTypes: true });
@@ -316,7 +331,7 @@ async function listFiles(dir: string): Promise<Map<string, Buffer>> {
       if (entry.isDirectory()) {
         await walk(full);
       } else if (entry.isFile()) {
-        out.set(relative(dir, full), await readFile(full));
+        out.set(relative(dir, full), { fullPath: full, size: (await stat(full)).size });
       }
     }
   }
@@ -336,6 +351,7 @@ async function diffSkillCore(
   home: string,
   agent: AgentType,
   name: string,
+  includeContents: boolean,
 ): Promise<SkillDiffWithContents> {
   const diskDir = diskDirFor(home, agent, name);
   const storeDir = storeDirFor(home, agent, name);
@@ -356,18 +372,28 @@ async function diffSkillCore(
     };
   }
 
-  const disk = await listFiles(diskDir);
-  const store = await listFiles(storeDir);
-  const files = compareFileMaps(disk, store);
+  const diskMetadata = await listFileMetadata(diskDir);
+  const storeMetadata = await listFileMetadata(storeDir);
+  const files = await compareFileMetadata(diskMetadata, storeMetadata);
+  const diskFiles = new Map<string, Buffer>();
+  const storeFiles = new Map<string, Buffer>();
+  if (includeContents) {
+    for (const file of files) {
+      const diskFile = diskMetadata.get(file.path);
+      const storeFile = storeMetadata.get(file.path);
+      if (diskFile) diskFiles.set(file.path, await readFile(diskFile.fullPath));
+      if (storeFile) storeFiles.set(file.path, await readFile(storeFile.fullPath));
+    }
+  }
   return {
     diff: { agent, name, comparable: true, diskDir, storeDir, files },
-    diskFiles: disk,
-    storeFiles: store,
+    diskFiles,
+    storeFiles,
   };
 }
 
 export async function diffSkill(home: string, agent: AgentType, name: string): Promise<SkillDiff> {
-  return (await diffSkillCore(home, agent, name)).diff;
+  return (await diffSkillCore(home, agent, name, false)).diff;
 }
 
 export async function diffSkillWithContents(
@@ -375,5 +401,5 @@ export async function diffSkillWithContents(
   agent: AgentType,
   name: string,
 ): Promise<SkillDiffWithContents> {
-  return diffSkillCore(home, agent, name);
+  return diffSkillCore(home, agent, name, true);
 }
