@@ -1,11 +1,12 @@
 // P0 regression: scanHome discovers top-level skill symlinks, so auditHome must
 // audit that same logical skill root instead of returning an empty SAFE report.
 import { mkdtempSync } from 'node:fs';
-import { lstat, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { auditHome, auditSkillDir } from '../src/cli/commands/audit.ts';
+import { auditHome, auditSkillDir, shouldBlock } from '../src/cli/commands/audit.ts';
+import { installFromSource } from '../src/core/install.ts';
 import { scanHome } from '../src/core/scan.ts';
 
 const roots: string[] = [];
@@ -45,6 +46,7 @@ describe('P0 top-level symlink scan to audit seam', () => {
     const linked = report.skills.find((skill) => skill.dirName === 'linked-skill');
     expect(linked).toBeDefined();
     expect(linked?.coverage.scannedFiles).toBeGreaterThan(0);
+    expect(linked?.coverage.complete).toBe(true);
     expect(linked?.findings.some((finding) => finding.ruleId === 'reverse-shell/dev-tcp')).toBe(true);
     expect(linked?.blocked).toBe(true);
   });
@@ -60,6 +62,28 @@ describe('P0 top-level symlink scan to audit seam', () => {
     await expect(auditHome(home)).resolves.toMatchObject({ total: 0, skills: [] });
   });
 
+  it('copy-installs from the same real root that was audited for a top-level source symlink', async () => {
+    const root = temporaryDir('skill-switch-p0-symlink-install-');
+    const home = join(root, 'home');
+    const realSkill = join(root, 'external', 'linked-copy');
+    const sourceLink = join(root, 'source', 'linked-copy');
+    await writeSkill(realSkill, 'linked-copy');
+    await mkdir(join(root, 'source'));
+    await symlink(realSkill, sourceLink, 'dir');
+
+    const result = await installFromSource(sourceLink, {
+      home,
+      agent: 'claude-code',
+      mode: 'copy',
+    });
+
+    expect(result.blocked).toEqual([]);
+    expect(result.installed.map((entry) => entry.name)).toEqual(['linked-copy']);
+    await expect(
+      readFile(join(home, '.claude', 'skills', 'linked-copy', 'SKILL.md'), 'utf8'),
+    ).resolves.toContain('linked-copy');
+  });
+
   it('continues to skip nested symlinks that escape an otherwise regular skill root', async () => {
     const root = temporaryDir('skill-switch-p0-symlink-nested-');
     const skill = join(root, 'regular-skill');
@@ -71,6 +95,10 @@ describe('P0 top-level symlink scan to audit seam', () => {
 
     const report = await auditSkillDir(skill);
     expect(report.findings.some((finding) => finding.ruleId === 'reverse-shell/dev-tcp')).toBe(false);
+    expect(report.coverage.skippedSymlinks).toBe(1);
+    expect(report.coverage.complete).toBe(false);
+    expect(report.coverage.incompleteReasons).toContain('nested-symbolic-link');
+    expect(shouldBlock(report)).toBe(true);
     await expect(lstat(join(skill, 'nested-external'))).resolves.toMatchObject({});
   });
 });

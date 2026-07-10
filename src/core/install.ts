@@ -8,14 +8,13 @@
 // - symlink 仅允许"本地目录源"(克隆出来的临时目录会被清理,symlink 过去就是悬空)。
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, rm, stat, symlink } from 'node:fs/promises';
+import { lstat, mkdir, readdir, realpath, rm, stat, symlink } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { cleanupTempDir, cloneRepo } from '../vendor/vercel-skills/git.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
 import { auditSkillDir, shouldBlock } from '../cli/commands/audit.ts';
-import type { AuditReport } from './audit/engine.ts';
 import { snapshot } from './backup.ts';
 import { getCliVersion, recordBypasses } from './bypass-ledger.ts';
 import { assertSafeGitSource } from './git-safe.ts';
@@ -48,7 +47,7 @@ export interface InstallOptions {
 export interface BlockedSkill {
   name: string;
   score: number;
-  report: AuditReport;
+  report: AuditedSkillReport;
 }
 
 export interface InstallResult {
@@ -62,6 +61,26 @@ export interface InstallResult {
 }
 
 const DISCOVER_MAX_DEPTH = 3;
+
+type AuditedSkillReport = Awaited<ReturnType<typeof auditSkillDir>>;
+
+/**
+ * copy 模式会通过 copyDirWithoutSymlinks 物理剔除所有嵌套链接,因此“仅因嵌套链接”
+ * 导致的不完整可在安装门禁中按已净化输入处理。symlink 模式保留源树,不能使用该例外。
+ * 其它任何不完整原因仍然一律失败关闭。
+ */
+function shouldBlockInstall(report: AuditedSkillReport, mode: InstallMode): boolean {
+  const sanitizedByCopy =
+    !report.coverage.complete &&
+    report.coverage.incompleteReasons.length > 0 &&
+    report.coverage.incompleteReasons.every(
+      (reason) => reason === 'nested-symbolic-link' || reason === 'excluded-directory',
+    );
+  if (mode === 'copy' && sanitizedByCopy) {
+    return shouldBlock({ ...report, coverage: { complete: true } });
+  }
+  return shouldBlock(report);
+}
 
 /** 发现含 SKILL.md 的目录(含根自身),跳过 .git/node_modules。 */
 export async function discoverSkillDirs(root: string): Promise<string[]> {
@@ -141,9 +160,14 @@ export async function installFromSource(
     // audit 拦截:all-or-nothing,任何写动作之前。force 时仍审计,以便记录"被越过了什么"。
     const blocked: BlockedSkill[] = [];
     const bypassed: BlockedSkill[] = [];
+    // 顶层 source/skill 允许是目录 symlink。只解析这一个逻辑根并固定其真实目标;
+    // 后续 copy/symlink 都使用同一个已审计根,避免 safe-copy 因顶层 lstat 是链接而跳空。
+    const auditedRoots = new Map<string, string>();
     for (const dir of skillDirs) {
-      const report = await auditSkillDir(dir);
-      if (!shouldBlock(report)) continue;
+      const auditedRoot = (await lstat(dir)).isSymbolicLink() ? await realpath(dir) : dir;
+      auditedRoots.set(dir, auditedRoot);
+      const report = await auditSkillDir(auditedRoot);
+      if (!shouldBlockInstall(report, options.mode)) continue;
       const entry = { name: basename(dir), score: report.score, report };
       if (options.force) bypassed.push(entry);
       else blocked.push(entry);
@@ -197,17 +221,18 @@ export async function installFromSource(
       const name = basename(dir);
       assertSafeSkillName(name, 'discovered skill name');
       const target = join(skillsDir, name);
+      const auditedRoot = auditedRoots.get(dir)!;
       const declarationSource =
-        options.mode === 'copy' ? durableCopySource(options.home, options.agent, name) : dir;
+        options.mode === 'copy' ? durableCopySource(options.home, options.agent, name) : auditedRoot;
 
-      if (options.mode === 'copy' && resolve(dir) !== resolve(declarationSource)) {
+      if (options.mode === 'copy' && resolve(auditedRoot) !== resolve(declarationSource)) {
         await rm(declarationSource, { recursive: true, force: true });
-        await copyDirWithoutSymlinks(dir, declarationSource);
+        await copyDirWithoutSymlinks(auditedRoot, declarationSource);
       }
 
       await rm(target, { recursive: true, force: true });
       if (options.mode === 'symlink') {
-        await symlink(dir, target, 'dir');
+        await symlink(auditedRoot, target, 'dir');
       } else {
         await copyDirWithoutSymlinks(declarationSource, target);
       }
@@ -247,7 +272,13 @@ export async function installFromSource(
           bypassedAt,
           ...(options.forceReason ? { bypassReason: options.forceReason } : {}),
           score: b.score,
-          bypassedFindings: b.report.findings.map((f) => ({ ruleId: f.ruleId, severity: f.severity })),
+          bypassedFindings: [
+            ...b.report.findings.map((f) => ({ ruleId: f.ruleId, severity: f.severity })),
+            ...b.report.coverage.incompleteReasons.map((reason) => ({
+              ruleId: `audit/incomplete/${reason}`,
+              severity: 'high' as const,
+            })),
+          ],
           cliVersion,
         })),
       );

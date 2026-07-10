@@ -2,7 +2,7 @@
 //
 // 阻断策略(严重度下限,见 docs/changes/2026-06-12-S2.4.md):
 //   纯按 ags 分数带会把"单条 HIGH 的登录后门"判成 SAFE(90 分)。所以阻断判据是
-//   "任意 finding 严重度 ∈ {critical, high}  OR  score < 70" → exit 1。
+//   "审计覆盖不完整 OR 任意 finding 严重度 ∈ {critical, high} OR score < 70" → exit 1。
 //   分数带(SAFE/REVIEW/DANGER)仅用于展示。
 //
 // v0.5-1:新增 --format sarif 输出 SARIF 2.1.0 文档(GitHub code-scanning 可用)。
@@ -27,10 +27,10 @@
 //   两个标志必须配合 --configs 使用;单独使用会产生友好错误。
 //   写入时:--write-config-baseline 优先,写完 exit 0,不再继续常规审计流程。
 //   对比时:drift finding 与其它 config finding 走同一输出/退出码路径。
-import { readFileSync } from 'node:fs';
-import { lstat, readdir, readFile } from 'node:fs/promises';
+import { readFileSync, type Dirent } from 'node:fs';
+import { lstat, open, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
-import { dirname, extname, join, relative, resolve } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import type { Command } from 'commander';
@@ -69,6 +69,7 @@ import { toSarifDocument } from '../../core/audit/sarif.ts';
 import { DANGER_THRESHOLD } from '../../core/audit/score.ts';
 import type { AuditFinding, Severity } from '../../core/audit/types.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
+import { SAFE_COPY_EXCLUDED_DIRECTORIES } from '../../core/safe-copy.ts';
 import { scanHome, type SkillRecord } from '../../core/scan.ts';
 
 // 同步读取版本号;SARIF tool.driver.version 要用。失败时回退 'unknown'。
@@ -97,9 +98,16 @@ const TEXT_EXT = new Set([
   '.rb', '.go', '.rs', '.java', '.php',
   '.json', '.toml', '.yaml', '.yml', '.cfg', '.conf', '.html', '.xml', '.env', '',
 ]);
+// 只有明确的不可执行媒体/字体扩展才允许在“内容确为二进制且无执行位”时跳过。
+// 未知扩展的超大文件无法完整分类,必须标为不完整,不能靠伪造扩展绕过安装门禁。
+const BINARY_ASSET_EXT = new Set([
+  '.avif', '.bmp', '.eot', '.gif', '.ico', '.jpeg', '.jpg', '.mp3', '.mp4', '.otf', '.png',
+  '.tif', '.tiff', '.ttf', '.webm', '.webp', '.woff', '.woff2',
+]);
 export const MAX_FILE_BYTES = 512 * 1024;
 export const MAX_AUDIT_FILES = 1000;
 export const MAX_AUDIT_WALK_DEPTH = 24;
+const TEXT_SNIFF_BYTES = 8 * 1024;
 
 // .env / .env.* 用 extname 取不到扩展(dotfile),按文件名特判;其余按扩展名。
 function isScannableFile(name: string): boolean {
@@ -108,12 +116,19 @@ function isScannableFile(name: string): boolean {
 }
 
 export interface AuditCoverage {
+  /** 遍历器实际计入预算的普通文件数(包括二进制、忽略项和过大文件)。 */
+  visitedFiles: number;
   scannedFiles: number;
   scannedBytes: number;
   skippedFiles: number;
+  skippedSymlinks: number;
   skippedExtensions: string[];
   tooLargeFiles: number;
   readErrors: number;
+  /** false 表示存在未被审计的潜在可执行内容;安全门必须失败关闭。 */
+  complete: boolean;
+  /** 稳定、机器可读的未完成原因代码。 */
+  incompleteReasons: AuditIncompleteReason[];
   truncated: boolean;
   fileLimitReached: boolean;
   depthLimitReached: boolean;
@@ -122,7 +137,30 @@ export interface AuditCoverage {
   maxBytesPerFile: number;
 }
 
-export function shouldBlock(report: Pick<AuditReport, 'score' | 'findings'>): boolean {
+export type AuditIncompleteReason =
+  | 'depth-limit-reached'
+  | 'excluded-directory'
+  | 'file-limit-reached'
+  | 'nested-symbolic-link'
+  | 'oversized-text-file'
+  | 'oversized-unclassified-file'
+  | 'read-error'
+  | 'unclassified-binary-file'
+  | 'unclassified-executable-file'
+  | 'unclassified-text-file'
+  | 'unsupported-file-type';
+
+type AuditDecisionReport = Pick<AuditReport, 'score' | 'findings'> & {
+  /** 可选以兼容只构造 score/findings 的既有 API 调用者。 */
+  coverage?: Pick<AuditCoverage, 'complete'>;
+};
+
+function hasIncompleteCoverage(report: AuditDecisionReport): boolean {
+  return report.coverage?.complete === false;
+}
+
+export function shouldBlock(report: AuditDecisionReport): boolean {
+  if (hasIncompleteCoverage(report)) return true;
   if (report.score < DANGER_THRESHOLD) return true;
   return report.findings.some((f) => BLOCKING_SEVERITIES.has(f.severity));
 }
@@ -136,10 +174,12 @@ export function shouldBlock(report: Pick<AuditReport, 'score' | 'findings'>): bo
  * - 传入 DEFAULT_POLICY + 空 baselinedFingerprints 时行为与 shouldBlock() 完全一致。
  */
 export function shouldBlockWithPolicy(
-  report: Pick<AuditReport, 'score' | 'findings'>,
+  report: AuditDecisionReport,
   policy: ResolvedPolicy,
   baselinedFingerprints: ReadonlySet<string> = new Set(),
 ): boolean {
+  // coverage 是审计完整性事实,不能被策略或基线抑制。
+  if (hasIncompleteCoverage(report)) return true;
   if (report.score < DANGER_THRESHOLD) return true;
   const failOnRank = SEVERITY_RANK[policy.failOn];
   // 只看未被抑制且未基线化的 finding
@@ -202,11 +242,13 @@ export function applyPolicyAndBaselineToFindings(
  * 此处直接接受 finding 列表并检查三重抑制标记。
  */
 export function shouldBlockWithAll(
-  report: Pick<AuditReport, 'score' | 'findings'>,
+  report: AuditDecisionReport,
   policy: ResolvedPolicy,
   baselinedFingerprints: ReadonlySet<string>,
   inlineSuppressedFindings: ReadonlySet<AuditFinding>,
 ): boolean {
+  // 行内抑制同样不得把“不完整审计”变成通过。
+  if (hasIncompleteCoverage(report)) return true;
   if (report.score < DANGER_THRESHOLD) return true;
   const failOnRank = SEVERITY_RANK[policy.failOn];
   return report.findings.some(
@@ -307,84 +349,210 @@ async function collectTextFiles(
 ): Promise<{ targets: AuditTarget[]; coverage: AuditCoverage }> {
   const targets: AuditTarget[] = [];
   const skippedExt = new Set<string>();
+  const incompleteReasons = new Set<AuditIncompleteReason>();
   let scannedBytes = 0;
+  let visitedFiles = 0;
   let skippedFiles = 0;
+  let skippedSymlinks = 0;
   let tooLargeFiles = 0;
   let readErrors = 0;
   let fileLimitReached = false;
   let depthLimitReached = false;
 
-  async function readTarget(full: string, rel: string, size: number): Promise<void> {
+  function recordReadError(): void {
+    readErrors += 1;
+    incompleteReasons.add('read-error');
+  }
+
+  function recordSkippedExtension(name: string): void {
+    skippedFiles += 1;
+    skippedExt.add(extname(name).toLowerCase() || '(none)');
+  }
+
+  /**
+   * 扩展名只能作为超大文件的风险提示,不能作为小文件是否扫描的安全边界。
+   * NUL / 大量控制字节 / UTF-8 replacement char 表明更可能是二进制资源。
+   */
+  function isProbablyText(content: Buffer): boolean {
+    if (content.length === 0) return true;
+    let suspicious = 0;
+    for (const byte of content) {
+      if (byte === 0) return false;
+      if (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d && byte !== 0x0c) {
+        suspicious += 1;
+      }
+    }
+    if (suspicious / content.length > 0.05) return false;
+    return !content.toString('utf8').includes('\uFFFD');
+  }
+
+  async function readPrefix(full: string, size: number): Promise<Buffer> {
+    const handle = await open(full, 'r');
+    try {
+      const length = Math.min(size, TEXT_SNIFF_BYTES);
+      const buffer = Buffer.alloc(length);
+      const { bytesRead } = await handle.read(buffer, 0, length, 0);
+      return buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
+  }
+
+  async function readTarget(
+    full: string,
+    rel: string,
+    name: string,
+    size: number,
+    mode: number,
+  ): Promise<void> {
+    const executable = (mode & 0o111) !== 0;
     if (size > MAX_FILE_BYTES) {
       tooLargeFiles += 1;
+      const extension = extname(name).toLowerCase();
+      const textByName = isScannableFile(name);
+      const knownBinaryAsset = BINARY_ASSET_EXT.has(extension);
+      let textLike = textByName;
+      if (knownBinaryAsset) {
+        try {
+          textLike = isProbablyText(await readPrefix(full, size));
+        } catch {
+          recordReadError();
+          return;
+        }
+      }
+
+      recordSkippedExtension(name);
+      if (textLike) incompleteReasons.add('oversized-text-file');
+      if (!textByName && !knownBinaryAsset) incompleteReasons.add('oversized-unclassified-file');
+      if (executable && !textLike) incompleteReasons.add('unclassified-executable-file');
       return;
     }
+
     try {
-      targets.push({ file: rel, content: await readFile(full, 'utf8') });
+      const content = await readFile(full);
+      if (!isProbablyText(content)) {
+        recordSkippedExtension(name);
+        if (isScannableFile(name)) incompleteReasons.add('unclassified-text-file');
+        if (!isScannableFile(name) && !BINARY_ASSET_EXT.has(extname(name).toLowerCase())) {
+          incompleteReasons.add('unclassified-binary-file');
+        }
+        if (executable) incompleteReasons.add('unclassified-executable-file');
+        return;
+      }
+      targets.push({ file: rel, content: content.toString('utf8') });
       scannedBytes += size;
     } catch {
-      readErrors += 1;
+      recordReadError();
     }
   }
 
   async function walk(dir: string, depth: number): Promise<void> {
-    if (targets.length >= MAX_AUDIT_FILES) {
-      fileLimitReached = true;
+    if (fileLimitReached) return;
+
+    let entries: Dirent<string>[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      recordReadError();
       return;
     }
-    const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+
     for (const entry of entries) {
-      if (targets.length >= MAX_AUDIT_FILES) {
-        fileLimitReached = true;
-        return;
-      }
       const full = join(dir, entry.name);
-      const rel = relative(root, full);
+      const rel = relative(auditRoot, full);
+
+      // 文件预算按所有已枚举普通文件计数,包括随后由显式 ignore 跳过的文件。
+      // 这样 skipped extension / ignore 都不能把真正的文件数伪装成很小。
+      if (entry.isFile()) {
+        if (visitedFiles >= MAX_AUDIT_FILES) {
+          fileLimitReached = true;
+          incompleteReasons.add('file-limit-reached');
+          return;
+        }
+        visitedFiles += 1;
+      }
+
+      // 显式 ignore 是调用者选择的审计范围,不算扫描器自身失败。
+      if (ignorePatterns.length > 0 && isPathIgnored(rel, ignorePatterns)) {
+        skippedFiles += 1;
+        continue;
+      }
+
       if (entry.isDirectory()) {
-        if (entry.name === '.git' || entry.name === 'node_modules') continue;
-        // 忽略文件过滤:目录路径命中 → 跳过整个目录
-        if (ignorePatterns.length > 0 && isPathIgnored(rel, ignorePatterns)) {
+        if (SAFE_COPY_EXCLUDED_DIRECTORIES.has(entry.name)) {
           skippedFiles += 1;
+          incompleteReasons.add('excluded-directory');
           continue;
         }
         if (depth >= MAX_AUDIT_WALK_DEPTH) {
           depthLimitReached = true;
+          incompleteReasons.add('depth-limit-reached');
           continue;
         }
         await walk(full, depth + 1);
+        if (fileLimitReached) return;
       } else if (entry.isFile()) {
-        // 忽略文件过滤:文件路径命中 → 统计为 skipped
-        if (ignorePatterns.length > 0 && isPathIgnored(rel, ignorePatterns)) {
-          skippedFiles += 1;
-          continue;
+        try {
+          const info = await lstat(full);
+          if (!info.isFile()) {
+            incompleteReasons.add('unsupported-file-type');
+            skippedFiles += 1;
+            continue;
+          }
+          await readTarget(full, rel, entry.name, info.size, info.mode);
+        } catch {
+          recordReadError();
         }
-        if (!isScannableFile(entry.name)) {
-          skippedFiles += 1;
-          skippedExt.add(extname(entry.name).toLowerCase() || '(none)');
-          continue;
-        }
-        const info = await lstat(full);
-        await readTarget(full, rel, info.size);
+      } else if (entry.isSymbolicLink()) {
+        // 只允许跟随调用方传入的顶层根链接;遍历中遇到的链接永不跟随。
+        skippedFiles += 1;
+        skippedSymlinks += 1;
+        incompleteReasons.add('nested-symbolic-link');
+      } else {
+        skippedFiles += 1;
+        incompleteReasons.add('unsupported-file-type');
       }
     }
   }
 
   const info = await lstat(root);
-  if (info.isFile()) {
-    await readTarget(root, relative(join(root, '..'), root), info.size);
-  } else if (info.isDirectory()) {
-    await walk(root, 0);
+  let auditRoot = root;
+  let rootInfo = info;
+  if (info.isSymbolicLink()) {
+    auditRoot = await realpath(root);
+    rootInfo = await stat(auditRoot);
+  }
+
+  if (rootInfo.isFile()) {
+    visitedFiles = 1;
+    await readTarget(
+      auditRoot,
+      relative(join(auditRoot, '..'), auditRoot),
+      basename(auditRoot),
+      rootInfo.size,
+      rootInfo.mode,
+    );
+  } else if (rootInfo.isDirectory()) {
+    await walk(auditRoot, 0);
+  } else {
+    skippedFiles += 1;
+    incompleteReasons.add('unsupported-file-type');
   }
 
   return {
     targets,
     coverage: {
+      visitedFiles,
       scannedFiles: targets.length,
       scannedBytes,
       skippedFiles,
+      skippedSymlinks,
       skippedExtensions: [...skippedExt].sort(),
       tooLargeFiles,
       readErrors,
+      complete: incompleteReasons.size === 0,
+      incompleteReasons: [...incompleteReasons].sort(),
       truncated: fileLimitReached || depthLimitReached,
       fileLimitReached,
       depthLimitReached,
@@ -470,10 +638,18 @@ function lethalTrifectaSummaryForHome(report: AuditHomeReport): string | null {
 
 export function formatAuditReport(
   path: string,
-  report: AuditReport,
+  report: AuditReport & { coverage?: AuditCoverage },
   baselinedFingerprints: ReadonlySet<string> = new Set(),
 ): string {
   const lines: string[] = [`audit: ${path}`, `score: ${report.score}/100  verdict: ${report.verdict}`];
+  if (report.coverage) {
+    const coverage = report.coverage;
+    const status = coverage.complete ? 'complete' : 'INCOMPLETE (blocks by default)';
+    const reasons = coverage.complete ? '' : `  reasons: ${coverage.incompleteReasons.join(', ')}`;
+    lines.push(
+      `coverage: ${status}  scanned: ${coverage.scannedFiles}/${coverage.visitedFiles} files  bytes: ${coverage.scannedBytes}${reasons}`,
+    );
+  }
   if (report.findings.length === 0) {
     lines.push('findings: none');
     return lines.join('\n');
@@ -567,17 +743,26 @@ function formatAuditHomeTable(
   if (report.skills.length === 0) {
     parts.push('未发现任何 skill。');
   } else {
-    const header = ['NAME', 'DIR', 'SCORE', 'VERDICT', 'BLOCK'];
+    const header = ['NAME', 'DIR', 'SCORE', 'VERDICT', 'COVERAGE', 'BLOCK'];
     const rows = report.skills.map((skill) => [
       skill.name,
       skill.dir,
       String(skill.score),
       skill.verdict,
+      skill.coverage.complete ? 'complete' : 'INCOMPLETE',
       skill.blocked ? 'yes' : 'no',
     ]);
     const widths = header.map((h, col) => Math.max(h.length, ...rows.map((row) => row[col]!.length)));
     const renderRow = (row: string[]) => row.map((cell, col) => cell.padEnd(widths[col]!)).join('  ').trimEnd();
     parts.push(renderRow(header), ...rows.map(renderRow));
+
+    const incompleteSkills = report.skills.filter((skill) => !skill.coverage.complete);
+    if (incompleteSkills.length > 0) {
+      parts.push('', '--- incomplete audit coverage ---');
+      for (const skill of incompleteSkills) {
+        parts.push(`${skill.name}: ${skill.coverage.incompleteReasons.join(', ')}`);
+      }
+    }
   }
 
   if (report.configs !== undefined) {
@@ -880,7 +1065,7 @@ async function resolvePolicy(opts: {
 export function registerAuditCommand(program: Command): void {
   program
     .command('audit')
-    .description('对 skill 目录或 home 内全部已装 skill 做安全体检(纯读;任意 critical/high 或评分<70 → exit 1)')
+    .description('对 skill 目录或 home 内全部已装 skill 做安全体检(纯读;覆盖不完整、任意 critical/high 或评分<70 → exit 1)')
     .argument('[path]', 'skill 目录或 SKILL.md 路径;省略时扫描 --home 下全部已装 skill')
     .option('--home [dir]', '启用 home 全量模式;可选覆盖 home 根目录(默认取系统 home)')
     .option('--json', '机器可读 JSON 输出(等价于 --format json;保留向后兼容)')

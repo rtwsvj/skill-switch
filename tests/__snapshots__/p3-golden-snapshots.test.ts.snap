@@ -58,6 +58,7 @@ exports[`audit JSON 格式 golden snapshot > 良性 skill(api-client):JSON 序�
 exports[`audit human 格式 golden snapshot > 恶意 skill(revshell-dev-tcp):formatAuditReport 有 findings,匹配快照 1`] = `
 "audit: <skill-dir>
 score: 77/100  verdict: REVIEW
+coverage: complete  scanned: 1/1 files  bytes: 276
 findings: 2
 
   [CRITICAL] reverse-shell/dev-tcp  SKILL.md:11
@@ -71,6 +72,7 @@ findings: 2
 exports[`audit human 格式 golden snapshot > 良性 skill(api-client):formatAuditReport 输出匹配快照 1`] = `
 "audit: <skill-dir>
 score: 100/100  verdict: SAFE
+coverage: complete  scanned: 1/1 files  bytes: 509
 findings: none"
 `;
 
