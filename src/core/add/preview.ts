@@ -1,7 +1,7 @@
 // add 编排层(预览):粘贴内容 → 解析 →(npm 则只读解析 registry)→ 克隆(只读)→
 // 发现全部 skill → 逐个审计 → 返回候选 + 裁决。**不含任何写动作。**
 import { relative } from 'node:path';
-import { auditSkillDir, shouldBlock } from '../../cli/commands/audit.ts';
+import { auditSkillDir, shouldBlock } from '../audit/service.ts';
 import { cleanupTempDir, cloneRepo } from '../../vendor/vercel-skills/git.ts';
 import { assertSafeGitSource } from '../git-safe.ts';
 import { discoverSkillDirs } from '../install.ts';

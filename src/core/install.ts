@@ -14,7 +14,7 @@ import { promisify } from 'node:util';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { cleanupTempDir, cloneRepo } from '../vendor/vercel-skills/git.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
-import { auditSkillDir, shouldBlock } from '../cli/commands/audit.ts';
+import { auditSkillDir, shouldBlock } from './audit/service.ts';
 import { snapshot } from './backup.ts';
 import { getCliVersion, recordBypasses } from './bypass-ledger.ts';
 import { assertSafeGitSource } from './git-safe.ts';

@@ -9,7 +9,7 @@ import { readdir } from 'node:fs/promises';
 import { resolveHomeRoot } from '../core/paths.ts';
 import { scanHome } from '../core/scan.ts';
 import { buildStatus } from '../core/status.ts';
-import { auditHome, auditSkillDir, shouldBlock } from '../cli/commands/audit.ts';
+import { auditHome, auditSkillDir, shouldBlock } from '../core/audit/service.ts';
 import { analyzeCooccurrence } from '../core/packs/cooccurrence.ts';
 import { suggestPacks } from '../core/packs/suggest.ts';
 import { buildStats } from '../core/stats.ts';
