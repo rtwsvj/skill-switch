@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertResolvedHostPolicy,
   hasUrlCredentials,
   isLoopbackHost,
   isPrivateNetworkLiteral,
@@ -12,7 +13,8 @@ describe('url-safety', () => {
   it('classifies private, loopback, link-local, mapped, and special-use IP literals', () => {
     for (const host of [
       '0.0.0.0', '10.0.0.1', '100.64.0.1', '127.0.0.1', '169.254.169.254',
-      '172.16.0.1', '192.168.1.1', '198.18.0.1', '224.0.0.1',
+      '172.16.0.1', '192.0.2.1', '192.168.1.1', '198.18.0.1',
+      '198.51.100.1', '203.0.113.1', '224.0.0.1',
       '[::]', '[::1]', '[fd00::1]', '[fe80::1]', '[ff02::1]', '[::ffff:7f00:1]',
     ]) {
       expect(isPrivateNetworkLiteral(host), host).toBe(true);
@@ -59,5 +61,39 @@ describe('url-safety', () => {
   it('detects URL credentials without decoding or logging them', () => {
     expect(hasUrlCredentials(new URL('https://user:p%40ss@example.test/'))).toBe(true);
     expect(hasUrlCredentials(new URL('https://example.test/'))).toBe(false);
+  });
+
+  it('rejects hostnames resolving to any non-public address', async () => {
+    const url = new URL('https://registry.example.test/catalog');
+    await expect(assertResolvedHostPolicy(url, {
+      resolver: async () => [
+        { address: '93.184.216.34', family: 4 },
+        { address: '169.254.169.254', family: 4 },
+      ],
+    })).rejects.toMatchObject({ code: 'non-public-address' });
+  });
+
+  it('allows public answers and explicit loopback only for local transports', async () => {
+    await expect(assertResolvedHostPolicy(new URL('https://example.test'), {
+      resolver: async () => [{ address: '93.184.216.34', family: 4 }],
+    })).resolves.toBeUndefined();
+
+    const loopbackResolver = async () => [{ address: '127.0.0.1', family: 4 }];
+    await expect(assertResolvedHostPolicy(new URL('http://localhost:3000'), {
+      resolver: loopbackResolver,
+      allowLoopback: true,
+    })).resolves.toBeUndefined();
+    await expect(assertResolvedHostPolicy(new URL('https://localhost'), {
+      resolver: loopbackResolver,
+    })).rejects.toMatchObject({ code: 'non-public-address' });
+  });
+
+  it('fails closed when DNS lookup fails or returns no addresses', async () => {
+    await expect(assertResolvedHostPolicy(new URL('https://example.test'), {
+      resolver: async () => { throw new Error('dns detail must not escape'); },
+    })).rejects.toMatchObject({ code: 'lookup-failed' });
+    await expect(assertResolvedHostPolicy(new URL('https://example.test'), {
+      resolver: async () => [],
+    })).rejects.toMatchObject({ code: 'lookup-failed' });
   });
 });

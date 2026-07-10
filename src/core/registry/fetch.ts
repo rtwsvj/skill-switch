@@ -16,7 +16,11 @@
 
 import { redactUrlUserinfo, sanitizeOutputText } from '../security/output-safety.ts';
 import {
+  assertResolvedHostPolicy,
+  defaultHostResolver,
   hasUrlCredentials,
+  HostResolutionPolicyError,
+  type HostResolver,
   isPrivateNetworkLiteral,
   isRedirectStatus,
   MAX_SAFE_REDIRECTS,
@@ -42,6 +46,8 @@ export interface FetchJsonOptions {
    * 且只发往本次请求的 HTTPS 目标。缺省(绝大多数源)不带任何 authorization。
    */
   bearerToken?: string;
+  /** DNS resolver injection for tests; production defaults to node:dns lookup(all=true). */
+  hostResolver?: HostResolver;
 }
 
 /** 取数层错误:带稳定 code,便于上层归类 / 测试断言。 */
@@ -113,6 +119,7 @@ export async function fetchJson<T = unknown>(
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+  const hostResolver = opts.hostResolver ?? defaultHostResolver;
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new RegistryFetchError('请求超时', 'timeout')), timeoutMs);
@@ -127,6 +134,17 @@ export async function fetchJson<T = unknown>(
     let redirectsFollowed = 0;
     let res: Response;
     for (;;) {
+      try {
+        await assertResolvedHostPolicy(currentUrl, { resolver: hostResolver });
+      } catch (error) {
+        if (error instanceof HostResolutionPolicyError) {
+          throw new RegistryFetchError(
+            error.message,
+            error.code === 'non-public-address' ? 'insecure-url' : 'network',
+          );
+        }
+        throw error;
+      }
       res = await fetchImpl(currentUrl.toString(), {
         signal: ctrl.signal,
         headers,

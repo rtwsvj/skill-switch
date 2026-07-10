@@ -1,12 +1,59 @@
 import { describe, expect, it, vi } from 'vitest';
 import { connectHttp } from '../src/core/mcp-scan/client.ts';
-import { fetchJson } from '../src/core/registry/fetch.ts';
+import {
+  fetchJson as fetchJsonImpl,
+  type FetchJsonOptions,
+} from '../src/core/registry/fetch.ts';
+
+const PUBLIC_RESOLVER = async () => [{ address: '93.184.216.34', family: 4 }];
+
+function fetchJson<T = unknown>(rawUrl: string, options: FetchJsonOptions = {}): Promise<T> {
+  return fetchJsonImpl<T>(rawUrl, { hostResolver: PUBLIC_RESOLVER, ...options });
+}
 
 function redirectResponse(location: string): Response {
   return new Response(null, { status: 307, headers: { location } });
 }
 
 describe('redirect revalidation regression', () => {
+  it('rejects registry hostnames that resolve to private addresses before fetch', async () => {
+    const fetchImpl = vi.fn();
+    await expect(fetchJson('https://registry.example.test/catalog.json', {
+      fetchImpl: fetchImpl as never,
+      hostResolver: async () => [{ address: '10.0.0.5', family: 4 }],
+    })).rejects.toMatchObject({ code: 'insecure-url' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('re-resolves every registry redirect target and blocks a private DNS answer', async () => {
+    const fetchImpl = vi.fn(async () =>
+      redirectResponse('https://internal.example.test/catalog.json'));
+    const hostResolver = vi.fn(async (hostname: string) => [
+      hostname === 'internal.example.test'
+        ? { address: '192.168.1.20', family: 4 }
+        : { address: '93.184.216.34', family: 4 },
+    ]);
+
+    await expect(fetchJson('https://registry.example.test/catalog.json', {
+      fetchImpl: fetchImpl as never,
+      hostResolver,
+    })).rejects.toMatchObject({ code: 'insecure-url' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(hostResolver).toHaveBeenCalledWith('registry.example.test');
+    expect(hostResolver).toHaveBeenCalledWith('internal.example.test');
+  });
+
+  it('rejects MCP HTTPS hostnames resolving to private addresses before fetch', async () => {
+    const fetchImpl = vi.fn();
+    await expect(connectHttp({
+      name: 'private-dns', source: '.claude/mcp.json', transport: 'http',
+      url: 'https://mcp.example.test/v1',
+    }, 1000, fetchImpl as never, async () => [
+      { address: '169.254.169.254', family: 4 },
+    ])).rejects.toMatchObject({ code: 'insecure-url' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('registry fetch handles redirects manually and rejects HTTPS downgrade before following it', async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       expect(init?.redirect).toBe('manual');
@@ -29,7 +76,7 @@ describe('redirect revalidation regression', () => {
       name: 'redirecting-server', source: '.claude/mcp.json', transport: 'http',
       url: 'https://mcp.example.test/v1',
       headers: { authorization: 'Bearer redirect-secret' },
-    }, 1000, fetchImpl as never)).rejects.toMatchObject({ code: 'insecure-url' });
+    }, 1000, fetchImpl as never, PUBLIC_RESOLVER)).rejects.toMatchObject({ code: 'insecure-url' });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -38,7 +85,7 @@ describe('redirect revalidation regression', () => {
     await expect(connectHttp({
       name: 'redirecting-server', source: '.claude/mcp.json', transport: 'http',
       url: 'https://mcp.example.test/v1',
-    }, 1000, fetchImpl as never)).rejects.toMatchObject({ code: 'insecure-url' });
+    }, 1000, fetchImpl as never, PUBLIC_RESOLVER)).rejects.toMatchObject({ code: 'insecure-url' });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -63,7 +110,7 @@ describe('redirect revalidation regression', () => {
       name: 'redirecting-server', source: '.claude/mcp.json', transport: 'http',
       url: 'https://mcp.example.test/v1',
       headers: { authorization: 'Bearer redirect-secret' },
-    }, 1000, fetchImpl as never).catch(() => undefined);
+    }, 1000, fetchImpl as never, PUBLIC_RESOLVER).catch(() => undefined);
 
     expect(seen.length).toBeGreaterThanOrEqual(2);
     expect(seen[0]!.headers.authorization).toBe('Bearer redirect-secret');

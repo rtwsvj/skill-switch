@@ -6,8 +6,15 @@ import {
   DEFAULT_MAX_BYTES,
   RegistryFetchError,
   assertHttpsUrl,
-  fetchJson,
+  fetchJson as fetchJsonImpl,
+  type FetchJsonOptions,
 } from '../src/core/registry/fetch.ts';
+
+const PUBLIC_RESOLVER = async () => [{ address: '93.184.216.34', family: 4 }];
+
+function fetchJson<T = unknown>(rawUrl: string, options: FetchJsonOptions = {}): Promise<T> {
+  return fetchJsonImpl<T>(rawUrl, { hostResolver: PUBLIC_RESOLVER, ...options });
+}
 
 /** 造一个最小可用的 Response(带可流式读的 body)。 */
 function jsonResponse(

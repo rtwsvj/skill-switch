@@ -1,3 +1,4 @@
+import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { isSensitiveHeaderName } from './output-safety.ts';
 
@@ -29,15 +30,19 @@ function parseIpv4(hostname: string): readonly number[] | null {
 }
 
 function isPrivateIpv4(octets: readonly number[]): boolean {
-  const [a, b] = octets;
+  const [a, b, c] = octets;
   return a === 0 ||
     a === 10 ||
     a === 127 ||
     (a === 100 && b! >= 64 && b! <= 127) ||
     (a === 169 && b === 254) ||
     (a === 172 && b! >= 16 && b! <= 31) ||
-    (a === 192 && b === 168) ||
+    (a === 192 && (b === 0 || b === 168)) ||
+    (a === 192 && b === 88 && c === 99) ||
+    (a === 192 && b === 0 && c === 2) ||
     (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
     a! >= 224;
 }
 
@@ -84,6 +89,62 @@ export function isLoopbackHost(hostname: string): boolean {
 
 export function hasUrlCredentials(url: URL): boolean {
   return url.username.length > 0 || url.password.length > 0;
+}
+
+export interface ResolvedHostAddress {
+  address: string;
+  family: number;
+}
+
+export type HostResolver = (hostname: string) => Promise<readonly ResolvedHostAddress[]>;
+
+/** Production resolver; injectable so network clients can test DNS policy without real lookups. */
+export const defaultHostResolver: HostResolver = async (hostname) =>
+  lookup(hostname, { all: true, verbatim: true });
+
+export class HostResolutionPolicyError extends Error {
+  constructor(
+    message: string,
+    readonly code: 'lookup-failed' | 'non-public-address',
+  ) {
+    super(message);
+    this.name = 'HostResolutionPolicyError';
+  }
+}
+
+/**
+ * Resolve a URL hostname immediately before a request and reject non-public answers.
+ * `allowLoopback` exists only for the explicitly local HTTP MCP transport.
+ *
+ * This closes ordinary hostname-to-private-IP SSRF. It is not connect-time DNS pinning:
+ * a malicious resolver can still rebind between this lookup and the HTTP client's lookup.
+ */
+export async function assertResolvedHostPolicy(
+  url: URL,
+  options: { resolver?: HostResolver; allowLoopback?: boolean } = {},
+): Promise<void> {
+  const resolver = options.resolver ?? defaultHostResolver;
+  const host = normalizedHostname(url.hostname);
+  let addresses: readonly ResolvedHostAddress[];
+  try {
+    addresses = isIP(host) === 0
+      ? await resolver(host)
+      : [{ address: host, family: isIP(host) }];
+  } catch {
+    throw new HostResolutionPolicyError(`无法解析远程主机: ${host}`, 'lookup-failed');
+  }
+  if (addresses.length === 0) {
+    throw new HostResolutionPolicyError(`远程主机没有可用地址: ${host}`, 'lookup-failed');
+  }
+
+  for (const { address } of addresses) {
+    if (!isPrivateNetworkLiteral(address)) continue;
+    if (options.allowLoopback && isLoopbackHost(address)) continue;
+    throw new HostResolutionPolicyError(
+      `远程主机解析到非公网或特殊用途地址,已拒绝: ${host}`,
+      'non-public-address',
+    );
+  }
 }
 
 /** Resolve a redirect Location header without applying any trust policy. */

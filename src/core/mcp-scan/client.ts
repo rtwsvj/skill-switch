@@ -25,7 +25,11 @@ import {
   sanitizeOutputText,
 } from '../security/output-safety.ts';
 import {
+  assertResolvedHostPolicy,
+  defaultHostResolver,
   hasUrlCredentials,
+  HostResolutionPolicyError,
+  type HostResolver,
   isLoopbackHost,
   isPrivateNetworkLiteral,
   isRedirectStatus,
@@ -422,6 +426,7 @@ export async function connectHttp(
   spec: McpServerSpec,
   timeoutMs: number,
   fetchImpl: typeof fetch = fetch,
+  hostResolver: HostResolver = defaultHostResolver,
 ): Promise<ConnectResult> {
   if (spec.transport !== 'http' || !spec.url) {
     throw new McpScanClientError(`connectHttp 仅支持 http transport: ${spec.name}`, 'protocol-error');
@@ -446,6 +451,10 @@ export async function connectHttp(
 
     for (;;) {
       try {
+        await assertResolvedHostPolicy(currentUrl, {
+          resolver: hostResolver,
+          allowLoopback: currentUrl.protocol === 'http:',
+        });
         res = await fetchImpl(currentUrl.toString(), {
           method: 'POST',
           signal: ctrl.signal,
@@ -456,6 +465,12 @@ export async function connectHttp(
           credentials: 'omit',
         });
       } catch (e) {
+        if (e instanceof HostResolutionPolicyError) {
+          throw new McpScanClientError(
+            e.message,
+            e.code === 'non-public-address' ? 'insecure-url' : 'network',
+          );
+        }
         if (e instanceof Error && e.name === 'AbortError') {
           throw new McpScanClientError(
             `HTTP 请求超时(>${timeoutMs}ms): ${sanitizeOutputText(currentUrl.pathname)}`,
@@ -619,13 +634,13 @@ export async function connectHttp(
 export async function connectAndListTools(
   spec: McpServerSpec,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
-  opts: { fetchImpl?: typeof fetch; spawner?: StdioSpawner } = {},
+  opts: { fetchImpl?: typeof fetch; spawner?: StdioSpawner; hostResolver?: HostResolver } = {},
 ): Promise<ConnectResult> {
   if (spec.transport === 'stdio') {
     return connectStdio(spec, timeoutMs, opts.spawner);
   }
   if (spec.transport === 'http') {
-    return connectHttp(spec, timeoutMs, opts.fetchImpl);
+    return connectHttp(spec, timeoutMs, opts.fetchImpl, opts.hostResolver);
   }
   throw new McpScanClientError(`未知的 transport: ${(spec as { transport?: string }).transport ?? '<undefined>'}`, 'protocol-error');
 }

@@ -14,10 +14,11 @@
   and special members; this intentionally means a legacy snapshot containing symlinks
   cannot be restored without manual migration.
 - **Remote hostname validation is not a network sandbox.** Registry/MCP redirect hops
-  are revalidated, literal loopback/private IPs are rejected, HTTPS downgrade is
-  blocked, and cross-origin credentials are stripped. DNS names that resolve to private
-  addresses and DNS rebinding require resolver/connect-time pinning or an egress proxy;
-  callers must not treat URL validation alone as SSRF-proof isolation.
+  are revalidated, literal and DNS-resolved loopback/private/special IPs are rejected,
+  HTTPS downgrade is blocked, and cross-origin credentials are stripped. The resolver
+  check occurs immediately before fetch, but Node's HTTP client performs its own lookup;
+  DNS rebinding between those two lookups still requires connect-time address pinning or
+  an egress proxy. Callers must not treat URL validation alone as SSRF-proof isolation.
 - **Unified diff output is resource-bounded but can be coarse.** Large divergent middle
   sections are emitted as deterministic whole-section replacements instead of an exact
   quadratic LCS. Directory comparison streams hashes and only loads changed files, but
