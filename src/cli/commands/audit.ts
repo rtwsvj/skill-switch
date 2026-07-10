@@ -275,9 +275,19 @@ const execFileAsync = promisify(execFile);
  */
 async function getChangedFiles(commit: string, cwd: string): Promise<Set<string> | null> {
   try {
+    // Resolve user input to an object id first. `--end-of-options` prevents an
+    // option-looking ref from becoming a git flag; the subsequent diff receives
+    // only the canonical hexadecimal id.
+    const { stdout: resolvedStdout } = await execFileAsync(
+      'git',
+      ['rev-parse', '--verify', '--end-of-options', `${commit}^{commit}`],
+      { cwd },
+    );
+    const resolved = resolvedStdout.trim();
+    if (!/^[0-9a-f]{40,64}$/iu.test(resolved)) return null;
     const { stdout } = await execFileAsync(
       'git',
-      ['diff', '--name-only', `${commit}...HEAD`],
+      ['diff', '--name-only', '--end-of-options', `${resolved}...HEAD`],
       { cwd },
     );
     const files = stdout.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -483,7 +493,10 @@ async function collectTextFiles(
       if (entry.isDirectory()) {
         if (SAFE_COPY_EXCLUDED_DIRECTORIES.has(entry.name)) {
           skippedFiles += 1;
-          incompleteReasons.add('excluded-directory');
+          // VCS metadata is outside the skill payload by definition. A dependency
+          // tree can contain executable code referenced by the skill, so omitting
+          // node_modules remains an incomplete audit unless copy mode strips it.
+          if (entry.name === 'node_modules') incompleteReasons.add('excluded-directory');
           continue;
         }
         if (depth >= MAX_AUDIT_WALK_DEPTH) {
