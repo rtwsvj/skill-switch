@@ -19,6 +19,20 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { basename } from 'node:path';
+import {
+  formatArgvForDisplay,
+  redactUrlUserinfo,
+  sanitizeOutputText,
+} from '../security/output-safety.ts';
+import {
+  hasUrlCredentials,
+  isLoopbackHost,
+  isPrivateNetworkLiteral,
+  isRedirectStatus,
+  MAX_SAFE_REDIRECTS,
+  resolveRedirectUrl,
+  stripSensitiveHeadersForRedirect,
+} from '../security/url-safety.ts';
 import type { ToolDefinition } from './baseline.ts';
 import type { McpServerSpec } from './discover.ts';
 
@@ -37,6 +51,7 @@ export class McpScanClientError extends Error {
       | 'rpc-error'         // server 返回 JSON-RPC error
       | 'too-large'         // 响应体超过 2MB
       | 'network'           // 其它网络层错误
+      | 'redirect-error'    // 重定向缺 Location 或超过上限
       | 'unsupported-method', // 协议层未知方法(防止 server 推任意方法)
   ) {
     super(message);
@@ -99,31 +114,36 @@ function isMatchingResponse(res: unknown, expectedId: number): res is JsonRpcRes
 
 /**
  * http URL 安全断言:
- *   - https:// → 任意 host(均可放行,走 TLS)
+ *   - https:// → 公网 host(私网/特殊用途 IP literal 拒绝)
  *   - http://  → host 必须是 loopback(localhost / 127.x.x.x / [::1]),否则拒绝
  *   - 其它协议(ws://, file://, ...) → 拒绝
  *
  * 返回规范化后的 URL,失败抛 McpScanClientError。
  */
 export function assertScanUrl(rawUrl: string): URL {
+  const safeRawUrl = sanitizeOutputText(redactUrlUserinfo(rawUrl));
   let u: URL;
   try {
     u = new URL(rawUrl);
   } catch {
-    throw new McpScanClientError(`无法解析的 MCP URL: ${rawUrl}`, 'invalid-url');
+    throw new McpScanClientError(`无法解析的 MCP URL: ${safeRawUrl}`, 'invalid-url');
   }
-  if (u.protocol === 'https:') return u;
-  if (u.protocol === 'http:') {
-    const host = u.hostname.toLowerCase();
-    const isLoopback =
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === '0.0.0.0' ||
-      host === '[::1]' ||
-      host === '::1';
-    if (!isLoopback) {
+  if (hasUrlCredentials(u)) {
+    throw new McpScanClientError(`MCP URL 不允许内嵌凭据: ${safeRawUrl}`, 'invalid-url');
+  }
+  if (u.protocol === 'https:') {
+    if (isPrivateNetworkLiteral(u.hostname)) {
       throw new McpScanClientError(
-        `mcp-scan 仅允许 https:// 任意 host,或 http:// loopback;已拒绝 ${u.protocol}//${u.host}`,
+        `mcp-scan 不允许 HTTPS 连接私网或特殊用途 IP: ${safeRawUrl}`,
+        'insecure-url',
+      );
+    }
+    return u;
+  }
+  if (u.protocol === 'http:') {
+    if (!isLoopbackHost(u.hostname)) {
+      throw new McpScanClientError(
+        `mcp-scan 仅允许 https:// 公网 host,或 http:// loopback;已拒绝 ${u.protocol}//${sanitizeOutputText(u.host)}`,
         'insecure-url',
       );
     }
@@ -153,7 +173,7 @@ interface StdioSpawner {
 /** 把 server 子进程的描述拼成"这会启动一个本地进程: <command> <arg1> <arg2>..." 用于确认提示。 */
 export function describeStdioCommand(spec: McpServerSpec): string {
   if (spec.transport !== 'stdio' || !spec.command) return '<unknown>';
-  return [spec.command, ...(spec.args ?? [])].map((s) => (s.includes(' ') ? JSON.stringify(s) : s)).join(' ');
+  return formatArgvForDisplay(spec.command, spec.args ?? []);
 }
 
 /**
@@ -419,29 +439,62 @@ export async function connectHttp(
   }
 
   const postJsonRpc = async (req: JsonRpcRequest): Promise<JsonRpcResponse> => {
+    let currentUrl = url;
+    let currentHeaders = { ...reqHeaders };
+    let redirectsFollowed = 0;
     let res: Response;
-    try {
-      res = await fetchImpl(url.toString(), {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: reqHeaders,
-        body: JSON.stringify(req),
-        // 拒绝带 cookie 凭据(与 registry/fetch.ts 同样的零遥测原则)
-        credentials: 'omit',
-      });
-    } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') {
-        throw new McpScanClientError(`HTTP 请求超时(>${timeoutMs}ms): ${url.pathname}`, 'timeout');
+
+    for (;;) {
+      try {
+        res = await fetchImpl(currentUrl.toString(), {
+          method: 'POST',
+          signal: ctrl.signal,
+          headers: currentHeaders,
+          body: JSON.stringify(req),
+          redirect: 'manual',
+          // 拒绝带 cookie 凭据(与 registry/fetch.ts 同样的零遥测原则)
+          credentials: 'omit',
+        });
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          throw new McpScanClientError(
+            `HTTP 请求超时(>${timeoutMs}ms): ${sanitizeOutputText(currentUrl.pathname)}`,
+            'timeout',
+          );
+        }
+        throw new McpScanClientError(
+          `HTTP 请求失败: ${sanitizeOutputText(e instanceof Error ? e.message : String(e))}`,
+          'network',
+        );
       }
-      throw new McpScanClientError(
-        `HTTP 请求失败: ${(e as Error).message}`,
-        'network',
-      );
+
+      if (!isRedirectStatus(res.status)) break;
+      const location = res.headers.get('location');
+      if (!location) {
+        throw new McpScanClientError('MCP endpoint 重定向缺少 Location 响应头', 'redirect-error');
+      }
+      if (redirectsFollowed >= MAX_SAFE_REDIRECTS) {
+        throw new McpScanClientError(`MCP endpoint 重定向超过 ${MAX_SAFE_REDIRECTS} 次上限`, 'redirect-error');
+      }
+
+      let resolved: URL;
+      try {
+        resolved = resolveRedirectUrl(currentUrl, location);
+      } catch {
+        throw new McpScanClientError('MCP endpoint 返回无法解析的重定向地址', 'invalid-url');
+      }
+      if (currentUrl.protocol === 'https:' && resolved.protocol !== 'https:') {
+        throw new McpScanClientError('MCP endpoint 重定向不允许从 HTTPS 降级', 'insecure-url');
+      }
+      const nextUrl = assertScanUrl(resolved.toString());
+      currentHeaders = stripSensitiveHeadersForRedirect(currentHeaders, currentUrl, nextUrl);
+      currentUrl = nextUrl;
+      redirectsFollowed++;
     }
 
     if (!res.ok) {
       throw new McpScanClientError(
-        `MCP endpoint 返回 HTTP ${res.status}: ${url.pathname}`,
+        `MCP endpoint 返回 HTTP ${res.status}: ${sanitizeOutputText(currentUrl.pathname)}`,
         'network',
       );
     }
@@ -462,7 +515,7 @@ export async function connectHttp(
             if (received > MAX_RESPONSE_BYTES) {
               await reader.cancel().catch(() => {});
               throw new McpScanClientError(
-                `响应体超过 ${MAX_RESPONSE_BYTES} 字节上限,已断开: ${url.pathname}`,
+                `响应体超过 ${MAX_RESPONSE_BYTES} 字节上限,已断开: ${sanitizeOutputText(currentUrl.pathname)}`,
                 'too-large',
               );
             }
@@ -476,7 +529,10 @@ export async function connectHttp(
       try {
         return JSON.parse(text) as JsonRpcResponse;
       } catch {
-        throw new McpScanClientError(`JSON-RPC 响应解析失败: ${url.pathname}`, 'protocol-error');
+        throw new McpScanClientError(
+          `JSON-RPC 响应解析失败: ${sanitizeOutputText(currentUrl.pathname)}`,
+          'protocol-error',
+        );
       }
     }
 
@@ -485,14 +541,17 @@ export async function connectHttp(
     const bytes = Buffer.byteLength(text, 'utf8');
     if (bytes > MAX_RESPONSE_BYTES) {
       throw new McpScanClientError(
-        `响应体超过 ${MAX_RESPONSE_BYTES} 字节上限,已断开: ${url.pathname}`,
+        `响应体超过 ${MAX_RESPONSE_BYTES} 字节上限,已断开: ${sanitizeOutputText(currentUrl.pathname)}`,
         'too-large',
       );
     }
     try {
       return JSON.parse(text) as JsonRpcResponse;
     } catch {
-      throw new McpScanClientError(`JSON-RPC 响应解析失败: ${url.pathname}`, 'protocol-error');
+      throw new McpScanClientError(
+        `JSON-RPC 响应解析失败: ${sanitizeOutputText(currentUrl.pathname)}`,
+        'protocol-error',
+      );
     }
   };
 
@@ -505,7 +564,7 @@ export async function connectHttp(
     });
     const initResp = await postJsonRpc(initReq);
     if (initResp.error) {
-      throw new McpScanClientError(`initialize 失败: ${initResp.error.message}`, 'rpc-error');
+      throw new McpScanClientError(`initialize 失败: ${sanitizeOutputText(initResp.error.message)}`, 'rpc-error');
     }
     const initResult = initResp.result as { protocolVersion?: string } | undefined;
 
@@ -523,7 +582,7 @@ export async function connectHttp(
     const toolsReq = makeRequest(2, 'tools/list', {});
     const toolsResp = await postJsonRpc(toolsReq);
     if (toolsResp.error) {
-      throw new McpScanClientError(`tools/list 失败: ${toolsResp.error.message}`, 'rpc-error');
+      throw new McpScanClientError(`tools/list 失败: ${sanitizeOutputText(toolsResp.error.message)}`, 'rpc-error');
     }
     const toolsResult = toolsResp.result as { tools?: unknown } | undefined;
     const toolsRaw = Array.isArray(toolsResult?.tools) ? toolsResult!.tools : [];
@@ -576,7 +635,7 @@ export async function connectAndListTools(
 /** 描述一个 server 的"将要执行的连接",用于确认提示与人类输出。 */
 export function describeServer(spec: McpServerSpec): string {
   if (spec.transport === 'stdio') {
-    return `stdio: ${basename(spec.command ?? '<no-command>')} ${(spec.args ?? []).join(' ')}`.trim();
+    return `stdio: ${formatArgvForDisplay(basename(spec.command ?? '<no-command>'), spec.args ?? [])}`;
   }
-  return `http: ${spec.url}`;
+  return `http: ${sanitizeOutputText(redactUrlUserinfo(spec.url ?? '<no-url>'))}`;
 }

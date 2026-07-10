@@ -14,6 +14,16 @@
 // 零新依赖:用 Node 内置 `fetch` + `JSON.parse`。fetchImpl 可注入,测试全程 mock,零真实网络。
 // 本文件不引用模块 URL 元数据(那会崩 SEA),也不 import node:http(s)/net(由测试哨兵把关)。
 
+import { redactUrlUserinfo, sanitizeOutputText } from '../security/output-safety.ts';
+import {
+  hasUrlCredentials,
+  isPrivateNetworkLiteral,
+  isRedirectStatus,
+  MAX_SAFE_REDIRECTS,
+  resolveRedirectUrl,
+  stripSensitiveHeadersForRedirect,
+} from '../security/url-safety.ts';
+
 /** 默认请求超时(毫秒)。 */
 export const DEFAULT_TIMEOUT_MS = 10_000;
 /** 默认响应体大小上限(字节);超限即中止。 */
@@ -46,6 +56,7 @@ export class RegistryFetchError extends Error {
       | 'too-large' // 响应体超上限
       | 'timeout' // 超时 abort
       | 'parse-error' // JSON.parse 失败
+      | 'redirect-error' // 重定向缺 Location 或超过上限
       | 'network', // 其它网络层错误
   ) {
     super(message);
@@ -55,17 +66,24 @@ export class RegistryFetchError extends Error {
 
 /** 校验 URL 必须是 https://(opt-in 网络的硬护栏)。 */
 export function assertHttpsUrl(rawUrl: string): URL {
+  const safeRawUrl = sanitizeOutputText(redactUrlUserinfo(rawUrl));
   let u: URL;
   try {
     u = new URL(rawUrl);
   } catch {
-    throw new RegistryFetchError(`无法解析的 URL:${rawUrl}`, 'invalid-url');
+    throw new RegistryFetchError(`无法解析的 URL:${safeRawUrl}`, 'invalid-url');
   }
   if (u.protocol !== 'https:') {
     throw new RegistryFetchError(
-      `仅允许 https:// 的注册表地址(已拒绝 ${u.protocol}//…):${rawUrl}`,
+      `仅允许 https:// 的注册表地址(已拒绝 ${u.protocol}//…):${safeRawUrl}`,
       'insecure-url',
     );
+  }
+  if (hasUrlCredentials(u)) {
+    throw new RegistryFetchError(`注册表 URL 不允许内嵌凭据:${safeRawUrl}`, 'invalid-url');
+  }
+  if (isPrivateNetworkLiteral(u.hostname)) {
+    throw new RegistryFetchError(`注册表 URL 不允许私网或特殊用途 IP:${safeRawUrl}`, 'insecure-url');
   }
   return u;
 }
@@ -91,6 +109,7 @@ export async function fetchJson<T = unknown>(
   opts: FetchJsonOptions = {},
 ): Promise<T> {
   const url = assertHttpsUrl(rawUrl);
+  const initialUrlForDisplay = sanitizeOutputText(redactUrlUserinfo(rawUrl));
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
@@ -98,45 +117,74 @@ export async function fetchJson<T = unknown>(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new RegistryFetchError('请求超时', 'timeout')), timeoutMs);
 
-  let res: Response;
   try {
     // 零遥测:只发一个最小的 accept 头;不带 user-agent / cookie / 任何本机信息。
     // 仅当调用方显式传 bearerToken 时附加 authorization(见 FetchJsonOptions.bearerToken)。
-    const headers: Record<string, string> = { accept: 'application/json' };
+    let headers: Record<string, string> = { accept: 'application/json' };
     if (opts.bearerToken) headers.authorization = `Bearer ${opts.bearerToken}`;
-    res = await fetchImpl(url.toString(), {
-      signal: ctrl.signal,
-      headers,
-      redirect: 'follow',
-      // 永不带 cookie 凭据(即便目标同源也不附 cookie);authorization 仅在上面显式附加。
-      credentials: 'omit',
-    });
-  } catch (e) {
-    clearTimeout(timer);
-    if (e instanceof RegistryFetchError) throw e;
-    if (e instanceof Error && e.name === 'AbortError') {
-      throw new RegistryFetchError(`请求超时(>${timeoutMs}ms):${rawUrl}`, 'timeout');
-    }
-    throw new RegistryFetchError(`网络请求失败:${e instanceof Error ? e.message : String(e)}`, 'network');
-  }
 
-  try {
+    let currentUrl = url;
+    let redirectsFollowed = 0;
+    let res: Response;
+    for (;;) {
+      res = await fetchImpl(currentUrl.toString(), {
+        signal: ctrl.signal,
+        headers,
+        redirect: 'manual',
+        // 永不带 cookie 凭据(即便目标同源也不附 cookie);authorization 仅在上面显式附加。
+        credentials: 'omit',
+      });
+
+      if (!isRedirectStatus(res.status)) break;
+      const location = res.headers.get('location');
+      if (!location) {
+        throw new RegistryFetchError('注册表重定向缺少 Location 响应头', 'redirect-error');
+      }
+      if (redirectsFollowed >= MAX_SAFE_REDIRECTS) {
+        throw new RegistryFetchError(`注册表重定向超过 ${MAX_SAFE_REDIRECTS} 次上限`, 'redirect-error');
+      }
+
+      let resolved: URL;
+      try {
+        resolved = resolveRedirectUrl(currentUrl, location);
+      } catch {
+        throw new RegistryFetchError('注册表返回无法解析的重定向地址', 'invalid-url');
+      }
+      const nextUrl = assertHttpsUrl(resolved.toString());
+      headers = stripSensitiveHeadersForRedirect(headers, currentUrl, nextUrl);
+      currentUrl = nextUrl;
+      redirectsFollowed++;
+    }
+
+    const responseUrlForDisplay = sanitizeOutputText(redactUrlUserinfo(currentUrl.toString()));
     if (!res.ok) {
-      throw new RegistryFetchError(`注册表返回 HTTP ${res.status}:${rawUrl}`, 'http-error');
+      throw new RegistryFetchError(`注册表返回 HTTP ${res.status}:${responseUrlForDisplay}`, 'http-error');
     }
     if (!isJsonContentType(res.headers.get('content-type'))) {
       throw new RegistryFetchError(
-        `响应不是 JSON(content-type=${res.headers.get('content-type') ?? '空'}):${rawUrl}`,
+        `响应不是 JSON(content-type=${sanitizeOutputText(res.headers.get('content-type') ?? '空')}):${responseUrlForDisplay}`,
         'not-json',
       );
     }
 
-    const text = await readBodyCapped(res, maxBytes, rawUrl);
+    const text = await readBodyCapped(res, maxBytes, responseUrlForDisplay);
     try {
       return JSON.parse(text) as T;
     } catch (e) {
-      throw new RegistryFetchError(`响应 JSON 解析失败:${e instanceof Error ? e.message : String(e)}`, 'parse-error');
+      throw new RegistryFetchError(
+        `响应 JSON 解析失败:${sanitizeOutputText(e instanceof Error ? e.message : String(e))}`,
+        'parse-error',
+      );
     }
+  } catch (e) {
+    if (e instanceof RegistryFetchError) throw e;
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new RegistryFetchError(`请求超时(>${timeoutMs}ms):${initialUrlForDisplay}`, 'timeout');
+    }
+    throw new RegistryFetchError(
+      `网络请求失败:${sanitizeOutputText(e instanceof Error ? e.message : String(e))}`,
+      'network',
+    );
   } finally {
     clearTimeout(timer);
   }

@@ -71,6 +71,7 @@ import type { AuditFinding, Severity } from '../../core/audit/types.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import { SAFE_COPY_EXCLUDED_DIRECTORIES } from '../../core/safe-copy.ts';
 import { scanHome, type SkillRecord } from '../../core/scan.ts';
+import { sanitizeOutputText } from '../../core/security/output-safety.ts';
 
 // 同步读取版本号;SARIF tool.driver.version 要用。失败时回退 'unknown'。
 function readVersion(): string {
@@ -604,9 +605,11 @@ function formatFindingLines(
     const baselineTag = needsBaseline && baselinedFingerprints.has(fingerprintFinding(f))
       ? '  （基线已接受）'
       : '';
-    lines.push(`  [${f.severity.toUpperCase()}] ${f.ruleId}  ${f.file}:${f.line}${baselineTag}`);
-    lines.push(`    ${f.message}`);
-    lines.push(`    > ${f.excerpt.trim()}`);
+    lines.push(
+      `  [${f.severity.toUpperCase()}] ${sanitizeOutputText(f.ruleId)}  ${sanitizeOutputText(f.file)}:${f.line}${baselineTag}`,
+    );
+    lines.push(`    ${sanitizeOutputText(f.message)}`);
+    lines.push(`    > ${sanitizeOutputText(f.excerpt.trim())}`);
   }
   return lines;
 }
@@ -641,7 +644,10 @@ export function formatAuditReport(
   report: AuditReport & { coverage?: AuditCoverage },
   baselinedFingerprints: ReadonlySet<string> = new Set(),
 ): string {
-  const lines: string[] = [`audit: ${path}`, `score: ${report.score}/100  verdict: ${report.verdict}`];
+  const lines: string[] = [
+    `audit: ${sanitizeOutputText(path)}`,
+    `score: ${report.score}/100  verdict: ${report.verdict}`,
+  ];
   if (report.coverage) {
     const coverage = report.coverage;
     const status = coverage.complete ? 'complete' : 'INCOMPLETE (blocks by default)';
@@ -738,15 +744,15 @@ function formatAuditHomeTable(
   report: AuditHomeReport,
   baselinedFingerprints: ReadonlySet<string> = new Set(),
 ): string {
-  const parts: string[] = [`audit home: ${report.home}`];
+  const parts: string[] = [`audit home: ${sanitizeOutputText(report.home)}`];
 
   if (report.skills.length === 0) {
     parts.push('未发现任何 skill。');
   } else {
     const header = ['NAME', 'DIR', 'SCORE', 'VERDICT', 'COVERAGE', 'BLOCK'];
     const rows = report.skills.map((skill) => [
-      skill.name,
-      skill.dir,
+      sanitizeOutputText(skill.name),
+      sanitizeOutputText(skill.dir),
       String(skill.score),
       skill.verdict,
       skill.coverage.complete ? 'complete' : 'INCOMPLETE',
@@ -760,7 +766,9 @@ function formatAuditHomeTable(
     if (incompleteSkills.length > 0) {
       parts.push('', '--- incomplete audit coverage ---');
       for (const skill of incompleteSkills) {
-        parts.push(`${skill.name}: ${skill.coverage.incompleteReasons.join(', ')}`);
+        parts.push(
+          `${sanitizeOutputText(skill.name)}: ${skill.coverage.incompleteReasons.join(', ')}`,
+        );
       }
     }
   }
@@ -772,9 +780,9 @@ function formatAuditHomeTable(
     } else {
       for (const cfg of report.configs) {
         if (cfg.findings.length === 0) {
-          parts.push(`${cfg.relPath}: ok`);
+          parts.push(`${sanitizeOutputText(cfg.relPath)}: ok`);
         } else {
-          parts.push(`${cfg.relPath}: ${cfg.findings.length} finding(s)`);
+          parts.push(`${sanitizeOutputText(cfg.relPath)}: ${cfg.findings.length} finding(s)`);
           parts.push(...formatFindingLines(cfg.findings, baselinedFingerprints));
         }
       }
@@ -811,34 +819,37 @@ export function formatGuidedFixOutput(summary: GuidedFixSummary, apply: boolean)
   }
 
   for (const r of summary.results) {
+    const safeRelFile = sanitizeOutputText(r.relFile);
+    const safeRuleId = sanitizeOutputText(r.finding.ruleId);
+    const safeMessage = sanitizeOutputText(r.finding.message);
     if (r.kind === 'skipped-config') {
-      lines.push(`  跳过(配置文件,只读): ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+      lines.push(`  跳过(配置文件,只读): ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
       continue;
     }
     if (r.kind === 'manual') {
-      lines.push(`  需手动修复 (no safe auto-fix): ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
-      lines.push(`    ${r.finding.message}`);
-      lines.push(`    > ${r.finding.excerpt.trim()}`);
+      lines.push(`  需手动修复 (no safe auto-fix): ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
+      lines.push(`    ${safeMessage}`);
+      lines.push(`    > ${sanitizeOutputText(r.finding.excerpt.trim())}`);
       continue;
     }
     // fixable
     if (r.diffPreview === '') {
-      lines.push(`  已处理(幂等,无变化): ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+      lines.push(`  已处理(幂等,无变化): ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
       continue;
     }
     if (apply) {
-      lines.push(`  已修复: ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+      lines.push(`  已修复: ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
       if (r.backupPath) {
         const created = r.backupCreated ? '(新建)' : '(已存在,保留原备份)';
-        lines.push(`    备份: ${r.backupPath} ${created}`);
+        lines.push(`    备份: ${sanitizeOutputText(r.backupPath)} ${created}`);
       }
     } else {
-      lines.push(`  可自动修复: ${r.relFile}:${r.finding.line}  [${r.finding.ruleId}]`);
+      lines.push(`  可自动修复: ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
     }
-    lines.push(`    ${r.finding.message}`);
+    lines.push(`    ${safeMessage}`);
     // diff 预览缩进 4 格
     for (const dl of r.diffPreview.split('\n')) {
-      lines.push(`    ${dl}`);
+      lines.push(`    ${sanitizeOutputText(dl)}`);
     }
   }
 

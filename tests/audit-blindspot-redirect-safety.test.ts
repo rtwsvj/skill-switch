@@ -33,6 +33,15 @@ describe('redirect revalidation regression', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('MCP rejects an HTTPS downgrade even when the target is an otherwise allowed loopback', async () => {
+    const fetchImpl = vi.fn(async () => redirectResponse('http://127.0.0.1:8787/mcp'));
+    await expect(connectHttp({
+      name: 'redirecting-server', source: '.claude/mcp.json', transport: 'http',
+      url: 'https://mcp.example.test/v1',
+    }, 1000, fetchImpl as never)).rejects.toMatchObject({ code: 'insecure-url' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('never forwards authorization when a permitted redirect changes origin', async () => {
     const seen: Array<{ url: string; headers: Record<string, string> }> = [];
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
@@ -60,5 +69,35 @@ describe('redirect revalidation regression', () => {
     expect(seen[0]!.headers.authorization).toBe('Bearer redirect-secret');
     expect(seen[1]!.url).toBe('https://other-origin.example.test/mcp');
     expect(Object.keys(seen[1]!.headers).map((key) => key.toLowerCase())).not.toContain('authorization');
+  });
+
+  it('registry strips bearer authorization after a cross-origin redirect', async () => {
+    const seen: Array<{ url: string; headers: Record<string, string> }> = [];
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      seen.push({ url, headers: init?.headers as Record<string, string> });
+      return seen.length === 1
+        ? redirectResponse('https://mirror.example.test/catalog.json')
+        : Response.json({ ok: true });
+    });
+
+    await expect(fetchJson('https://registry.example.test/catalog.json', {
+      bearerToken: 'registry-secret',
+      fetchImpl: fetchImpl as never,
+    })).resolves.toEqual({ ok: true });
+    expect(seen[0]!.headers.authorization).toBe('Bearer registry-secret');
+    expect(Object.keys(seen[1]!.headers).map((key) => key.toLowerCase()))
+      .not.toContain('authorization');
+  });
+
+  it('enforces a maximum of five followed redirects', async () => {
+    let calls = 0;
+    const fetchImpl = vi.fn(async () => {
+      calls++;
+      return redirectResponse(`/redirect-${calls}`);
+    });
+    await expect(fetchJson('https://registry.example.test/catalog.json', {
+      fetchImpl: fetchImpl as never,
+    })).rejects.toMatchObject({ code: 'redirect-error' });
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
   });
 });
