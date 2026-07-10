@@ -1,195 +1,100 @@
-# skill-switch 发行版分发指南
+# skill-switch 分发与部署指南
 
-本文说明三种安装方式:Homebrew(macOS)、Scoop(Windows)、npm(跨平台 CLI)。
+本文档以仓库中可复现的构建和发布脚本为准，不把计划中的渠道描述成已发布渠道。
 
----
+## 当前支持矩阵
 
-## 1. npm(最简单,跨平台)
+| 交付形式 | 平台 | 状态 | 运行时 / 签名 |
+|---|---|---|---|
+| npm / `npx` CLI | macOS、Linux、Windows | 当前 CLI 安装路径 | Node.js 20+ |
+| 源码 CLI | macOS、Linux、Windows | 支持 | Node.js 20+ 和 pnpm 10 |
+| 原生 SwiftUI App 源码构建 | macOS 14+ | 支持，只构建当前 Mac 的 CPU 架构 | 未签名 |
+| tag workflow 的 `skill-switch.app.zip` | macOS 14+ | 自动构建的预览产物 | 未签名，可能被 Gatekeeper 拦截 |
+| Developer ID 签名 + Apple 公证 DMG | macOS 14+ | 可选的人工发布步骤 | 只有实际执行并验证后才能宣称已签名 |
+| Homebrew tap / Scoop / MSI / AppImage / deb | 多平台 | **planned，当前不可安装** | 当前 release workflow 不产出这些文件 |
 
-无需安装,直接用 `npx`:
+`@rtwsvj/skill-switch` 定位为 **CLI 包**。它不承诺 `import '@rtwsvj/skill-switch'` 这样的 Node 库 API；受支持的入口是 `skill-switch` / `npx @rtwsvj/skill-switch`。
+
+## npm / npx CLI
+
+无需全局安装：
 
 ```bash
 npx @rtwsvj/skill-switch --help
 npx @rtwsvj/skill-switch audit --configs
 ```
 
-或全局安装:
+或全局安装 CLI：
 
 ```bash
 npm install -g @rtwsvj/skill-switch
-skill-switch --help
+skill-switch --version
+skill-switch audit --configs
 ```
 
----
+发布前必须对 `npm pack` 生成的 tarball 做干净 Node 20/22 环境的安装、`--version`、`--help` 和一个实际 audit 冒烟。`npm pack --dry-run` 只能证明文件被打包，不能证明安装后可运行。
 
-## 2. Homebrew(macOS)
+## 从源码构建 macOS App
 
-> Formula 源文件位于本仓库 `packaging/skill-switch.rb`。**tap 仓库(rtwsvj/homebrew-tap)尚未创建**——建立后发布时把 Formula 同步复制过去,下方安装命令才可用。
+需要 macOS 14+、Xcode Command Line Tools / Swift 6、Node.js 20+ 和 pnpm 10：
 
 ```bash
-brew tap rtwsvj/tap
-brew install skill-switch
-```
-
-升级:
-
-```bash
-brew upgrade skill-switch
-```
-
-卸载:
-
-```bash
-brew uninstall skill-switch
-brew untap rtwsvj/tap
-```
-
-### Shell 自动补全(Homebrew)
-
-```bash
-# bash
-eval "$(skill-switch completion bash)"
-# 持久化:
-echo 'eval "$(skill-switch completion bash)"' >> ~/.bashrc
-
-# zsh(写入 Homebrew 的 site-functions,下次 compinit 自动加载)
-skill-switch completion zsh > $(brew --prefix)/share/zsh/site-functions/_skill-switch
-
-# fish
-skill-switch completion fish > ~/.config/fish/completions/skill-switch.fish
-```
-
-### 维护:更新 Formula
-
-1. 发布新 GitHub Release,获取 DMG 的 SHA-256:
-   ```bash
-   curl -sL https://github.com/rtwsvj/skill-switch/releases/download/vX.Y.Z/skill-switch_X.Y.Z_aarch64.dmg | shasum -a 256
-   ```
-2. 编辑 `packaging/skill-switch.rb`,更新 `version`、`url`、`sha256`。
-3. 把更新后的 Formula 推送到 `rtwsvj/homebrew-tap` 仓库的 `Formula/` 目录。
-
----
-
-## 3. Scoop(Windows)
-
-> Scoop bucket 托管在 [rtwsvj/scoop-bucket](https://github.com/rtwsvj/scoop-bucket)。
-> Manifest 源文件位于本仓库 `packaging/skill-switch.json`,发布时同步复制到 bucket 仓库。
-
-```powershell
-scoop bucket add rtwsvj-bucket https://github.com/rtwsvj/scoop-bucket
-scoop install skill-switch
-```
-
-升级:
-
-```powershell
-scoop update skill-switch
-```
-
-卸载:
-
-```powershell
-scoop uninstall skill-switch
-```
-
-### 维护:更新 Manifest
-
-1. 发布新 GitHub Release,获取 MSI 的 SHA-256(PowerShell):
-   ```powershell
-   (Get-FileHash skill-switch_X.Y.Z_x64_en-US.msi -Algorithm SHA256).Hash
-   ```
-2. 编辑 `packaging/skill-switch.json`,更新 `version`、`url`、`hash`。
-3. 推送到 `rtwsvj/scoop-bucket` 仓库。
-
----
-
-## 4. macOS DMG(手动)
-
-```bash
-# 1. 下载 DMG
-curl -L -O https://github.com/rtwsvj/skill-switch/releases/latest/download/skill-switch_0.9.0_aarch64.dmg
-
-# 2. 双击挂载,把 skill-switch.app 拖进「应用程序」
-# 3. 链 CLI 到 PATH
-ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
-skill-switch --help
-```
-
----
-
-## 5. Linux AppImage / deb
-
-```bash
-# AppImage(通用)
-chmod +x skill-switch_*.AppImage
-./skill-switch_*.AppImage --help
-
-# deb(Debian / Ubuntu)
-sudo dpkg -i skill-switch_*.deb
-skill-switch --help
-```
-
----
-
-## 6. bun compile（实验性，面向开发者）
-
-> ⚠ **实验阶段**：bun 路径尚未取代 Node SEA，两条路径并列存在。
-> 待验证充分（sidecar 集成、CI 全平台冒烟）后再正式切换。
-
-### 原理
-
-[Bun](https://bun.sh/) 可将 TypeScript 源码直接编译成单文件原生可执行文件，
-无需 Node.js 运行时——与 Node SEA（`bundle-cli.mjs`）目标相同，但实现路径不同：
-
-| 维度           | Node SEA（当前正式路径）              | bun compile（实验路径）             |
-| -------------- | ------------------------------------- | ----------------------------------- |
-| 打包工具       | esbuild → Node SEA + postject         | bun build --compile                 |
-| 冷启动速度     | ~8–12 s（含 Node 解压开销）           | <100 ms（原生可执行，无 VM 启动）   |
-| 跨平台编译     | 须在目标平台运行                      | 同上（须在目标平台运行）            |
-| 产物命名       | `skill-switch-cli-<triple>`           | 相同                                |
-| 输出目录       | `dist/sea/`                           | 相同                                |
-| 桌面 App 集成  | ✅ 已验证（`macos/build-app.sh` 接入） | 🚧 待验证（产物格式待 macOS 确认）  |
-
-### 构建步骤（本地开发）
-
-```bash
-# 确保 devDependency bun 已安装
 pnpm install
-
-# 验证 bun 可用
-pnpm exec bun --version
-
-# 构建（产物写到 dist/sea/skill-switch-cli-<triple>）
-pnpm bundle:cli:bun
-
-# 快速冒烟验证
-./dist/sea/skill-switch-cli-$(uname -m | sed 's/arm64/aarch64/;s/x86_64/x64/') --version
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm release
 ```
 
-### 已知限制与坑
+`pnpm release` 生成 `macos/dist/skill-switch.app`，此产物默认**未签名**。`macos/build-app.sh` 会：
 
-1. **`node:sea` 不兼容**：`src/cli/index.ts` 导入了 `node:sea`（Node 内置），bun 不提供此模块。
-   `scripts/bundle-cli-bun.mjs` 用一个临时 wrapper 入口绕过，不改动 `src/` 下任何文件。
+1. 从 `package.json` 读取版本号；
+2. 重新构建当前 host triple 的 Node SEA CLI；
+3. 拒绝架构不匹配的 Swift / SEA 产物；
+4. 比对 package、CLI 和 Info.plist 版本；
+5. 组装只包含当前 host 架构的 `.app`。
 
-2. **桌面 App sidecar 集成待验证**：原生 macOS App 通过 `Contents/Resources/skill-switch-cli` 内置 CLI，
-   其签名/公证要求与 Node SEA 相同；但 bun 产物是纯原生二进制，理论上更容易通过公证，
-   尚未在 `macos/sign-notarize.sh` 全流程中验证。
+它不会从 `dist/sea/` 随便取第一个旧 sidecar。
 
-3. **re2 原生模块**：`re2` 是 Node 原生扩展（`.node`），bun 1.x 对 Node 原生扩展的支持有限，
-   bun compile 可能无法正确打包 `re2`——如遇问题，需用 `--external re2` 并随二进制附带 `.node` 文件。
+## 未签名与签名产物
 
-4. **CI 兼容性**：`pnpm add -D bun` 安装的是 npm 上的 bun 包（含平台特定二进制），
-   CI runner 需要允许 `bun` 的 postinstall 脚本（已在 `pnpm-workspace.yaml` 的 `allowBuilds` 中配置）。
+`.github/workflows/release.yml` 在 tag 触发时构建并上传 `skill-switch.app.zip`。该 workflow 没有 Apple 签名凭据，因此这个 zip 是未签名预览产物。
 
----
+如果维护者持有 Developer ID，可在干净的 macOS 机器上执行：
 
-## 发布流程(维护者)
+```bash
+cd macos
+APPLE_SIGNING_IDENTITY="Developer ID Application: <identity>" ./sign-notarize.sh
+```
 
-1. `pnpm release` 在本机做本地 smoke test(需 macOS + Developer ID)。
-2. 推送 git tag(`git tag v0.X.Y && git push origin v0.X.Y`)。
-3. `.github/workflows/release.yml` 在 `macos-14` runner 上自动构建 `macos/dist/skill-switch.app` 并打 zip 上传到 GitHub Release。
-4. 维护者本地跑 `macos/sign-notarize.sh` 出 Developer ID 签名 + Apple 公证的 DMG(`dist/skill-switch_<ver>_aarch64.dmg`),手动附到同一 Release。
-5. 更新 `packaging/skill-switch.rb`(Homebrew)和 `packaging/skill-switch.json`(Scoop),同步到对应 tap/bucket 仓库。
-6. `npm publish --access public`(CLI npm 包)。
+只有同时通过以下验证的 DMG 才可标记为签名公证版：
 
-> 详细签名公证步骤见 [docs/release/signing.md](./release/signing.md)。
+```bash
+codesign --verify --deep --strict --verbose=2 /path/to/skill-switch.app
+spctl --assess --type execute --verbose=2 /path/to/skill-switch.app
+xcrun stapler validate /path/to/skill-switch.app
+shasum -a 256 /path/to/skill-switch_*.dmg
+```
+
+某个 Release 是否包含已签名 DMG，应以该 Release 的实际 assets 和校验记录为准，不能从版本号推断。完整步骤见 [release/signing.md](./release/signing.md)。
+
+## 计划中但尚未启用的渠道
+
+- `packaging/skill-switch.rb` 是一个明确标记为 `NOT INSTALLABLE` 的 Homebrew 计划说明，不是 Formula。
+- `packaging/skill-switch.json` 是 `installable: false` 的 Scoop 计划元数据，不是 Scoop manifest。
+- 当前没有由本仓库发布的 MSI、Windows 独立 exe、AppImage 或 deb。
+- 不应向 tap/bucket 复制这两个计划文件。
+
+启用一个渠道前，必须先具备真实产物、稳定 URL、SHA-256、安装/升级/卸载测试和对应的 tap/bucket。
+
+## 维护者发布检查表
+
+1. 确认工作区和版本变更范围。
+2. 运行 typecheck、lint、全量 tests 和 coverage。
+3. 生成 npm tarball，在干净 Node 20/22 环境安装冒烟。
+4. 在目标 Mac 上构建 `.app`，记录 host triple、架构、CLI 版本和 Info.plist 版本。
+5. 将未签名 zip 明确标记为 preview；不得描述为 notarized。
+6. 如果发布签名 DMG，保存 codesign、Gatekeeper、stapler 和 checksum 证据。
+7. 只发布实际在当前 tag 构建、测试和校验过的渠道。
+
+`bun compile` 仍是开发实验，不属于当前 App 或 release workflow 的交付合同。

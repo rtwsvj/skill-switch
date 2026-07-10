@@ -21,7 +21,7 @@ This document is a contributor-oriented overview of how skill-switch is structur
                          │ imports
 ┌────────────────────────▼────────────────────────────────┐
 │  Core modules   src/core/                                │
-│  Pure logic — no CLI concerns, injected `home` root      │
+│  Reusable services — no CLI imports, injected `home`     │
 └────────────────────────┬────────────────────────────────┘
                          │ imports (read-only vendor snapshot)
 ┌────────────────────────▼────────────────────────────────┐
@@ -34,6 +34,34 @@ Runtime data:  ~/.skill-switch/   (skills.json / skills.lock.json / backups/ / s
 Agent dirs:    ~/.claude/skills/  ~/.codex/skills/  etc.
 Audit rules:   rules/             (top-level, one file per rule family)
 ```
+
+The intended dependency direction is `GUI → CLI → core → vendor/rules`. A boundary
+regression test prevents reusable core and MCP modules from importing CLI command
+implementations. Cross-cutting policy belongs under `src/core/` and CLI files should
+only parse options, format output, and set exit codes.
+
+### Primary data flows
+
+```text
+source / installed directory
+        │
+        ├─ audit discovery ─ coverage accounting ─ rule engine ─ policy/gate ─ report
+        │                                                        │
+        │                                                        └─ install allowed/blocked
+        │
+        └─ install/sync/remove ─ home operation lock ─ snapshot/plan
+                                                 └─ atomic state writes + compensation
+
+transcript adapters ─ discovered session files ─ privacy-reduced aggregates
+                                                ├─ CLI stats cache (derived, writable)
+                                                └─ MCP stats (cache disabled, read-only)
+```
+
+The important trust boundaries are untrusted skill/archive contents, remote registry
+and MCP HTTP responses (including redirects), local agent configuration, transcript
+data, and terminal/JSON-RPC output. Validation and redaction must happen before data
+crosses from those boundaries into execution, filesystem mutation, or user-visible
+output.
 
 ---
 
@@ -53,18 +81,21 @@ Each module is a focused, testable unit. The CLI layer imports from here; the GU
 | `audit/settings-audit.ts` | Audits `settings.json` for hardcoded secret values in known sensitive keys. |
 | `lint/` | Three sub-modules: `skills-json-validator.ts` validates `skills.json` structure; `spec-validator.ts` checks individual skill SKILL.md frontmatter; `portability.ts` emits cross-tool portability warnings; `lint-home.ts` combines them with conflict/budget health checks (via vendored `conflict-detector.ts` + `context-budget.ts`). |
 | `doctor.ts` | Three-way reconciliation: declared (`skills.json`) × locked (`skills.lock.json`) × disk. Produces four drift kinds: `missing`, `content-drift`, `stale-lock`, `extra-locked`. Uses a hash cache (`doctor-hash-cache.ts`) to avoid redundant SHA-256 recomputation. Also reports bypasses (forced installs) and legacy skill names. Additionally runs `auditConfigFiles` and returns results as `configAudit` in the report (advisory only — does not affect the `clean` flag or exit code; `--json` output includes the full `configAudit` array). |
-| `diff.ts` | Content drift detail for copy-mode skills: compares the disk copy against the `store/` reference, producing a `SkillFileDiff[]` (added / removed / modified). Includes an LCS-based unified-diff generator with no external dependencies. |
+| `skill-diff.ts` | Content drift detail for copy-mode skills. Unchanged files are compared with streaming SHA-256 rather than retaining both trees in memory; only changed contents are loaded for unified output. Exact LCS is bounded to small middle sections and large divergent sections become a deterministic replacement hunk. |
 | `drift.ts` | Upstream drift: for git-sourced skills, compares `lock.commit` against the upstream `HEAD` via `git ls-remote`. Also checks local content hash against the lock. Produces `DriftEntry[]` with state `in-sync | upstream-ahead | local-modified | diverged`. |
-| `backup.ts` | Snapshot primitive: `snapshot(dir, {store, label})` creates a timestamped `.tar.gz` archive (using system `tar`). `restoreSnapshot` validates the archive for path-traversal attacks before extracting into a staging directory and atomically renaming into place. |
+| `backup.ts` | Snapshot primitive: `snapshot(dir, {store, label})` creates a timestamped `.tar.gz` archive (using system `tar`). Restore validates member paths and rejects symlink, hardlink, device, and other non-file/non-directory entries before staging and atomic replacement. |
 | `install.ts` | Install orchestration: discovers skill directories (by `SKILL.md` presence), runs audit, takes a pre-install snapshot, copies or symlinks files, writes lock and declaration. Force-install records bypasses in the bypass ledger. |
 | `remove.ts` | Consistent teardown: removes the disk skill directory, lock entry, and declaration entry in one operation. |
 | `watch.ts` | Single-pass scan vs. declaration comparison: identifies skills present on disk but absent from `skills.json` (regardless of enabled state) and marks them `unmanaged`. |
-| `state-io.ts` | Shared IO primitives for state files: `readJsonState` distinguishes ENOENT (returns fallback) from corruption (throws `StateFileError`). `writeJsonState` writes via a temp file + fsync + atomic rename, so the target is never left half-written. |
+| `state-io.ts` | Shared IO primitives for state files: `readJsonState` distinguishes ENOENT from corruption. `writeJsonState` uses a random same-directory temp file, mandatory file fsync, atomic rename, and best-effort directory fsync. |
+| `operation-lock.ts` | Per-home cooperative writer lock with PID/nonce ownership, bounded waiting, dead-process stale-lock recovery, and ownership-safe release. It serializes skill-switch writers but cannot constrain direct filesystem edits. |
 | `safe-copy.ts` | Recursive directory copy that silently skips symbolic links at every level — used by install and sync to prevent symlink-following during copy-mode installs. |
 | `paths.ts` | Single source of truth for path resolution. Derives each supported agent's skills directory relative to `home` from the vendored `agents.ts` snapshot. The `--home <dir>` flag is threaded through here so that all commands can operate on a throwaway directory instead of the real home. |
 | `bypass-ledger.ts` | Append-only log of installs that overrode the audit gate, including the findings bypassed, the reason supplied, and the CLI version. Surfaced by `doctor`. |
 | `agent-snapshots.ts` | Allowlist of paths that `restore` is permitted to write into — guards against a malformed snapshot manifest pointing `sourceDir` at an arbitrary path like `~/.ssh`. |
-| `stats.ts` / `stats-cache.ts` | Reads Claude Code transcript files to produce per-skill trigger counts and identifies dormant ("zombie") skills. |
+| `transcripts.ts` / `stats.ts` / `stats-cache.ts` | Adapter-bound Claude and Codex transcript discovery and parsing. Stats persist only v2 aggregate counts/timestamps; MCP invokes stats with cache disabled so its advertised tools remain filesystem read-only. |
+| `security/output-safety.ts` / `security/url-safety.ts` | Terminal-safe rendering/redaction and per-hop remote URL validation. Redirects reject HTTPS downgrade and strip credentials on cross-origin hops. Literal private IPs are rejected; DNS resolution/rebinding remains a documented residual risk. |
+| `frontmatter.ts` | Hardened YAML 1.2 frontmatter parser with duplicate-key rejection, disabled custom tags/merge keys, alias limits, and prototype-key rejection. |
 | `codex-toggle.ts` | Codex-specific: reads and writes the `config.toml` `skills.disabled` array so that toggling a Codex skill uses its native mechanism rather than removing files. |
 | `skill-name.ts` | Validation helpers: `isSafeSkillName` (no path traversal, no absolute paths, no hidden names) and `isCanonicalSkillName` (stricter: alphanumeric + `. _ -`, starts with alphanumeric, max 80 chars). |
 | `git-safe.ts` | Validates git source URLs before clone: rejects local-file paths (`file://`, bare paths) and other non-http(s) transports to prevent unintended local reads. |
@@ -141,19 +172,25 @@ The **store** (`~/.skill-switch/store/<agent>/<name>/`) is a durable copy mainta
 
 ## Standard write-command flow
 
-All commands that modify agent skill directories follow this sequence:
+Public commands that modify authority-bearing home state use this model:
 
 ```
-1. Validate inputs (skill name safety, source existence, agent known)
-2. Run audit (for install) or read declaration (for sync/toggle/remove)
-3. Take a pre-operation snapshot → ~/.skill-switch/backups/<ts>__<label>.tar.gz
-4. Apply the change (copy / symlink / remove files; update config.toml for Codex)
-5. Update skills.lock.json (upsert or remove entries)
-6. Update skills.json declaration (upsert or remove skill)
-7. Return result (installed paths, snapshot path, lock path)
+1. Acquire the per-home operation lock.
+2. Validate inputs and read all state used to make the decision while still holding the lock.
+3. Run install audit and require complete coverage; plan the mutation.
+4. Snapshot affected agent directories where the command supports snapshot rollback.
+5. Apply filesystem/config changes and atomically replace JSON state files.
+6. On an ordinary error, restore captured state/snapshots where supported; always release the lock.
+7. Return only after the resulting state is observable to the next writer.
 ```
 
-Step 3 guarantees that every write is reversible via `restore`. Steps 5 and 6 keep the three representations (declared × locked × disk) consistent after every operation.
+This prevents lost updates between cooperating processes and handles tested exception
+paths. It does **not** provide a multi-file crash transaction: `SIGKILL`, power loss,
+direct third-party writes, or a filesystem failure between two authoritative writes can
+still leave representations inconsistent. Snapshot restore covers the recorded agent
+directory, not every file under `.skill-switch`; after recovery, run `doctor` and
+`lock --verify`. A durable write-ahead journal/state bundle remains the path to full
+crash recovery.
 
 ---
 

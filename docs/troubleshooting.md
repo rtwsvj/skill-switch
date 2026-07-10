@@ -12,13 +12,18 @@
 
 **原因 / Cause**
 
-macOS Gatekeeper 对从网络下载的应用进行首次开启确认。这是系统正常行为，不是安全警告——skill-switch 已用 **Developer ID** 签名并经过 **Apple 公证（Notarization）**，Gatekeeper 不会拦截。
+macOS 会隔离从网络下载的应用。仓库的自动 tag workflow 当前上传的是**未签名预览 zip**，因此 Gatekeeper 可能拦截；只有 Release 里明确附带签名、公证与校验记录的人工产物，才能视为 Developer ID / Notarization 版本。
 
 **怎么办 / Fix**
 
-直接点击对话框中的**「打开」**按钮即可。此后再次打开无需确认。
+先确认产物来源与 Release 校验记录。对于可信的未签名预览构建，可在“系统设置 → 隐私与安全性”中查看并人工决定是否打开；不要用递归移除 quarantine 或全局关闭 Gatekeeper 的命令绕过系统保护。若产物宣称已签名，可先运行：
 
-若点击后 macOS 显示「无法打开，因为无法验证开发者」，说明下载文件可能损坏，建议重新下载最新版 `.dmg`。如需手动覆盖（不推荐），可在系统偏好设置 → 安全性与隐私 → 通用中选择「仍然打开」。
+```bash
+codesign --verify --deep --strict --verbose=2 /path/to/skill-switch.app
+spctl --assess --type execute --verbose=2 /path/to/skill-switch.app
+```
+
+验证失败应停止使用并回到 Release 页面核对，而不是假定文件只是“下载损坏”。
 
 ---
 
@@ -30,11 +35,11 @@ macOS Gatekeeper 对从网络下载的应用进行首次开启确认。这是系
 
 **原因 / Cause**
 
-CLI 随 App 内置，路径为 `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli`，但该路径默认不在系统的 `PATH` 中。
+源码构建的 App 会内置 CLI，路径为 `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli`；npm 安装则把 `skill-switch` bin 放入 npm 的全局或项目 bin 目录。两者都可能因为对应目录不在 `PATH` 中而找不到。
 
 **怎么办 / Fix**
 
-创建一个符号链接把 CLI 映射到 `/usr/local/bin`（或任何已在 `PATH` 中的目录）：
+若确实安装了 App，可创建符号链接（Apple Silicon Homebrew 用户也可选择 `/opt/homebrew/bin`）：
 
 ```bash
 ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
@@ -46,7 +51,7 @@ ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/l
 skill-switch --help
 ```
 
-如果只装了源码版（未安装 App），可用：
+如果从源码工作，可用：
 
 ```bash
 pnpm cli --help
@@ -70,7 +75,7 @@ blocked: my-skill  score: 45/100  verdict: DANGER
 
 **原因 / Cause**
 
-安装前的安全体检（audit）发现该 skill 包含高风险模式，评分低于 70 分或存在 `critical`/`high` 级别的告警。常见命中原因包括：
+安装前的安全体检（audit）发现高风险模式、评分低于 70，或者无法证明扫描覆盖完整。过大、过深、文件过多、不可读、嵌套符号链接或无法分类的可执行文件都会 fail closed。常见命中原因包括：
 
 | 规则类型 | 示例 |
 |---|---|
@@ -156,7 +161,7 @@ skill-switch remove <skill名> --agent <工具>  # 一致性拆除
 
 **原因 / Cause**
 
-所有写操作（`install`、`toggle`、`sync`、`remove`、`restore` 本身）在执行前都会自动拍一份 `tar.gz` 快照，保存到 `~/.skill-switch/backups/`。
+高影响写操作会对受影响的 agent skill 目录拍 `tar.gz` 快照，保存到 `~/.skill-switch/backups/`；权威 JSON 状态文件使用原子替换，协作写操作由 home 级锁串行化，并在已知错误上尽力补偿。但这不是跨多个文件/目录的 ACID 事务，旧快照也不包含每个 `.skill-switch` 状态文件。进程在多文件更新中被 `SIGKILL` 或机器掉电时，仍可能需要人工核对声明、lock、store 与 agent 目录。
 
 **怎么办 / Fix**
 
@@ -175,7 +180,7 @@ skill-switch restore --latest
 skill-switch restore --id 1718000000000
 ```
 
-还原操作本身也会先拍一份「pre-restore」快照，所以即使还原结果不对，还可以再次还原到还原之前的状态。
+还原前会拍一份「pre-restore」快照，便于撤回 agent 目录层面的还原。还原后应执行 `doctor` 与 `lock --verify`，不要把快照还原等同于整个治理状态的时间点恢复。
 
 在 GUI 里：顶部「安装与维护」→「查看备份」，选中一条后点**「还原」**。
 
@@ -256,3 +261,48 @@ rm -rf /Applications/skill-switch.app
 rm -rf ~/.skill-switch
 rm /usr/local/bin/skill-switch   # 若你创建了软链
 ```
+
+---
+
+## 8. 提示另一个操作正在进行 / operation lock 超时
+
+**症状**
+
+写命令提示 home 状态被其他进程占用，或等待后超时。
+
+**处理**
+
+1. 检查是否还有另一个 `skill-switch` CLI 或 GUI 操作在运行，等待它完成。
+2. 不要在有活跃写进程时手工删除锁目录；锁内包含 PID 和随机 nonce，用来避免误删后来者的锁。
+3. 进程已经死亡时，下一个写操作会回收陈旧锁。若仍失败，保留错误与 `~/.skill-switch` 目录清单用于排查。
+4. 操作恢复后运行：
+
+```bash
+skill-switch doctor
+skill-switch lock --verify
+```
+
+锁只协调使用同一协议的 skill-switch 进程；直接编辑文件或第三方程序不会自动受它保护。
+
+---
+
+## 9. audit 报告 `coverage.complete=false`
+
+这不是普通规则误报，而是“扫描没有覆盖完整输入”。先查看 human/JSON 输出里的 `coverage.incompleteReasons`，再针对原因处理：缩小无关大目录、修复权限、移除嵌套 symlink、减少深度/文件数，或把未知二进制改为可审计的源码/显式允许的资产。重新运行后必须看到 `coverage.complete=true`，才说明 SAFE 结论覆盖了完整候选内容。
+
+`--force` 可以在明确知情时继续安装，但不会把不完整审计变完整；理由和覆盖缺口会进入 bypass 记录供后续审查。
+
+---
+
+## 10. 最小化故障证据
+
+提交问题前，优先在一次性 home 中复现，并附上不含密钥的机器可读结果：
+
+```bash
+tmp_home="$(mktemp -d)"
+skill-switch status --home "$tmp_home"
+skill-switch audit /path/to/reproducer --format json --home "$tmp_home" > audit.json
+skill-switch doctor --json --home "$tmp_home" > doctor.json
+```
+
+删除或遮盖用户名、绝对路径、环境变量值、header 和 token。不要上传真实 transcript、`settings.json`、`.env`、`skills.lock.json` 中的私有来源 URL，或整个 `~/.skill-switch` 目录。

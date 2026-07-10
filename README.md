@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/rtwsvj/skill-switch/releases/latest)
 [![CI](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml/badge.svg)](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml)
 
-**AI agent skills 与 MCP/agent 配置的安全审计器。** 在 Claude Code、Cursor、Gemini CLI、Windsurf、Zed、VS Code 等工具的 skill 与配置里,扫出**反弹 shell、外传敏感文件、钓鱼式索要凭据、危险 MCP server、明文远程传输、硬编码密钥**等危险模式——**80+ 条检测规则、1,600+ 测试**;输出 **SARIF 直通 GitHub code-scanning**,支持项目级策略(`.skill-switch-policy.json`)与受控修复(`--fix`)。
+**AI agent skills 与 MCP/agent 配置的安全审计器。** 在 Claude Code、Cursor、Gemini CLI、Windsurf、Zed、VS Code 等工具的 skill 与配置里,扫出**反弹 shell、外传敏感文件、钓鱼式索要凭据、危险 MCP server、明文远程传输、硬编码密钥**等危险模式——**80+ 条检测规则、2,500+ 测试**;输出 **SARIF 直通 GitHub code-scanning**,支持项目级策略(`.skill-switch-policy.json`)与受控修复(`--fix`)。
 
 ```bash
 npx @rtwsvj/skill-switch audit            # 立刻体检当前项目的 skills / 配置
@@ -17,9 +17,9 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 或把 [GitHub Action](docs/github-action.md) 丢进 CI,每个 PR 自动审计 + 上传 code-scanning。
 
-在审计之上,它还是个**跨 agent 的 skill 治理层**:盘点 / 开关 / 安装 / 同步 / 回滚——所有写操作**先自动备份、可一键回滚**,危险 skill 装前即被拦。**命令行(CLI)** 与**桌面 App(GUI)** 两种用法,能力对等。
+在审计之上,它还是个**跨 agent 的 skill 治理层**:盘点 / 开关 / 安装 / 同步 / 还原。写命令由 home 级互斥锁串行化,重要目录在变更前快照,失败时尽力补偿;但快照不是跨文件系统 ACID 事务,也不覆盖每个 `.skill-switch` 状态文件。GUI 是 CLI 的常用操作子集,完整能力和机器可读输出以 CLI 为准。
 
-> 状态:**v0.9.0**(已全渠道发布)。npm 包 `@rtwsvj/skill-switch@0.9.0` 为 latest,GitHub Release(`v0.9.0`)附 Developer ID 签名 + Apple 公证的 DMG,macOS 桌面 App `skill-switch.app` 与 CLI 同号发布。
+> 仓库版本:**v0.9.0**。当前可验证的交付路径是 Node.js 20+ 的 npm/npx CLI、源码 CLI，以及 macOS 14+ 上本机构建的未签名 SwiftUI App。tag workflow 上传未签名 `.app.zip` 预览产物；签名公证 DMG 只有在维护者实际执行并上传后才存在。Homebrew、Scoop、MSI、AppImage 和 deb 仍为 planned。
 
 ![demo](assets/demo.svg)
 
@@ -31,13 +31,23 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 ![使用统计](assets/screenshots/g1-usage.png)
 ![多语言(英文界面)](assets/screenshots/p1-i18n-en.png)
 
-## 安装(macOS,Apple Silicon)
+## 安装与支持矩阵
 
-1. 双击 `skill-switch_0.9.0_aarch64.dmg`,把 **skill-switch** 拖进「应用程序」。
-2. 首次打开:双击图标 → 出现「下载自互联网,确认打开吗」点**打开**(已签名公证,不会被 Gatekeeper 拦)。
-3. 默认中文界面,右上角可切语言(见下)。
+| 形式 | 平台 | 当前状态 |
+|---|---|---|
+| npm / `npx` CLI | macOS、Linux、Windows | 支持,Node.js 20+ |
+| 源码 CLI | macOS、Linux、Windows | 支持,Node.js 20+ + pnpm 10 |
+| 原生 GUI | macOS 14+ | 可从源码构建;自动 Release 产物为未签名预览 zip |
+| Homebrew / Scoop / MSI / AppImage / deb | — | planned,当前不可用 |
 
-App 只在你点「安装/停用/删除/同步/还原」时才写入本机各工具的 skill 目录(`~/.claude`、`~/.codex`、`~/.gemini` 等),且每次写入前自动备份。
+CLI 快速开始:
+
+```bash
+npx @rtwsvj/skill-switch --help
+npx @rtwsvj/skill-switch audit --configs
+```
+
+npm 包只承诺 `skill-switch` 命令入口,不承诺 `import '@rtwsvj/skill-switch'` 的 Node 库 API。macOS App 的源码构建、未签名与签名产物区别见 [分发指南](docs/distribution.md)。不要仅凭版本号假定某个 Release 已附签名 DMG。
 
 ## GUI 全部能力
 
@@ -53,7 +63,7 @@ App 只在你点「安装/停用/删除/同步/还原」时才写入本机各工
 
 顶栏:**语言**切换、**刷新**、明暗主题(跟随系统)。界面语言覆盖 **zh-CN**、**en**、**ja**、**es** 四种,应用内即时切换。
 
-GUI 写操作走 `install/toggle/sync/remove/restore`,统一**确认 + 快照 + audit** 护栏:弹原生确认框 → 执行前自动拍快照(界面显示备份路径)→ 完成后刷新。
+GUI 写操作走 `install/toggle/sync/remove/restore`,统一**确认 + 快照 + audit** 护栏:弹原生确认框 → 对受影响的 Agent 目录拍快照 → 在 home 级写锁内执行 → 完成后刷新。快照的精确覆盖范围和剩余回滚限制见 [Safety Model](#safety-model为什么可以放心点)。
 
 ## CLI 全部能力
 
@@ -75,7 +85,7 @@ skill-switch --help
 | `status` | 一眼看现状:技能总数、agent 列表、声明/锁健康度(只读,首次上手先跑这个)。 | `skill-switch status` |
 | `scan` | 盘点各工具已装的 skill(只读;坏样本以 `error` 字段呈现)。 | `skill-switch scan` |
 | `init` | 扫描已安装 skill,草拟 `skills.json` 初始声明(已存在则跳过,`--force` 覆盖,`--dry-run` 只看草稿)。 | `skill-switch init --dry-run` |
-| `audit` | 安全体检:给路径=单个 skill,不给=全量;有 critical/high 或评分<70 → exit 1。`--format human`(默认)`/json/sarif`(SARIF 2.1.0 接 GitHub code-scanning)。`--configs` 检查 Claude Code、Gemini CLI、Cursor、VS Code、Windsurf、Zed 的 settings/MCP 配置。`.skill-switch-policy.json`(或 `--policy`)可设 `failOn` 阈值 + `suppress` 抑制。`--fix` 预览受控修复、`--fix --apply` 落盘(先备份)。`--format junit`(供 Jenkins/GitLab/CircleCI)、`--min-severity <级别>` 过滤、`--exit-code <n>`(如 `0` 做 report-only)、行内 `# skill-switch:suppress[ruleId]` 抑制。 | `skill-switch audit ./my-skill --format sarif` |
+| `audit` | 安全体检:给路径=单个 skill,不给=全量;审计覆盖不完整、有 critical/high 或评分<70 均默认阻断。过大/过深/过多/不可读/无法分类可执行文件不会被当成 SAFE;human/JSON 都输出 `coverage.complete` 和原因。其余格式与策略选项包括 `human/json/sarif/junit`、`--configs`、`--policy`、`--fix`、`--min-severity`、`--exit-code`。 | `skill-switch audit ./my-skill --format sarif` |
 | `explain` | 解释一条审计规则:给出检测内容、风险原因、修复思路及三种抑制方式。`--json` 机器可读输出;未知 ruleId → exit 1 + 近似建议。 | `skill-switch explain reverse-shell/netcat-exec` |
 | `ci` | 一键生成 GitHub Actions 工作流(`.github/workflows/skill-switch.yml`),接入 skill-switch CI 审计。`--format sarif`(默认,上传 code-scanning)或 `--format github`(PR 内联注解);`--pin <ref>` 固定 action 版本;`--baseline` 同时写入 finding 基线让 CI 只报新问题;`--force` 覆盖已有文件;`--pre-commit` 改为生成本地 `.pre-commit-config.yaml` 提交门控。 | `skill-switch ci --format github --baseline` |
 | `add` | **一键安装**:粘 GitHub 链接 / `git clone` / `npx·npm` 安装指令 → 自动解析出 git 来源 → 克隆(只读)→ 逐个审计 → 列出候选 skill + 安全裁决 → 安装(单个非危险源直接装,多个让你 `--skill`/`--all` 选)。**绝不执行粘贴的命令**(`curl\|bash` 一律拒绝);npm 包名只读查 registry 拿源码仓库再审。`--dry-run` 只预览。 | `skill-switch add https://github.com/owner/repo --agent claude-code` |
@@ -88,10 +98,10 @@ skill-switch --help
 | `doctor` | 声明/锁/磁盘三方一致性(`--ci` 不一致即 exit 1)。同时显示「配置安全:」advisory 段落(critical/high 配置问题摘要;`--json` 含 `configAudit` 字段;不影响退出码)。 | `skill-switch doctor` |
 | `diff` | 内容漂移的「改了什么」:磁盘 vs store 副本,逐文件 added/removed/modified;顶部一行**叙述摘要**(动了几个文件、+N/−M 行、是否新引入安全风险)。 | `skill-switch diff my-skill` |
 | `drift` | 上游 HEAD / 锁定 commit / 本地内容 三方漂移。`--review` 逐条审批(cargo-vet 式)、`--approve-all` 批量审批,已审批的不再计入 `--ci`(内容再变自动失效)。 | `skill-switch drift --review` |
-| `stats` | 触发统计 + 僵尸清单(`--days N`)。 | `skill-switch stats --days 30` |
+| `stats` | 触发统计 + 僵尸清单(`--days N`)。会读 transcript 并更新 `stats-cache.json`;v2 缓存只保存 skill/计数/时间戳聚合,不保存原始 args、命令或对话正文。 | `skill-switch stats --days 30` |
 | `packs` | 从对话用法**发现套餐**:`packs suggest` 读本机对话(只数 skill 名)建议常一起用的 skill 组成套餐;`packs save <id> [--enrich]` 固化成可携带的 `pack.json`(`--enrich` 从 lock 回填来源以便跨机重装);`packs install <pack.json|内置id>` 把套餐一键装到新机/另一个 agent(`--lock` 写可复现锁、可选 skill 失败不阻断);`packs list [--builtin]` 列出套餐/内置 starter 套餐;`packs show <file>` 查看;支持 `extends` 继承。 | `skill-switch packs install security-review` |
-| `mcp` | 把 skill-switch 跑成 **MCP server**(stdio):让 Cursor / Claude Code 等 agent 实时调用它的**只读**审计工具(`skill_switch_scan` / `status` / `audit`)。零依赖,绝不经此写磁盘。`--list-tools` 查看暴露的工具。 | `skill-switch mcp` |
-| `mcp-scan` | **运行时 MCP 审计(opt-in)**:连接配置里的 MCP server 取**实时**工具清单,用 80+ 静态规则审计工具描述(抓 tool-poisoning),并把每个工具的定义哈希成基线——再扫时定义变了就报 **rug-pull 嫌疑**(`mcp/tool-definition-changed` high;新工具 medium)。安全姿态:不带 flag 只列出、**绝不连接**;`--server "<source>::<name>"` 逐个显式同意(TTY 逐个确认,非 TTY 须 `--yes`;stdio server = 启动配置里的命令,连接前明示);http 仅限 localhost,其余必须 https;**绝不调用工具**(`tools/call`);超时硬杀(`--timeout <ms>`);header/env 值绝不进输出与基线。`--reset-baseline` 重新接受当前清单;`--ci` 有 critical/high 时 exit 1。详见 [docs/mcp-scan.md](docs/mcp-scan.md)。 | `skill-switch mcp-scan --server ".claude/mcp.json::fs" --yes` |
+| `mcp` | 把 skill-switch 跑成 **MCP server**(stdio):暴露 scan/status/audit/packs-suggest/stats 等文件系统只读工具。MCP stats 显式禁用缓存,不读写 `stats-cache.json`;这不等于独立 CLI `stats` 的行为。`--list-tools` 查看暴露的工具。 | `skill-switch mcp` |
+| `mcp-scan` | **运行时 MCP 审计(opt-in)**:不带 flag 只列出、不连接;`--server`/`--all --yes` 才连接,从不调用 `tools/call`。每次 redirect 都重新校验 scheme/主机/地址,跨 origin 不转发凭据。首次成功扫描会写 `mcp-scan-baseline.json`;之后对比 tool-definition 变更,`--reset-baseline` 显式接受新基线。 | `skill-switch mcp-scan --server ".claude/mcp.json::fs" --yes` |
 | `lock` | 查看锁;`--verify` 重算磁盘哈希比对。 | `skill-switch lock --verify` |
 | `export` | 把 skills.json + skills.lock.json 打包成可携带的 .ssp 档案(只读)。 | `skill-switch export --out my.ssp` |
 | `import` | 从 .ssp 档案还原 skills.json + skills.lock.json(不执行 sync)。 | `skill-switch import my.ssp --force` |

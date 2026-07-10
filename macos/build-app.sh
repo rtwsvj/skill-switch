@@ -11,18 +11,65 @@ APP="dist/skill-switch.app"
 BUILD="build"
 mkdir -p "$BUILD"
 
+if [ "$(uname -s)" != "Darwin" ]; then
+  echo "✗ macos/build-app.sh 仅支持在 macOS 上运行" >&2
+  exit 1
+fi
+
+case "$(uname -m)" in
+  arm64)
+    HOST_TRIPLE="aarch64-apple-darwin"
+    MACH_ARCH="arm64"
+    ;;
+  x86_64)
+    HOST_TRIPLE="x86_64-apple-darwin"
+    MACH_ARCH="x86_64"
+    ;;
+  *)
+    echo "✗ 不支持的 macOS CPU 架构: $(uname -m)" >&2
+    exit 1
+    ;;
+esac
+
+VERSION="$(node -e 'const p=require(process.argv[1]); process.stdout.write(p.version)' "$REPO/package.json")"
+
+verify_mach_arch() {
+  local path="$1"
+  local label="$2"
+  local archs
+  archs="$(lipo -archs "$path")"
+  case " $archs " in
+    *" $MACH_ARCH "*) ;;
+    *)
+      echo "✗ $label 架构不匹配: 期望 $MACH_ARCH, 实际 $archs ($path)" >&2
+      exit 1
+      ;;
+  esac
+}
+
 echo "==> 1/5 SwiftUI release 构建"
 swift build -c release
 BIN=".build/release/SkillSwitch"
+verify_mach_arch "$BIN" "SwiftUI 主程序"
 
 echo "==> 2/5 自包含 SEA CLI"
-CLI=$(ls "$REPO"/dist/sea/skill-switch-cli-* 2>/dev/null | head -1 || true)
-if [ -z "${CLI:-}" ]; then
-  echo "    (构建 SEA sidecar…)"
-  ( cd "$REPO" && node scripts/bundle-cli.mjs )
-  CLI=$(ls "$REPO"/dist/sea/skill-switch-cli-* | head -1)
+# 每次重建当前 host 的 sidecar，避免复用 dist/sea 中同版本号但
+# 源码已变更的旧产物。严格选择当前 host triple，不使用通配符的第一个文件。
+echo "    (构建 $HOST_TRIPLE SEA sidecar…)"
+( cd "$REPO" && node scripts/bundle-cli.mjs )
+CLI="$REPO/dist/sea/skill-switch-cli-$HOST_TRIPLE"
+if [ ! -x "$CLI" ]; then
+  echo "✗ 未生成当前 host 的 SEA sidecar: $CLI" >&2
+  exit 1
+fi
+verify_mach_arch "$CLI" "SEA CLI"
+CLI_VERSION="$("$CLI" --version | tr -d '\r\n')"
+if [ "$CLI_VERSION" != "$VERSION" ]; then
+  echo "✗ SEA CLI 版本不匹配: package.json=$VERSION, CLI=$CLI_VERSION" >&2
+  exit 1
 fi
 echo "    CLI = $CLI"
+echo "    host = $HOST_TRIPLE, version = $VERSION"
 
 echo "==> 3/5 应用图标"
 ICNS=""
@@ -64,8 +111,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 	<key>CFBundleIdentifier</key><string>dev.skill-switch.native</string>
 	<key>CFBundleExecutable</key><string>SkillSwitch</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
-	<key>CFBundleShortVersionString</key><string>0.9.0</string>
-	<key>CFBundleVersion</key><string>0.9.0</string>
+	<key>CFBundleShortVersionString</key><string>$VERSION</string>
+	<key>CFBundleVersion</key><string>$VERSION</string>
 	<key>LSMinimumSystemVersion</key><string>14.0</string>
 	<key>NSPrincipalClass</key><string>NSApplication</string>
 	<key>NSHighResolutionCapable</key><true/>
@@ -78,6 +125,15 @@ $( [ -n "$ICNS" ] && echo "	<key>CFBundleIconFile</key><string>AppIcon</string>"
 </dict>
 </plist>
 PLIST
+
+verify_mach_arch "$APP/Contents/MacOS/SkillSwitch" "App 主程序"
+verify_mach_arch "$APP/Contents/Resources/skill-switch-cli" "App 内置 CLI"
+BUNDLED_CLI_VERSION="$("$APP/Contents/Resources/skill-switch-cli" --version | tr -d '\r\n')"
+PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+if [ "$BUNDLED_CLI_VERSION" != "$VERSION" ] || [ "$PLIST_VERSION" != "$VERSION" ]; then
+  echo "✗ App 版本校验失败: package=$VERSION, CLI=$BUNDLED_CLI_VERSION, Info.plist=$PLIST_VERSION" >&2
+  exit 1
+fi
 
 echo "==> 5/5 完成"
 du -sh "$APP" | awk '{print "    "$0}'

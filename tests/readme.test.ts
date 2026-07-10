@@ -63,9 +63,12 @@ describe('README', () => {
     ]) {
       expect(readme).toContain(required);
     }
-    // 版本号 / DMG 文件名用模式匹配,避免每次发版都要改测试(原先硬编码 v0.4.0 很脆)
-    expect(readme).toMatch(/状态:\*\*v\d+\.\d+\.\d+\*\*/);
-    expect(readme).toMatch(/skill-switch_\d+\.\d+\.\d+_aarch64\.dmg/);
+    // 版本号必须存在，但文档不得把并未由 workflow 生成的渠道写成已发布。
+    expect(readme).toMatch(/仓库版本:\*\*v\d+\.\d+\.\d+\*\*/);
+    expect(readme).toContain('未签名 `.app.zip` 预览产物');
+    expect(readme).toContain('Homebrew / Scoop / MSI / AppImage / deb');
+    expect(readme).not.toMatch(/skill-switch_\d+\.\d+\.\d+_aarch64\.dmg/);
+    expect(readme).not.toContain('已全渠道发布');
     // Tauri 时代的 GUI 入口 / 旧文档术语 必须清掉
     expect(readme).not.toContain('只读白名单');
     expect(readme).not.toContain('read-only dashboard sidecar');
@@ -89,5 +92,9 @@ describe('README', () => {
     }
     expect(readmeEn).not.toContain('gui/docs/');
     expect(readmeEn).not.toContain('pnpm --dir gui tauri dev');
+    expect(readmeEn).toContain('unsigned `.app.zip` preview');
+    expect(readmeEn).toContain('Homebrew / Scoop / MSI / AppImage / deb');
+    expect(readmeEn).not.toContain('shipped across all channels');
+    expect(readmeEn).not.toContain('every write is **snapshotted first');
   });
 });
