@@ -13,9 +13,8 @@ import {
   type StatsCacheEntry,
 } from './stats-cache.ts';
 import {
-  discoverClaudeTranscriptRoots,
-  listTranscriptFiles,
-  parseSkillInvocationsWithCounts,
+  discoverAdapterTranscriptFiles,
+  parseAdapterTranscriptContent,
   type SkillInvocation,
 } from './transcripts.ts';
 
@@ -66,8 +65,7 @@ export async function buildStats(
   env: Record<string, string | undefined> = process.env,
   options: BuildStatsOptions = {},
 ): Promise<StatsReport> {
-  const roots = discoverClaudeTranscriptRoots(home, env);
-  const allFiles = await listTranscriptFiles(roots, STATS_MAX_DEPTH);
+  const transcriptFiles = await discoverAdapterTranscriptFiles(home, env, STATS_MAX_DEPTH);
 
   const since = days !== undefined ? new Date(Date.now() - days * 86_400_000) : undefined;
   const sinceMs = since?.getTime();
@@ -85,7 +83,8 @@ export async function buildStats(
   const byskill = new Map<string, SkillUsage>();
   let invocationCount = 0;
 
-  for (const file of allFiles) {
+  for (const source of transcriptFiles) {
+    const file = source.sessionFile;
     if (scannedFiles >= STATS_MAX_FILES) {
       truncated = true;
       break;
@@ -140,7 +139,7 @@ export async function buildStats(
         skippedFiles += 1;
         continue;
       }
-      const parsed = parseSkillInvocationsWithCounts(content, file);
+      const parsed = parseAdapterTranscriptContent(source, content);
       entry = {
         mtimeMs,
         size,
