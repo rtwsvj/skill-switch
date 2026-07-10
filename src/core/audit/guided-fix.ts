@@ -3,7 +3,8 @@
 // 安全边界(非协商):
 //   - 只修 audit 目标路径(passedTargetRoot)下的文件;拒绝 --configs 路径。
 //   - passedTargetRoot 必须由调用方负责传入;引擎不扫描 home 或任何外部路径。
-//   - 写盘前先建 .skill-switch.bak 备份;若已存在则不覆盖(保护最原始版本)。
+//   - 写盘前先在隔离 backupRoot 下建备份;若已存在则不覆盖(保护最原始版本)。
+//     原始恶意内容绝不能留在 skill 目录内,否则下次审计/Agent 运行仍会读到它。
 //   - finding.file 是相对 audit root 的路径;引擎拼出绝对路径后写盘。
 //   - 纯函数修复器 + 幂等保护在 fixers.ts 层已保证。
 //
@@ -11,10 +12,12 @@
 //   1. 按文件分组 findings。
 //   2. 对每个文件,依次尝试 FIXER_REGISTRY.get(ruleId)。
 //   3. dry-run: 仅产出 diff 字符串,不写盘。
-//   4. apply:  写 .bak(如未存在),再写修复后内容。
-import { existsSync, readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+//   4. apply:  写隔离备份(如未存在),再写修复后内容。
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative, resolve } from 'node:path';
 import { generateUnifiedDiff } from '../skill-diff.ts';
 import { applyFixer, hasFixer } from './fixers.ts';
 import type { AuditFinding } from './types.ts';
@@ -87,6 +90,31 @@ export interface GuidedFixOptions {
   configFindings?: AuditFinding[];
   /** true = 实际写盘;false = 仅预览 */
   apply: boolean;
+  /**
+   * 原始文件的隔离备份根目录。CLI 固定传入 HOME/.skill-switch/fix-backups。
+   * 直接库调用未提供时回退到系统临时目录,仍不会把危险原文放回 skill 树。
+   */
+  backupRoot?: string;
+}
+
+function backupPathFor(backupRoot: string, targetRoot: string, absFile: string): string {
+  const resolvedTargetRoot = resolve(targetRoot);
+  const targetId = createHash('sha256').update(resolvedTargetRoot).digest('hex').slice(0, 24);
+  const relFile = relative(resolvedTargetRoot, absFile);
+  const targetBackupRoot = resolve(backupRoot, targetId);
+  const destination = resolve(targetBackupRoot, `${relFile}.skill-switch.bak`);
+  if (
+    destination !== targetBackupRoot &&
+    !destination.startsWith(`${targetBackupRoot}/`) &&
+    !destination.startsWith(`${targetBackupRoot}\\`)
+  ) {
+    throw new Error(`备份路径越界,拒绝写入: ${relFile}`);
+  }
+  return destination;
+}
+
+function hasErrnoCode(error: unknown, code: string): boolean {
+  return Boolean(error) && (error as NodeJS.ErrnoException).code === code;
 }
 
 /**
@@ -96,6 +124,9 @@ export interface GuidedFixOptions {
  */
 export async function runGuidedFix(options: GuidedFixOptions): Promise<GuidedFixSummary> {
   const { targetRoot, skillFindings, configFindings = [], apply } = options;
+  const backupRoot = resolve(
+    options.backupRoot ?? join(tmpdir(), 'skill-switch-guided-fix-backups'),
+  );
 
   const results: FixResult[] = [];
   let filesModified = 0;
@@ -181,11 +212,18 @@ export async function runGuidedFix(options: GuidedFixOptions): Promise<GuidedFix
 
     // apply 模式:有修改才写盘
     if (apply && modified) {
-      const bakPath = `${abs}.skill-switch.bak`;
+      const bakPath = backupPathFor(backupRoot, targetRoot, abs);
       let backupCreated = false;
-      if (!existsSync(bakPath)) {
-        await writeFile(bakPath, originalContent, 'utf8');
+      await mkdir(dirname(bakPath), { recursive: true, mode: 0o700 });
+      try {
+        await writeFile(bakPath, originalContent, {
+          encoding: 'utf8',
+          flag: 'wx',
+          mode: 0o600,
+        });
         backupCreated = true;
+      } catch (error) {
+        if (!hasErrnoCode(error, 'EEXIST')) throw error;
       }
       await writeFile(abs, currentContent, 'utf8');
       filesModified++;

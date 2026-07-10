@@ -5,7 +5,7 @@
 //   1. 基础向后兼容  — audit <fixture> 和 --json 无 v0.5 标志时行为不变。
 //   2. --format sarif  — 输出是合法 SARIF 2.1.0 文档。
 //   3. 策略文件        — failOn / suppress / malformed / --no-policy 各场景。
-//   4. --fix / --apply — dry-run 不写盘;apply 注释化目标行+生成 bak;幂等;--configs 不被改。
+//   4. --fix / --apply — dry-run 不写盘;apply 注释化目标行+隔离备份;幂等;--configs 不被改。
 //   5. --configs + MCP — 临时 home 包含恶意 .mcp.json / Windsurf / Zed 路径 → v0.5-5 ruleId 出现;
 //                        良性 near-miss → absent。
 //
@@ -24,7 +24,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -45,6 +45,8 @@ function makeTmpDir(): string {
   return dir;
 }
 
+const TEST_HOME = makeTmpDir();
+
 afterAll(() => {
   for (const d of TMP_DIRS) {
     try {
@@ -61,6 +63,7 @@ function runCli(args: string[]): { stdout: string; stderr: string; status: numbe
     const stdout = execFileSync(process.execPath, ['--import', 'tsx', CLI, ...args], {
       cwd: ROOT,
       encoding: 'utf8',
+      env: { ...process.env, HOME: TEST_HOME, USERPROFILE: TEST_HOME },
     });
     return { stdout, stderr: '', status: 0 };
   } catch (err) {
@@ -72,7 +75,11 @@ function runCli(args: string[]): { stdout: string; stderr: string; status: numbe
 /** 在指定 cwd 运行 CLI(走 bin shim,tsx 解析与 cwd 无关);从不抛出。 */
 function runCliInCwd(args: string[], cwd: string): { stdout: string; status: number } {
   try {
-    const stdout = execFileSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
+    const stdout = execFileSync(process.execPath, [BIN, ...args], {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, HOME: TEST_HOME, USERPROFILE: TEST_HOME },
+    });
     return { stdout, status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; status?: number };
@@ -339,12 +346,10 @@ describe('e2e: --fix dry-run', () => {
 });
 
 describe('e2e: --fix --apply', () => {
-  it('注释化目标行 + 写 .skill-switch.bak', () => {
+  it('注释化目标行 + 写隔离 .skill-switch.bak', () => {
     const skillDir = makeClickfixSkillDir();
     const skillFile = join(skillDir, 'SKILL.md');
     const original = readFileSync(skillFile, 'utf8');
-    const bakFile = `${skillFile}.skill-switch.bak`;
-
     const { stdout } = runCli(['audit', skillDir, '--fix', '--apply']);
 
     // apply 标识出现在输出中
@@ -360,6 +365,10 @@ describe('e2e: --fix --apply', () => {
     expect(after).toContain('[skill-switch]');
 
     // 备份文件存在且内容是原文
+    const backupMatch = /备份: (.+?) \(/.exec(stdout);
+    expect(backupMatch).not.toBeNull();
+    const bakFile = backupMatch![1]!;
+    expect(relative(skillDir, bakFile)).toMatch(/^\.\./);
     expect(existsSync(bakFile)).toBe(true);
     expect(readFileSync(bakFile, 'utf8')).toBe(original);
   });

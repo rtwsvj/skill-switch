@@ -606,7 +606,7 @@ export function registerAuditCommand(program: Command): void {
     .option('--policy <path>', '指定策略文件路径(默认: ./.skill-switch-policy.json)')
     .option('--no-policy', '忽略策略文件,使用默认阻断行为(等同于无策略文件)')
     .option('--fix', '受控引导修复(dry-run):展示每条可修复 finding 的差异预览;不写盘。加 --apply 才实际修改。')
-    .option('--apply', '与 --fix 搭配:实际写盘修复,并自动生成 .skill-switch.bak 备份(已存在则不覆盖)。单独使用无效。')
+    .option('--apply', '与 --fix 搭配:实际写盘修复,并在 HOME/.skill-switch/fix-backups 隔离保存原文(已存在则不覆盖)。单独使用无效。')
     .option('--write-baseline <path>', '将当前所有 finding 的指纹写入基线文件,exit 0(与 --baseline 同时使用时本标志优先)')
     .option('--baseline <path>', '加载基线文件;已基线化的 finding 不影响退出码(仍出现在输出中)')
     .option('--write-config-baseline <path>', '将当前发现的 MCP server + settings 指纹写入配置漂移基线文件,exit 0(须配合 --configs)')
@@ -719,6 +719,9 @@ export function registerAuditCommand(program: Command): void {
       }
       // 若同时指定两者,--write-config-baseline 优先(写出后 exit 0;不再对比)
       const configBaselineCompareActive = configBaselinePath !== undefined && writeConfigBaselinePath === undefined;
+      const optionHome = typeof options.home === 'string' ? options.home : undefined;
+      const home = resolveHomeRoot(optionHome ?? command.parent?.opts<{ home?: string }>().home);
+      const guidedFixBackupRoot = join(home, '.skill-switch', 'fix-backups');
 
       // ── --ignore-file / .skill-switch-ignore:加载路径忽略规则 ──────────────────
       // 无标志时尝试读取默认忽略文件;文件不存在 → 空规则列表(行为不变)。
@@ -842,6 +845,7 @@ export function registerAuditCommand(program: Command): void {
               skillFindings: fullReport.findings,
               configFindings: [],
               apply: doApply,
+              backupRoot: guidedFixBackupRoot,
             });
             const guidedFix = serializeGuidedFix(summary, doApply);
             console.log(JSON.stringify({ path, ...reportForJson, findings, guidedFix }, null, 2));
@@ -871,6 +875,7 @@ export function registerAuditCommand(program: Command): void {
             skillFindings: fullReport.findings,
             configFindings: [], // path 模式无 --configs findings
             apply: doApply,
+            backupRoot: guidedFixBackupRoot,
           });
           console.log('');
           console.log(formatGuidedFixOutput(summary, doApply));
@@ -878,8 +883,6 @@ export function registerAuditCommand(program: Command): void {
         return;
       }
 
-      const optionHome = typeof options.home === 'string' ? options.home : undefined;
-      const home = resolveHomeRoot(optionHome ?? command.parent?.opts<{ home?: string }>().home);
       const report = await auditHome(home, { includeConfigs: options.configs === true });
 
       // ── --write-config-baseline:写出 MCP server + settings 指纹基线,exit 0 ────
@@ -1068,6 +1071,7 @@ export function registerAuditCommand(program: Command): void {
                 skillFindings: skill.findings,
                 configFindings: skillConfigFindings,
                 apply: doApply,
+                backupRoot: guidedFixBackupRoot,
               });
               const base = (policyActive || baselineActive)
                 ? {
@@ -1139,6 +1143,7 @@ export function registerAuditCommand(program: Command): void {
             skillFindings: skill.findings,
             configFindings: skillConfigFindings,
             apply: doApply,
+            backupRoot: guidedFixBackupRoot,
           });
           if (summary.results.length > 0) {
             console.log('');

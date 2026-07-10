@@ -25,7 +25,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -44,6 +44,8 @@ function makeTmpDir(): string {
   return dir;
 }
 
+const TEST_HOME = makeTmpDir();
+
 afterAll(() => {
   for (const d of TMP_DIRS) {
     try {
@@ -60,6 +62,7 @@ function runCli(args: string[]): { stdout: string; stderr: string; status: numbe
     const stdout = execFileSync(process.execPath, ['--import', 'tsx', CLI, ...args], {
       cwd: ROOT,
       encoding: 'utf8',
+      env: { ...process.env, HOME: TEST_HOME, USERPROFILE: TEST_HOME },
     });
     return { stdout, stderr: '', status: 0 };
   } catch (err) {
@@ -74,6 +77,7 @@ function runBin(args: string[]): { stdout: string; stderr: string; status: numbe
     const stdout = execFileSync(process.execPath, [BIN, ...args], {
       cwd: ROOT,
       encoding: 'utf8',
+      env: { ...process.env, HOME: TEST_HOME, USERPROFILE: TEST_HOME },
     });
     return { stdout, stderr: '', status: 0 };
   } catch (err) {
@@ -254,8 +258,6 @@ describe('--fix --apply --format json', () => {
     const dir = makeClickfixDir();
     const skillFile = join(dir, 'SKILL.md');
     const original = readFileSync(skillFile, 'utf8');
-    const bakFile = `${skillFile}.skill-switch.bak`;
-
     const { stdout } = runCli(['audit', dir, '--fix', '--apply', '--format', 'json']);
 
     const parsed = JSON.parse(stdout) as {
@@ -279,6 +281,7 @@ describe('--fix --apply --format json', () => {
     expect(fixable!.applied).toBe(true);
     expect(fixable!.backupPath).toBeDefined();
     expect(fixable!.backupPath).toContain('.skill-switch.bak');
+    expect(relative(dir, fixable!.backupPath!)).toMatch(/^\.\./);
 
     // 磁盘文件已修改
     const after = readFileSync(skillFile, 'utf8');
@@ -287,6 +290,7 @@ describe('--fix --apply --format json', () => {
     expect(after).toContain('[skill-switch]');
 
     // 备份存在且内容是原文
+    const bakFile = fixable!.backupPath!;
     expect(existsSync(bakFile)).toBe(true);
     expect(readFileSync(bakFile, 'utf8')).toBe(original);
   });
