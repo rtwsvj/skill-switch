@@ -1,4 +1,4 @@
-# 原生 macOS App 发布流水线:git tag 推送时触发,在 macos-14 runner 上
+# 原生 macOS App 发布流水线:git tag 推送时触发,在 macos-15 runner 上
 #   checkout → pnpm install → pnpm test → bash macos/build-app.sh
 #   → ditto -c -k --keepParent 打 zip → 作为 asset 上传到该 tag 的 GitHub Release。
 #
@@ -23,7 +23,7 @@ jobs:
   release:
     permissions:
       contents: write   # 上传 Release 产物需要
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - name: Checkout
