@@ -3,7 +3,30 @@
 本项目的所有重要变更都记录在此。格式参考 [Keep a Changelog](https://keepachangelog.com/),
 版本遵循语义化版本。条目按**用户能感知的价值**书写,而非内部实现编号。
 
-## [Unreleased]
+## [0.10.0] - 2026-07-16
+
+> **安全修复版**:本版包含一轮深度安全体检(2026-07-10)发现问题的全部修复——8 个严重级(P0)、9 个高优先(P1)、5 个卫生级(P2)。**建议所有 0.9.0 及更早版本的用户尽快升级**。修复均有回归测试钉死;体检与修复的详细报告将在本版发布后随仓库公开(docs/codex/)。
+
+### 安全 Security
+- **审计覆盖不完整时不再放行安装**:此前文件数/深度/大小超限或顶层软链可能导致部分文件未被扫描而安装仍继续;现在覆盖率显式记账、超限即 fail-closed,只有净化拷贝契约内的省略才被接受。
+- **GitHub Action 输入不再进 shell 源码**:workflow 输入此前经字符串插值进入 shell,特制输入可改写执行的命令;现在全部走环境变量/argv,Node 包装器白名单化附加参数,`spawnSync` 以 `shell:false` 运行,默认包版本从可变 `latest` 改为精确版本。第三方 Action 全部钉到 40 位 commit SHA。
+- **多文件写操作加每-home 操作锁 + 失败补偿**:install/toggle/remove/sync/import/init 等此前在无共同临界区的情况下做多文件决策,并发写会互相覆盖、中途失败可能留下撕裂状态;现在 PID/nonce 锁贯穿读-规划-快照-应用全程,持锁者死亡可安全回收,toggle/remove 失败有经测试的补偿回滚。
+- **快照恢复拒绝危险归档成员**:tar 恢复此前不拒绝 symlink/hardlink/设备等特殊成员;现在逐成员校验类型,只接受目录与普通文件。
+- **密钥与终端控制字节不再进入输出**:findings/引导修复/settings/MCP 输出此前可能原样回显密钥、argv 凭据、URL userinfo 与 ESC/OSC/C1 控制字节;现在统一脱敏与控制字符中和。
+- **重定向与 DNS 层 SSRF 防护**:registry/MCP 的 HTTP 请求此前自动跟随重定向且凭据可跨源;现在手动重定向循环(≤5 跳)逐跳校验协议/凭据/同源、跨源剥密钥,并在每次请求前解析 DNS 拒绝私网地址;本地 HTTP 仅限显式 loopback 的 MCP transport。
+- **MCP server 资源上限与只读加固**:stdio 帧上限 1 MiB、串行队列上限 64、畸形 JSON-RPC 有形状校验与恢复;宣称只读的 stats 工具不再落缓存(`cacheMode:disabled`),缓存 schema 升级为仅聚合(不含会话路径/参数明细)。
+- **替换带安全通告的 frontmatter 解析依赖**:改用维护中的 `yaml`(YAML 1.2 core/strict),禁 merge/自定义标签、限别名、拒绝重复键与原型污染键;`qs` 传递依赖覆盖到无漏洞版本。生产与全图依赖审计均零已知漏洞。
+- **guided-fix 原文备份移出 Agent 可读目录**(详见下方「变更」),修复幂等性同时消除危险原文残留。
+- **diff 单文件内存上限与二进制诚实报告**:对比超过 8 MiB 的单文件不再整个读入内存(确定性截断报告代替);二进制文件输出 git 风格单行差异报告而非乱码;CLI 摘要对被跳过的文件如实标注(`--json` 增加条件性 `oversizedFiles` 计数)。相同内容(含二进制)仍返回空 diff。
+- **macOS App 调 CLI 子进程加硬边界**:并发排水防管道死锁、64 KiB 诊断上限、16 MiB 总输出上限、120 s 硬超时、取消时 TERM→KILL 升级、C0/C1 输出净化。
+- **原子状态持久化加固**:临时文件名改随机 UUID(消除 PID+毫秒碰撞)、强制 fsync、原子 rename、目录元数据尽力 fsync。
+- **`--diff-from` 的 git 引用先验证再使用**:`rev-parse --verify --end-of-options <ref>^{commit}` 确认为提交并用规范哈希调用,杜绝选项歧义注入。
+
+### 修复 Fixed
+- **发布/打包契约校真**:npm 包显式 CLI-only(不再导出原始 TypeScript);SEA 构建按宿主 triple 选择/重建并校验架构与版本;版本号从 `package.json` 静态嵌入(仓库外运行不再显示 `unknown`);包管理器 manifest 标注为不可安装的预置元数据;文档区分未签名预览产物与已签名发布产物。
+- **transcript 适配器全链路生效**:stats/packs 共现分析此前把所有会话文件当 Claude 格式解析,丢失 Codex 用量;现在逐文件带适配器分发解析。
+- **MCP 扫描并发化**:多 server 扫描从串行改为有界并发(默认 4、上限 16),输出顺序稳定。
+- **大文件 unified diff 性能**:先剥公共前后缀,中段乘积 ≤25 万格才走精确 LCS,否则确定性替换块;目录对比流式哈希、只加载变更文件内容。5,000 行近似文件对比从堆溢出降至 <1 ms/9.4 MiB。
 
 ### 新增 Added
 - **致命三要素(Lethal Trifecta)能力合成检测(`agentic/lethal-trifecta`,medium,advisory)**:复用 `exfiltration/taint-source-to-sink` 已实现的两轴(读私有数据 / 对外发送)逐行判定,新增「摄入不可信内容」第三轴(`WebFetch`/`WebSearch`/自然语言「follow this PR/issue/email」+ 桥接词 + 攻击者可控容器词、fetch 输出管道到解释器、eval/bash -c 注入外部内容、xargs 回灌),同一文件三轴俱全时命中。**report-only 不阻断 CI**(OWASP Agentic 2026 收录;Simon Willison 原始模型)——典型的零误报姿态,缺任一轴立即 miss,自然语言路径用「this/the following」做桥接词收紧边界,显式排除「file/input/content」通用词以保护良性 skill 文档(「read the config file」「fetch data from API」均零命中)。`audit` human 输出命中时末尾追加 `⚠ 致命三要素:N 个 skill …` 摘要行(`--json`/SARIF 结构与退出码不变);`explain agentic/lethal-trifecta` 走既有类目机制(why/how-to-fix/suppress 三段);SARIF `properties.tags` 加 `owasp-agentic:T6 + T2` + `atlas:AML.T0051.001 + AML.T0025`(纯标注,不影响 severity/阻断)。与既有 taint 共存时各自独立计入(语义不同:taint 抓数据流,lethal-trifecta 抓能力组合)。**零新依赖**。
@@ -13,6 +36,8 @@
 - **审计引擎:字符串字面量拼接折叠(闭合单行拼接端点绕过)**:攻击者把已知外渗端点用 `'https://webhook.' + 'site/abc'` 这种字符串拼接拆开躲关键词匹配。引擎在原始行、Unicode 归一化行之外新增第三轮匹配——用手写线性扫描器(不用正则、零回溯)把**单行内纯字面量之间**的 `+` 拼接折叠成单个字符串再喂给既有 80+ 条规则,`exfiltration/exfil-endpoint` 遂看见被拆开的端点。**只折叠字面量 + 字面量**:拼接链中一旦出现标识符、模板串(反引号)、数字或函数调用即整条放弃,良性 `'https://api.example.' + 'com'` 折叠后不含外发动作+已知端点故**零误报面**;findings 的 excerpt 仍显示攻击者原样写法。单链上限 16 段、行长沿用既有 2KB 截断。不含可折叠拼接的输入输出逐字节不变(A5 语料其余样本即回归证据)。**已知边界**:endpoint 拼接后赋给变量、再在另一行用变量调 `fetch(url)` 的**跨行 + 拼接组合**仍需跨行常量传播,是唯一剩余的 documented miss(见 [docs/known-limitations.md](docs/known-limitations.md))。
 
 ### 变更 Changed
+- **`audit` 命令模块拆分**:1,142 行的 `audit.ts` 拆为 `audit-format.ts`(人类可读格式化)与 `audit-options.ts`(格式/过滤/策略解析),命令编排与全部既有导入出口保留在原模块;经逐字节比对与全量测试证明行为零变化。core 服务边界(`src/core/audit/service.ts`)由架构测试守护。
+- **CI 覆盖率门禁提升**:覆盖范围补入 `rules/`,阈值升到实测水平(67/62/70/68),全套件只跑一次;macOS job 迁 `macos-15` runner(Swift 6 工具链)并增加 `swift test`。
 - **guided-fix 原文备份隔离**:`audit --fix --apply` 不再把包含危险原文的 `<file>.skill-switch.bak` 留在 skill/Agent 可读目录；备份改存到 `~/.skill-switch/fix-backups/<目标哈希>/...`,以 0600 独占创建且不覆盖最早原文。修复后的 skill 因而保持幂等,后续完整审计不会把备份当成新目标再次修改。
 - **桌面 App 迁移到原生 SwiftUI,退役 Tauri GUI**:macOS 前端从 Tauri v2 + React 迁移到 SwiftUI(里程碑 1–5:总览 / 技能 / 安全 / 维护 / 历史 / 使用 六屏 + 写操作确认弹窗 + 自动快照 + zh-CN / en / ja / es 四语言应用内切换 + 跟随系统明暗主题)。`gui/` 整个目录(`gui/src-tauri/` 的 Rust 壳、`gui/src/` 的 React、Tauri 配置、React 单元测试、`gui/scripts/tui.mjs`、`gui/scripts/check-entitlements.mjs` 等)随此版本一并退役;只保留过 README 引用的 5 张截图,迁至 `assets/screenshots/`。Linux / Windows 用户继续走 npm CLI(`npx @rtwsvj/skill-switch`),桌面 App 只发 macOS。
 - **CLI 打包脚本迁至 `scripts/`**:`gui/scripts/bundle-cli.mjs` → `scripts/bundle-cli.mjs`,`gui/scripts/bundle-cli-bun.mjs` → `scripts/bundle-cli-bun.mjs`。Node SEA 产物输出从 `gui/src-tauri/bin/skill-switch-cli-<triple>` 改为 `dist/sea/skill-switch-cli-<triple>`(命名/triple 保留);`esbuild@^0.28.1` 与 `postject@1.0.0-alpha.6` 从 `gui/package.json` 同版本平移到根 `devDependencies`(零新依赖,零升版)。`pnpm-workspace.yaml` 删 `packages: - gui`。根 `package.json` 新增 `"bundle:cli"` 脚本。
