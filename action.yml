@@ -24,7 +24,7 @@ inputs:
   version:
     description: '精确的 skill-switch npm 版本；默认与本 Action release 固定一致。'
     required: false
-    default: '0.9.0'
+    default: '0.10.0'
   node-version:
     description: '运行所用的 Node 版本'
     required: false
