@@ -56,18 +56,18 @@ const LINE_WINDOW = 8;
 //   - 命令替换 / 子 shell:$( … )  反引号  < ( … )
 // 这些特征在描述性散文里极少自然出现,因此能把「文档提到环境变量+上传」过滤掉。
 const SHELL_COMMAND_TOKENS =
-  String.raw`(?:curl|wget|nc|ncat|netcat|cat|echo|printenv|env|export|scp|sftp|ftp|rsync|ssh|base64|tar|gzip|zip|openssl|http|https|fetch|xxd|head|tail|tee|dd|node|python[0-9.]*|perl|ruby|bash|sh|eval|source)`;
+  '(?:curl|wget|nc|ncat|netcat|cat|echo|printenv|env|export|scp|sftp|ftp|rsync|ssh|base64|tar|gzip|zip|openssl|http|https|fetch|xxd|head|tail|tee|dd|node|python[0-9.]*|perl|ruby|bash|sh|eval|source)';
 
 // 行内是否带有 shell/命令上下文特征。
 // 注意:各分支均为线性匹配,无嵌套量词,RE2 安全。
 const COMMAND_CONTEXT = new RegExp(
   [
     // 管道 / 逻辑连接 / 分号串联
-    String.raw`[|;&]`,
+    '[|;&]',
     // 重定向操作符
     String.raw`(?:^|\s)(?:>>?|<)\s`,
     // /dev/tcp /dev/udp 网络重定向
-    String.raw`/dev/(?:tcp|udp)/`,
+    '/dev/(?:tcp|udp)/',
     // 命令替换 / 进程替换
     String.raw`\$\(`,
     String.raw`<\(`,

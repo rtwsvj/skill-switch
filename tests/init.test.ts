@@ -1,11 +1,12 @@
 // W2-a:init CLI 验收 — 草拟 skills.json、不覆盖、--force、--dry-run、--home 隔离。
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildDraftDeclaration } from '../src/cli/commands/init.ts';
+import { acquireOperationLock } from '../src/core/operation-lock.ts';
 import { scanHome } from '../src/core/scan.ts';
 import { getSkillsJsonPath } from '../src/core/sync.ts';
 
@@ -21,6 +22,27 @@ function runCli(args: string[]): { stdout: string; stderr: string; status: numbe
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
+}
+
+function runCliAsync(args: string[]): Promise<{ stdout: string; stderr: string; status: number }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--import', 'tsx', CLI, ...args], {
+      cwd: ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once('error', reject);
+    child.once('close', (code) => resolve({ stdout, stderr, status: code ?? -1 }));
+  });
 }
 
 function freshHome(): string {
@@ -95,6 +117,39 @@ describe('buildDraftDeclaration', () => {
 // ---------------------------------------------------------------------------
 
 describe('init CLI', () => {
+  it('serializes the exists-check and write across concurrent processes', async () => {
+    const home = freshHome();
+    const skillDir = join(home, '.claude', 'skills', 'concurrent-init');
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: concurrent-init\ndescription: init lock fixture.\n---\n\nContent.\n',
+    );
+
+    const held = await acquireOperationLock(home, 'test-hold');
+    const initializers = [
+      runCliAsync(['init', '--home', home]),
+      runCliAsync(['init', '--home', home]),
+    ];
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      await expect(stat(getSkillsJsonPath(home))).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await held.release();
+    }
+
+    const results = await Promise.all(initializers);
+    expect(results.every((result) => result.status === 0), results.map((r) => r.stderr).join('\n'))
+      .toBe(true);
+    expect(results.filter((result) => result.stdout.includes('已写入'))).toHaveLength(1);
+    expect(results.filter((result) => result.stdout.includes('已有 skills.json'))).toHaveLength(1);
+    const declaration = JSON.parse(await readFile(getSkillsJsonPath(home), 'utf8')) as {
+      skills: Array<{ name: string }>;
+    };
+    expect(declaration.skills.map((skill) => skill.name)).toContain('concurrent-init');
+  });
+
   it('writes skills.json on a fresh home with installed skills', async () => {
     const home = freshHome();
     const skillDir = join(home, '.claude', 'skills', 'my-skill');

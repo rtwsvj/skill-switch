@@ -47,6 +47,15 @@ export interface TranscriptAdapter {
   ): { invocations: SkillInvocation[]; parseErrors: number };
 }
 
+/**
+ * 已发现的 transcript 文件及其解析器。
+ * 消费者必须保留 adapter 关联，不能再假设所有 JSONL 都是 Claude Code 格式。
+ */
+export interface AdapterTranscriptFile {
+  adapter: TranscriptAdapter;
+  sessionFile: string;
+}
+
 // ── 工具函数 ─────────────────────────────────────────────────────────────────
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {
@@ -210,7 +219,7 @@ export function discoverClaudeTranscriptRoots(
 }
 
 export async function listTranscriptFiles(roots: string[], maxDepth = 12): Promise<string[]> {
-  const files: string[] = [];
+  const files = new Set<string>();
   async function walk(dir: string, depth: number): Promise<void> {
     let entries: Dirent[];
     try {
@@ -224,12 +233,12 @@ export async function listTranscriptFiles(roots: string[], maxDepth = 12): Promi
         if (depth >= maxDepth) continue;
         await walk(full, depth + 1);
       } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
-        files.push(full);
+        files.add(full);
       }
     }
   }
   for (const root of roots) await walk(root, 0);
-  return files.sort();
+  return [...files].sort();
 }
 
 export function parseSkillInvocations(jsonl: string, sessionFile: string): SkillInvocation[] {
@@ -275,6 +284,34 @@ export async function discoverAllTranscriptRoots(
 }
 
 /**
+ * 用所有 adapter 发现 transcript 文件，并保留每个文件对应的解析器。
+ * adapter 顺序由注册表决定；每个 adapter 内文件按路径排序，保证消费者输出确定性。
+ * 同一 adapter 的重复 root/path 由 listTranscriptFiles 去重，但不会把重复调用误删。
+ */
+export async function discoverAdapterTranscriptFiles(
+  home: string,
+  env: Record<string, string | undefined> = process.env,
+  maxDepth = 12,
+  adapters: TranscriptAdapter[] = registeredAdapters,
+): Promise<AdapterTranscriptFile[]> {
+  const sources: AdapterTranscriptFile[] = [];
+  for (const { adapter, roots } of await discoverAllTranscriptRoots(home, env, adapters)) {
+    for (const sessionFile of await listTranscriptFiles(roots, maxDepth)) {
+      sources.push({ adapter, sessionFile });
+    }
+  }
+  return sources;
+}
+
+/** 通过发现阶段绑定的 adapter 解析内容，供 stats/packs 等消费者共享同一分派路径。 */
+export function parseAdapterTranscriptContent(
+  source: AdapterTranscriptFile,
+  jsonl: string,
+): { invocations: SkillInvocation[]; parseErrors: number } {
+  return source.adapter.parseInvocations(jsonl, source.sessionFile);
+}
+
+/**
  * 跨所有 adapter 解析 transcript,合并返回 SkillInvocation。
  * 内部用于多 agent 环境;每个适配器使用其自身的解析逻辑。
  */
@@ -285,19 +322,15 @@ export async function parseAllAdapterInvocations(
   adapters: TranscriptAdapter[] = registeredAdapters,
 ): Promise<SkillInvocation[]> {
   const all: SkillInvocation[] = [];
-  for (const { adapter, roots } of await discoverAllTranscriptRoots(home, env, adapters)) {
-    if (roots.length === 0) continue;
-    const files = await listTranscriptFiles(roots, maxDepth);
-    for (const file of files) {
-      let content: string;
-      try {
-        content = await readFile(file, 'utf8');
-      } catch {
-        continue;
-      }
-      const { invocations } = adapter.parseInvocations(content, file);
-      all.push(...invocations);
+  for (const source of await discoverAdapterTranscriptFiles(home, env, maxDepth, adapters)) {
+    let content: string;
+    try {
+      content = await readFile(source.sessionFile, 'utf8');
+    } catch {
+      continue;
     }
+    const { invocations } = parseAdapterTranscriptContent(source, content);
+    all.push(...invocations);
   }
   // 按 sessionFile 排序保证确定性
   return all.sort((a, b) => a.sessionFile.localeCompare(b.sessionFile));

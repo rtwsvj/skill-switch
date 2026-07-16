@@ -19,6 +19,7 @@ import {
   toSkillDeclarations,
   type ApmMapping,
 } from '../../core/apm-interop.ts';
+import { withOperationLock } from '../../core/operation-lock.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import { getSkillsJsonPath, upsertSkillDeclarations } from '../../core/sync.ts';
 import type { AgentType } from '../../vendor/vercel-skills/types.ts';
@@ -159,7 +160,9 @@ export async function runApmImport(
         mode: decl.mode,
       })),
     );
-    await upsertSkillDeclarations(declPath, additions);
+    await withOperationLock(home, 'apm-import', () =>
+      upsertSkillDeclarations(declPath, additions),
+    );
   }
 
   printReport(mapping, { apply: apply && mapping.skills.length > 0, declPath });

@@ -8,6 +8,7 @@
 //   行长截断(MAX_AUDIT_MATCH_LINE_LENGTH=2048)作为 defense-in-depth 保留。
 //   编译结果通过 WeakMap 缓存——同一 RegExp 对象只编译一次。
 import { createRequire } from 'node:module';
+import { sanitizeOutputText } from '../security/output-safety.ts';
 import { scoreFindings, verdictForScore, type Verdict } from './score.ts';
 import type { AuditFileRule, AuditFileTarget, AuditFinding, AuditRule } from './types.ts';
 import { CONFUSABLES_MAP } from './confusables-data.ts';
@@ -430,7 +431,8 @@ export function runRules(rules: AuditRule[], targets: AuditTarget[]): AuditFindi
 }
 
 function excerpt(text: string): string {
-  return text.length > EXCERPT_LIMIT ? `${text.slice(0, EXCERPT_LIMIT)}…` : text;
+  const safe = sanitizeOutputText(text);
+  return safe.length > EXCERPT_LIMIT ? `${safe.slice(0, EXCERPT_LIMIT)}…` : safe;
 }
 
 export function runFileRules(fileRules: AuditFileRule[], targets: AuditTarget[]): AuditFinding[] {

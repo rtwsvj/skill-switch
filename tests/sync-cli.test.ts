@@ -1,11 +1,12 @@
 // F8:sync CLI — 应用整份 skills.json,支持 dry-run 和执行前快照。
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { listSnapshots } from '../src/core/backup.ts';
+import { acquireOperationLock } from '../src/core/operation-lock.ts';
 import { getSkillsJsonPath, type SkillsDeclarationFile } from '../src/core/sync.ts';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -29,6 +30,28 @@ function runSync(args: string[]): { stdout: string; stderr: string; status: numb
   }
 }
 
+function runSyncAsync(args: string[]): Promise<{ stdout: string; stderr: string; status: number }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      ['--import', 'tsx', CLI, 'sync', '--home', home, ...args],
+      { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once('error', reject);
+    child.once('close', (code) => resolve({ stdout, stderr, status: code ?? -1 }));
+  });
+}
+
 beforeEach(async () => {
   home = mkdtempSync(join(tmpdir(), 'skill-switch-sync-cli-'));
   source = join(home, '.skill-switch', 'store', 'delta');
@@ -45,6 +68,25 @@ beforeEach(async () => {
 });
 
 describe('sync CLI(真实子进程)', () => {
+  it('holds one cross-process home lock across snapshot and apply', async () => {
+    await mkdir(target, { recursive: true });
+    await writeFile(join(target, 'SKILL.md'), 'TAMPERED\n');
+    const held = await acquireOperationLock(home, 'test-hold');
+    const syncing = runSyncAsync(['--json']);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(await readFile(join(target, 'SKILL.md'), 'utf8')).toBe('TAMPERED\n');
+      expect(await listSnapshots(join(home, '.skill-switch', 'backups'))).toEqual([]);
+    } finally {
+      await held.release();
+    }
+    const result = await syncing;
+    expect(result, result.stderr).toMatchObject({ status: 0 });
+    expect(await readFile(join(target, 'SKILL.md'), 'utf8')).toContain('SOURCE.');
+    expect(await listSnapshots(join(home, '.skill-switch', 'backups'))).toHaveLength(1);
+  });
+
   it('--dry-run reports actions but does not write disk or snapshots', async () => {
     const result = runSync(['--dry-run', '--json']);
     expect(result.status).toBe(0);
@@ -154,6 +196,9 @@ describe('sync CLI(真实子进程)', () => {
     expect(result.status).not.toBe(0);
     // 未创建 target
     await expect(lstat(target)).rejects.toThrow();
+    // 失败路径必须释放子进程持有的 home lock。
+    const next = await acquireOperationLock(home, 'after-sync-error', { waitMs: 50 });
+    await next.release();
   });
 
   it('R26-a: 已同步状态下 sync 是 noop,不产生额外快照', async () => {

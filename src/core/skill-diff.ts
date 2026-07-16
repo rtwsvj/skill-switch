@@ -1,18 +1,30 @@
 // D2:内容漂移的「改了什么」—— 对 copy 模式技能,把磁盘上的技能目录与 store 里的耐久副本
 // (install 时落的「应该是什么」)逐文件对比,产出 added / removed / modified 列表。
 // symlink 模式磁盘即源,没有独立参照,标 comparable=false。纯只读,不改任何文件。
-import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { createReadStream, existsSync } from 'node:fs';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 
 export type SkillFileDiffStatus = 'added' | 'removed' | 'modified';
 
+/** 单文件内容读入上限(8 MiB);超出则不读内容、标 oversized。 */
+export const MAX_DIFF_FILE_BYTES = 8 * 1024 * 1024;
+
+/** 二进制启发式采样窗口(与 git 一致:前 8 KiB 含 NUL)。 */
+const BINARY_PROBE_BYTES = 8192;
+
 export interface SkillFileDiff {
   /** 相对技能目录的路径 */
   path: string;
   status: SkillFileDiffStatus;
+  /** 任一侧超出上限时为 true;此时内容不读入内存,无法逐行对比。 */
+  oversized?: boolean;
+  /** 仅 oversized 时填充:两侧字节数(缺侧为 undefined)。 */
+  diskBytes?: number;
+  storeBytes?: number;
 }
 
 export interface SkillDiff {
@@ -24,6 +36,16 @@ export interface SkillDiff {
   diskDir?: string;
   storeDir?: string;
   files: SkillFileDiff[];
+  /**
+   * 内容加载路径上实际生效的单文件字节上限。
+   * 供 buildUnifiedDiffText 渲染 oversized 块时使用;diffSkill(不含内容)不设置。
+   */
+  maxFileBytes?: number;
+}
+
+export interface SkillDiffOptions {
+  /** 覆盖默认单文件字节上限(仅测试注入用;生产走 MAX_DIFF_FILE_BYTES)。 */
+  maxFileBytes?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +89,13 @@ function lcs(a: string[], b: string[]): Array<[number, number]> {
   return pairs;
 }
 
+// The exact dynamic-programming LCS is retained for small middle sections so
+// existing hunk/tie-breaking behavior stays byte-for-byte compatible. Larger
+// divergent sections are represented as a replacement instead of allocating
+// an unbounded m*n matrix. Common prefixes/suffixes are stripped first, so a
+// tiny edit in a very large file remains exact and linear-time.
+const MAX_EXACT_LCS_CELLS = 250_000;
+
 interface EditOp {
   type: 'context' | 'added' | 'removed';
   lineA: number; // 1-based line number in source (a), -1 for pure additions
@@ -79,13 +108,41 @@ interface EditOp {
  * line arrays using LCS-based diff.
  */
 function diffLines(a: string[], b: string[]): EditOp[] {
-  const lcsPairs = lcs(a, b);
   const ops: EditOp[] = [];
 
-  let ia = 0; // current position in a
-  let ib = 0; // current position in b
+  let prefix = 0;
+  while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) {
+    ops.push({
+      type: 'context',
+      lineA: prefix + 1,
+      lineB: prefix + 1,
+      text: a[prefix]!,
+    });
+    prefix += 1;
+  }
 
-  for (const [pa, pb] of lcsPairs) {
+  let suffix = 0;
+  while (
+    suffix < a.length - prefix &&
+    suffix < b.length - prefix &&
+    a[a.length - 1 - suffix] === b[b.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+
+  const aEnd = a.length - suffix;
+  const bEnd = b.length - suffix;
+  const middleA = a.slice(prefix, aEnd);
+  const middleB = b.slice(prefix, bEnd);
+  const exact = middleA.length * middleB.length <= MAX_EXACT_LCS_CELLS;
+  const lcsPairs = exact ? lcs(middleA, middleB) : [];
+
+  let ia = prefix; // current position in a
+  let ib = prefix; // current position in b
+
+  for (const [middlePa, middlePb] of lcsPairs) {
+    const pa = prefix + middlePa;
+    const pb = prefix + middlePb;
     // Drain removed lines from a before this LCS point
     while (ia < pa) {
       ops.push({ type: 'removed', lineA: ia + 1, lineB: -1, text: a[ia]! });
@@ -101,14 +158,23 @@ function diffLines(a: string[], b: string[]): EditOp[] {
     ia++;
     ib++;
   }
-  // Remaining lines
-  while (ia < a.length) {
+  // Remaining middle lines. For an over-budget LCS this deliberately emits a
+  // whole-section replacement: the patch is valid and deterministic while
+  // resource use remains bounded.
+  while (ia < aEnd) {
     ops.push({ type: 'removed', lineA: ia + 1, lineB: -1, text: a[ia]! });
     ia++;
   }
-  while (ib < b.length) {
+  while (ib < bEnd) {
     ops.push({ type: 'added', lineA: -1, lineB: ib + 1, text: b[ib]! });
     ib++;
+  }
+
+  while (suffix > 0) {
+    ops.push({ type: 'context', lineA: ia + 1, lineB: ib + 1, text: a[ia]! });
+    ia += 1;
+    ib += 1;
+    suffix -= 1;
   }
   return ops;
 }
@@ -159,6 +225,13 @@ function opsToHunks(ops: EditOp[], context = 3): string {
   return lines.join('\n');
 }
 
+/** git 同款启发式:前 8192 字节含 NUL(0x00)则视为二进制。 */
+function isBinaryBuffer(buf: Buffer | undefined): boolean {
+  if (!buf || buf.length === 0) return false;
+  const end = Math.min(buf.length, BINARY_PROBE_BYTES);
+  return buf.subarray(0, end).includes(0);
+}
+
 /**
  * Generate a unified diff string for a single file.
  * @param path  Relative path within the skill (used in headers).
@@ -170,6 +243,15 @@ export function generateUnifiedDiff(
   aContent: Buffer | undefined,
   bContent: Buffer | undefined,
 ): string {
+  // 两侧内容完全相同 → 与文本路径一致,返回空 diff(二进制也不例外)。
+  if (aContent !== undefined && bContent !== undefined && aContent.equals(bContent)) {
+    return '';
+  }
+  // 任一侧为二进制 → 不逐行 diff,输出 git 风格单行报告。
+  if (isBinaryBuffer(aContent) || isBinaryBuffer(bContent)) {
+    return `Binary files a/${path} and b/${path} differ`;
+  }
+
   const aLines = aContent ? aContent.toString('utf8').split('\n') : [];
   const bLines = bContent ? bContent.toString('utf8').split('\n') : [];
 
@@ -207,14 +289,28 @@ export function generateUnifiedDiff(
 /**
  * Given a SkillDiff (which must be comparable) and the raw file maps, produce
  * a full unified diff string covering all changed files.
+ * oversized 文件不读内容,输出确定性截断报告块。
  */
 export function buildUnifiedDiffText(
   diff: SkillDiff,
   diskFiles: Map<string, Buffer>,
   storeFiles: Map<string, Buffer>,
 ): string {
+  const limit = diff.maxFileBytes ?? MAX_DIFF_FILE_BYTES;
   const parts: string[] = [];
   for (const file of diff.files) {
+    if (file.oversized) {
+      const diskLabel = file.diskBytes === undefined ? 'absent' : `${file.diskBytes}B`;
+      const storeLabel = file.storeBytes === undefined ? 'absent' : `${file.storeBytes}B`;
+      parts.push(
+        [
+          `--- a/${file.path}`,
+          `+++ b/${file.path}`,
+          `@@ oversized file skipped: disk=${diskLabel} store=${storeLabel} limit=${limit}B @@`,
+        ].join('\n'),
+      );
+      continue;
+    }
     const diskContent = diskFiles.get(file.path);
     const storeContent = storeFiles.get(file.path);
     const patch = generateUnifiedDiff(file.path, storeContent, diskContent);
@@ -239,17 +335,31 @@ function diskDirFor(home: string, agent: AgentType, name: string): string | unde
  * 'removed'; present in both but with differing content is 'modified'.
  * Files with identical content are omitted.
  */
-function compareFileMaps(
-  disk: Map<string, Buffer>,
-  store: Map<string, Buffer>,
-): SkillFileDiff[] {
+interface SkillFileMetadata {
+  fullPath: string;
+  size: number;
+}
+
+async function hashFile(path: string): Promise<string> {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+  return hash.digest('hex');
+}
+
+async function compareFileMetadata(
+  disk: Map<string, SkillFileMetadata>,
+  store: Map<string, SkillFileMetadata>,
+): Promise<SkillFileDiff[]> {
   const files: SkillFileDiff[] = [];
 
-  for (const [path, diskContent] of disk) {
-    const storeContent = store.get(path);
-    if (storeContent === undefined) {
+  for (const [path, diskFile] of disk) {
+    const storeFile = store.get(path);
+    if (storeFile === undefined) {
       files.push({ path, status: 'added' }); // 磁盘有、参照没有 = 新增
-    } else if (!diskContent.equals(storeContent)) {
+    } else if (
+      diskFile.size !== storeFile.size ||
+      (await hashFile(diskFile.fullPath)) !== (await hashFile(storeFile.fullPath))
+    ) {
       files.push({ path, status: 'modified' });
     }
   }
@@ -261,9 +371,9 @@ function compareFileMaps(
   return files;
 }
 
-/** 递归列出目录下所有文件 → 相对路径 → 内容 Buffer。目录不存在则空。 */
-async function listFiles(dir: string): Promise<Map<string, Buffer>> {
-  const out = new Map<string, Buffer>();
+/** 递归列出目录元数据；内容只在确认发生变化后才读取。 */
+async function listFileMetadata(dir: string): Promise<Map<string, SkillFileMetadata>> {
+  const out = new Map<string, SkillFileMetadata>();
   if (!existsSync(dir)) return out;
   async function walk(current: string): Promise<void> {
     const entries = await readdir(current, { withFileTypes: true });
@@ -272,7 +382,7 @@ async function listFiles(dir: string): Promise<Map<string, Buffer>> {
       if (entry.isDirectory()) {
         await walk(full);
       } else if (entry.isFile()) {
-        out.set(relative(dir, full), await readFile(full));
+        out.set(relative(dir, full), { fullPath: full, size: (await stat(full)).size });
       }
     }
   }
@@ -292,7 +402,10 @@ async function diffSkillCore(
   home: string,
   agent: AgentType,
   name: string,
+  includeContents: boolean,
+  options?: SkillDiffOptions,
 ): Promise<SkillDiffWithContents> {
+  const maxFileBytes = options?.maxFileBytes ?? MAX_DIFF_FILE_BYTES;
   const diskDir = diskDirFor(home, agent, name);
   const storeDir = storeDirFor(home, agent, name);
   const base: SkillDiff = { agent, name, comparable: false, files: [] };
@@ -312,24 +425,54 @@ async function diffSkillCore(
     };
   }
 
-  const disk = await listFiles(diskDir);
-  const store = await listFiles(storeDir);
-  const files = compareFileMaps(disk, store);
+  const diskMetadata = await listFileMetadata(diskDir);
+  const storeMetadata = await listFileMetadata(storeDir);
+  const files = await compareFileMetadata(diskMetadata, storeMetadata);
+  const diskFiles = new Map<string, Buffer>();
+  const storeFiles = new Map<string, Buffer>();
+  if (includeContents) {
+    for (const file of files) {
+      const diskFile = diskMetadata.get(file.path);
+      const storeFile = storeMetadata.get(file.path);
+      // 读内容之前先看 metadata size:任一侧超限则不 readFile,不放入 Map。
+      const diskOver = diskFile !== undefined && diskFile.size > maxFileBytes;
+      const storeOver = storeFile !== undefined && storeFile.size > maxFileBytes;
+      if (diskOver || storeOver) {
+        file.oversized = true;
+        if (diskFile !== undefined) file.diskBytes = diskFile.size;
+        if (storeFile !== undefined) file.storeBytes = storeFile.size;
+        continue;
+      }
+      if (diskFile) diskFiles.set(file.path, await readFile(diskFile.fullPath));
+      if (storeFile) storeFiles.set(file.path, await readFile(storeFile.fullPath));
+    }
+  }
   return {
-    diff: { agent, name, comparable: true, diskDir, storeDir, files },
-    diskFiles: disk,
-    storeFiles: store,
+    diff: {
+      agent,
+      name,
+      comparable: true,
+      diskDir,
+      storeDir,
+      files,
+      // 仅内容路径记录生效上限,供 oversized 报告块使用。
+      ...(includeContents ? { maxFileBytes } : {}),
+    },
+    diskFiles,
+    storeFiles,
   };
 }
 
 export async function diffSkill(home: string, agent: AgentType, name: string): Promise<SkillDiff> {
-  return (await diffSkillCore(home, agent, name)).diff;
+  // 不含内容:行为与改前一致(不读文件、无 oversized 标记)。
+  return (await diffSkillCore(home, agent, name, false)).diff;
 }
 
 export async function diffSkillWithContents(
   home: string,
   agent: AgentType,
   name: string,
+  options?: SkillDiffOptions,
 ): Promise<SkillDiffWithContents> {
-  return diffSkillCore(home, agent, name);
+  return diffSkillCore(home, agent, name, true, options);
 }

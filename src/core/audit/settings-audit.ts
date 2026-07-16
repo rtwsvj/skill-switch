@@ -2,14 +2,17 @@
 // Reachable via `audit --configs` (wired through src/core/audit/config-discovery.ts).
 // Usage: call auditSettingsJson(rawString) and inspect the returned AuditFinding[].
 
+import { REDACTED_VALUE, sanitizeOutputText } from '../security/output-safety.ts';
 import type { AuditFinding, Severity } from './types.ts';
 
 // ─── internal helper ───────────────────────────────────────────────────────
 
 const EXCERPT_LIMIT = 200;
 
-function makeExcerpt(value: unknown): string {
-  const raw = JSON.stringify(value) ?? String(value);
+function makeExcerpt(value: unknown, secretLiteral = false): string {
+  const raw = secretLiteral
+    ? REDACTED_VALUE
+    : sanitizeOutputText(JSON.stringify(value) ?? String(value));
   return raw.length > EXCERPT_LIMIT ? `${raw.slice(0, EXCERPT_LIMIT)}…` : raw;
 }
 
@@ -299,7 +302,7 @@ function auditSecretsInObject(obj: unknown, findings: AuditFinding[]): void {
         for (const rule of SECRET_PATTERNS) {
           if (rule.pattern.test(value)) {
             findings.push(
-              finding(rule.id, 'high', rule.message, 0, makeExcerpt(value)),
+              finding(rule.id, 'high', rule.message, 0, makeExcerpt(value, true)),
             );
             patternMatched = true;
           }
@@ -319,7 +322,7 @@ function auditSecretsInObject(obj: unknown, findings: AuditFinding[]): void {
               'high',
               `Config key "${key}" contains what appears to be a literal secret (not an env reference)`,
               0,
-              makeExcerpt(value),
+              makeExcerpt(value, true),
             ),
           );
         }
@@ -360,7 +363,7 @@ export function auditSettingsJson(content: string): AuditFinding[] {
         'low',
         'The settings file could not be parsed as JSON — it may be malformed or empty',
         0,
-        content.length > EXCERPT_LIMIT ? `${content.slice(0, EXCERPT_LIMIT)}…` : content,
+        makeExcerpt(content),
       ),
     ];
   }

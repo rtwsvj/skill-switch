@@ -64,6 +64,18 @@ describe('core/state-io writeJsonState', () => {
     expect(leftovers).toEqual([]);
   });
 
+  it('uses collision-resistant temp files for concurrent writers', async () => {
+    const path = join(dir, 'concurrent.json');
+    await Promise.all(
+      Array.from({ length: 32 }, (_, writer) => writeJsonState(path, { writer })),
+    );
+
+    const value = JSON.parse(await readFile(path, 'utf8')) as { writer: number };
+    expect(value.writer).toBeGreaterThanOrEqual(0);
+    expect(value.writer).toBeLessThan(32);
+    expect((await readdir(dir)).filter((entry) => entry.includes('.tmp'))).toEqual([]);
+  });
+
   it('on write failure keeps the original intact and cleans up the temp file', async () => {
     if (process.platform === 'win32') return; // 只读目录语义不同,跳过
     const sub = join(dir, 'locked');

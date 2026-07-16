@@ -19,6 +19,7 @@ import {
   setCodexSkillEnabled,
 } from './codex-toggle.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
+import { withOperationLock } from './operation-lock.ts';
 import { copyDirWithoutSymlinks } from './safe-copy.ts';
 import { assertSafeSkillName } from './skill-name.ts';
 import { readJsonState, StateFileError, writeJsonState } from './state-io.ts';
@@ -404,6 +405,17 @@ export async function readAndVerifyPlanArtifact(
 // ---------- applySync ----------
 
 export async function applySync(
+  home: string,
+  declaration: SkillsDeclarationFile,
+): Promise<{ actions: SyncAction[] }> {
+  return withOperationLock(home, 'sync', () => applySyncUnlocked(home, declaration));
+}
+
+/**
+ * Sync implementation for callers that already hold the home operation lock.
+ * @internal Do not call this as a standalone public write operation.
+ */
+export async function applySyncUnlocked(
   home: string,
   declaration: SkillsDeclarationFile,
 ): Promise<{ actions: SyncAction[] }> {

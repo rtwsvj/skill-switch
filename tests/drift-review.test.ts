@@ -7,7 +7,7 @@
 //
 // 所有文件系统操作均在 mkdtempSync 隔离目录下;不触碰任何真实 home。
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,6 +23,7 @@ import {
   revokeApproval,
 } from '../src/core/drift-approvals.ts';
 import { installFromSource } from '../src/core/install.ts';
+import { acquireOperationLock } from '../src/core/operation-lock.ts';
 
 // ─── 常量 ─────────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,35 @@ describe('drift-approvals 单元测试', () => {
     expect(store.approvals[key]!.contentHash).toBe(driftContentHash(entry));
     expect(store.approvals[key]!.note).toBe('测试说明');
     expect(store.approvals[key]!.approvedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('serializes concurrent approval read-modify-writes without losing either key', async () => {
+    const alpha = fakeDriftEntry({ name: 'alpha' });
+    const bravo = fakeDriftEntry({ name: 'bravo' });
+    const held = await acquireOperationLock(home, 'test-hold');
+    const writes = [recordApproval(home, alpha), recordApproval(home, bravo)];
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(existsSync(getDriftApprovalsPath(home))).toBe(false);
+    } finally {
+      await held.release();
+    }
+    await Promise.all(writes);
+
+    expect(Object.keys((await loadApprovals(home)).approvals).sort()).toEqual([
+      approvalKey(alpha),
+      approvalKey(bravo),
+    ].sort());
+  });
+
+  it('releases the home lock when approval state parsing fails', async () => {
+    await writeFile(getDriftApprovalsPath(home), '{broken json');
+
+    await expect(recordApproval(home, fakeDriftEntry())).rejects.toThrow();
+
+    const next = await acquireOperationLock(home, 'after-approval-error', { waitMs: 50 });
+    await next.release();
   });
 
   it('isApproved:内容匹配时返回 true', async () => {

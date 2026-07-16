@@ -1,5 +1,36 @@
 # Known Limitations
 
+## Operational and Trust Boundaries
+
+- **No cross-file crash transaction.** Per-home locking prevents lost updates between
+  cooperating skill-switch processes, state files use durable atomic replacement, and
+  tested exceptions trigger compensation. A `SIGKILL`, power loss, direct third-party
+  edit, or filesystem failure between multiple authority-bearing writes can still leave
+  `skills.json`, `skills.lock.json`, `store/`, and agent directories inconsistent. Run
+  `doctor` and `lock --verify` after abnormal termination. A write-ahead journal or
+  versioned full-state bundle is still required for automatic crash recovery.
+- **Snapshots are scoped, not full-home checkpoints.** Agent directory snapshots do not
+  necessarily contain every file under `.skill-switch`. Restore rejects archive links
+  and special members; this intentionally means a legacy snapshot containing symlinks
+  cannot be restored without manual migration.
+- **Remote hostname validation is not a network sandbox.** Registry/MCP redirect hops
+  are revalidated, literal and DNS-resolved loopback/private/special IPs are rejected,
+  HTTPS downgrade is blocked, and cross-origin credentials are stripped. The resolver
+  check occurs immediately before fetch, but Node's HTTP client performs its own lookup;
+  DNS rebinding between those two lookups still requires connect-time address pinning or
+  an egress proxy. Callers must not treat URL validation alone as SSRF-proof isolation.
+- **Unified diff output is resource-bounded but can be coarse.** Large divergent middle
+  sections are emitted as deterministic whole-section replacements instead of an exact
+  quadratic LCS. Directory comparison streams hashes and only loads changed files, but
+  requesting a unified diff for one very large changed text file still requires that
+  file's content in memory.
+- **Cooperative locks do not constrain other software.** A direct editor, agent, or old
+  skill-switch build that ignores the lock protocol can race current operations.
+- **Static audit is not execution containment.** Complete coverage means every eligible
+  input was classified and scanned within the configured limits; it does not prove that
+  all semantic obfuscation or runtime behavior is understood. Run untrusted skills with
+  least privilege and network/filesystem isolation where possible.
+
 ## Audit Recall Boundaries
 
 `skill-switch audit` 是静态规则扫描器,目标是抓住高信号危险模式并避免阻断常见良性文档。它不是完整的恶意代码解释器。A5 的绕过语料固定在 `tests/audit-recall-corpus.test.ts`;当前结果如下。

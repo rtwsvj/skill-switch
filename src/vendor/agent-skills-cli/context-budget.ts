@@ -13,7 +13,9 @@
 import { readFile, readdir, stat } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, extname, basename } from 'path';
-import matter from 'gray-matter';
+// LOCAL PATCH: use the host project's hardened YAML 1.2 frontmatter parser;
+// do not restore gray-matter when refreshing this vendored snapshot.
+import { parseFrontmatter } from '../../core/frontmatter.ts';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -277,13 +279,14 @@ async function scoreSkillRelevance(
 
     try {
         const raw = await readFile(skillMd, 'utf-8');
-        const { data, content } = matter(raw);
-        const name = data.name || basename(skillPath);
+        const { data, content } = parseFrontmatter(raw);
+        const name = typeof data.name === 'string' && data.name ? data.name : basename(skillPath);
         const tokens = Math.ceil(raw.length / 4);
 
         // Extract skill keywords from body
         const skillKeywords = extractSignificantWords(content);
-        const skillDescription = (data.description || '').toLowerCase();
+        const skillDescription =
+            typeof data.description === 'string' ? data.description.toLowerCase() : '';
 
         // Score components
         let score = 0;

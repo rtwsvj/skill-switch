@@ -2,6 +2,7 @@
 // 安全第一:已存在 skills.json 时不覆盖,需 --force 才写入;--dry-run 只打印不写。
 import { existsSync } from 'node:fs';
 import type { Command } from 'commander';
+import { withOperationLock } from '../../core/operation-lock.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import { scanHome, type SkillRecord } from '../../core/scan.ts';
 import { getSkillsJsonPath, type SkillsDeclarationFile } from '../../core/sync.ts';
@@ -55,8 +56,30 @@ export function registerInitCommand(program: Command): void {
         const home = resolveHomeRoot(homeOverride);
         const skillsJsonPath = getSkillsJsonPath(home);
 
-        // 已存在且未指定 --force:打印提示、exit 0
-        if (!options.force && !options.dryRun && existsSync(skillsJsonPath)) {
+        if (options.dryRun) {
+          const records = await scanHome(home);
+          const draft = buildDraftDeclaration(records);
+          if (options.json) {
+            console.log(JSON.stringify({ dryRun: true, path: skillsJsonPath, draft }, null, 2));
+          } else {
+            console.log(`# 草稿(--dry-run,未写入): ${skillsJsonPath}`);
+            console.log(JSON.stringify(draft, null, 2));
+          }
+          return;
+        }
+
+        // exists-check、扫描和写入必须看到同一个 home 状态，避免与 install/sync/init 竞态。
+        const result = await withOperationLock(home, 'init', async () => {
+          if (!options.force && existsSync(skillsJsonPath)) {
+            return { status: 'exists' as const };
+          }
+          const records = await scanHome(home);
+          const draft = buildDraftDeclaration(records);
+          await writeJsonState(skillsJsonPath, draft);
+          return { status: 'written' as const, skills: draft.skills.length };
+        });
+
+        if (result.status === 'exists') {
           if (options.json) {
             console.log(
               JSON.stringify(
@@ -69,31 +92,16 @@ export function registerInitCommand(program: Command): void {
             console.log(`已有 skills.json: ${skillsJsonPath}`);
             console.log('跳过写入。用 --force 强制覆盖。');
           }
-          return; // exit 0
-        }
-
-        const records = await scanHome(home);
-        const draft = buildDraftDeclaration(records);
-
-        if (options.dryRun) {
-          if (options.json) {
-            console.log(JSON.stringify({ dryRun: true, path: skillsJsonPath, draft }, null, 2));
-          } else {
-            console.log(`# 草稿(--dry-run,未写入): ${skillsJsonPath}`);
-            console.log(JSON.stringify(draft, null, 2));
-          }
           return;
         }
 
-        await writeJsonState(skillsJsonPath, draft);
-
         if (options.json) {
           console.log(
-            JSON.stringify({ status: 'written', path: skillsJsonPath, skills: draft.skills.length }, null, 2),
+            JSON.stringify({ status: 'written', path: skillsJsonPath, skills: result.skills }, null, 2),
           );
         } else {
           console.log(`已写入 ${skillsJsonPath}`);
-          console.log(`共收录 ${draft.skills.length} 个 skill。`);
+          console.log(`共收录 ${result.skills} 个 skill。`);
         }
       },
     );

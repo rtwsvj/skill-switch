@@ -1,5 +1,9 @@
 packages: []
 
+overrides:
+  # Transitive dev-only dependency of Stryker's typed-rest-client.
+  qs: 6.15.2
+
 allowBuilds:
   '@swc/core': true
   bun: true

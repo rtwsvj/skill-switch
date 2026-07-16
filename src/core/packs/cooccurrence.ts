@@ -4,9 +4,8 @@
 // 不读对话正文,不出本机,不写任何文件。
 import { readFile, stat } from 'node:fs/promises';
 import {
-  discoverClaudeTranscriptRoots,
-  listTranscriptFiles,
-  parseSkillInvocationsWithCounts,
+  discoverAdapterTranscriptFiles,
+  parseAdapterTranscriptContent,
 } from '../transcripts.ts';
 import type { CooccurrenceReport, SkillCooccurrence, SkillUsageStat } from './types.ts';
 
@@ -39,8 +38,7 @@ export async function analyzeCooccurrence(
     windowDays !== undefined ? new Date(Date.now() - windowDays * 86_400_000) : undefined;
 
   // ── 1. 发现 + 读取 transcript 文件 ─────────────────────────────────────────
-  const roots = discoverClaudeTranscriptRoots(home, env);
-  const allFiles = await listTranscriptFiles(roots, MAX_DEPTH);
+  const transcriptFiles = await discoverAdapterTranscriptFiles(home, env, MAX_DEPTH);
 
   // sessionFile → Set<skill>(窗口内去重触发,用于共现计数)
   // sessionFile → Map<skill, count>(窗口内计数,用于 usage 聚合)
@@ -50,7 +48,8 @@ export async function analyzeCooccurrence(
   let totalBytes = 0;
   let filesSeen = 0;
 
-  for (const file of allFiles) {
+  for (const source of transcriptFiles) {
+    const file = source.sessionFile;
     if (filesSeen >= MAX_FILES) break;
 
     let info: Awaited<ReturnType<typeof stat>>;
@@ -73,7 +72,7 @@ export async function analyzeCooccurrence(
       continue;
     }
 
-    const { invocations } = parseSkillInvocationsWithCounts(content, file);
+    const { invocations } = parseAdapterTranscriptContent(source, content);
     totalBytes += size;
     filesSeen += 1;
 

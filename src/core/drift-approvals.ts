@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { DriftEntry, DriftState } from './drift.ts';
+import { withOperationLock } from './operation-lock.ts';
 import { readJsonState, writeJsonState } from './state-io.ts';
 
 // ─── 审批 criteria 分级 ───────────────────────────────────────────────────────
@@ -118,25 +119,29 @@ export async function recordApproval(
   note?: string,
   criteria?: ApprovalCriteria,
 ): Promise<void> {
-  const store = await loadApprovals(home);
-  const key = approvalKey(entry);
-  store.approvals[key] = {
-    contentHash: driftContentHash(entry),
-    approvedAt: new Date().toISOString(),
-    ...(note ? { note } : {}),
-    // criteria 存在时才写入字段(向后兼容:旧记录无此字段视为 safe-to-run)
-    ...(criteria ? { criteria } : {}),
-  };
-  await writeJsonState(getDriftApprovalsPath(home), store);
+  await withOperationLock(home, 'drift-approve', async () => {
+    const store = await loadApprovals(home);
+    const key = approvalKey(entry);
+    store.approvals[key] = {
+      contentHash: driftContentHash(entry),
+      approvedAt: new Date().toISOString(),
+      ...(note ? { note } : {}),
+      // criteria 存在时才写入字段(向后兼容:旧记录无此字段视为 safe-to-run)
+      ...(criteria ? { criteria } : {}),
+    };
+    await writeJsonState(getDriftApprovalsPath(home), store);
+  });
 }
 
 export async function revokeApproval(home: string, entry: DriftEntry): Promise<boolean> {
-  const store = await loadApprovals(home);
-  const key = approvalKey(entry);
-  if (!(key in store.approvals)) return false;
-  delete store.approvals[key];
-  await writeJsonState(getDriftApprovalsPath(home), store);
-  return true;
+  return withOperationLock(home, 'drift-revoke', async () => {
+    const store = await loadApprovals(home);
+    const key = approvalKey(entry);
+    if (!(key in store.approvals)) return false;
+    delete store.approvals[key];
+    await writeJsonState(getDriftApprovalsPath(home), store);
+    return true;
+  });
 }
 
 // ─── 查询:isApproved ─────────────────────────────────────────────────────────

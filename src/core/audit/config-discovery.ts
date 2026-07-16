@@ -98,7 +98,7 @@ function claudeDesktopConfigPath(systemHome: string): { absPath: string; relPath
   }
   if (platform === 'win32') {
     // Windows: %APPDATA%\Claude\claude_desktop_config.json(APPDATA 缺省回退到 home 下)
-    const appData = process.env['APPDATA'] ?? join(systemHome, 'AppData', 'Roaming');
+    const appData = process.env.APPDATA ?? join(systemHome, 'AppData', 'Roaming');
     return {
       absPath: join(appData, 'Claude', 'claude_desktop_config.json'),
       relPath: 'AppData/Roaming/Claude/claude_desktop_config.json',

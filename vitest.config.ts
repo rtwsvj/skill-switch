@@ -14,20 +14,23 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary'],
-      include: ['src/**/*.ts'],
+      // Security rules live outside src/ and must participate in the gate.
+      include: ['src/**/*.ts', 'rules/**/*.ts'],
       exclude: [
         'src/vendor/**',
         'tests/**',
         '**/*.d.ts',
       ],
-      // 覆盖率下限门禁:保守值(比实测 statements≈62.9%/branches≈60.4%/functions≈63.6%/lines≈63.4%
-      // 各低 2-3%),防止覆盖率悄悄倒退,不求一步到位高覆盖。
-      // 实测值记录(2026-06-28):statements 62.91%,branches 60.35%,functions 63.56%,lines 63.43%
+      // Global floor prevents broad regression; focused regression suites cover
+      // the security/state/network seams that aggregate percentages can hide.
+      // 2026-07-11 measured baseline (rules included): statements 69.60,
+      // branches 64.51, functions 73.34, lines 70.59. Floors retain 2-3 points
+      // of platform variance while making the previous 57-61% gate meaningful.
       thresholds: {
-        statements: 60,
-        branches: 57,
-        functions: 61,
-        lines: 61,
+        statements: 67,
+        branches: 62,
+        functions: 70,
+        lines: 68,
       },
     },
   },

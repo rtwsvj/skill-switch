@@ -1,6 +1,12 @@
 import { copyFile, lstat, mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
+/** Directories that are metadata/dependency caches rather than skill payload. */
+export const SAFE_COPY_EXCLUDED_DIRECTORIES: ReadonlySet<string> = new Set([
+  '.git',
+  'node_modules',
+]);
+
 export async function copyDirWithoutSymlinks(source: string, target: string): Promise<void> {
   const info = await lstat(source);
   if (info.isSymbolicLink()) return;
@@ -16,6 +22,7 @@ export async function copyDirWithoutSymlinks(source: string, target: string): Pr
   await mkdir(target, { recursive: true });
   for (const entry of await readdir(source, { withFileTypes: true })) {
     if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory() && SAFE_COPY_EXCLUDED_DIRECTORIES.has(entry.name)) continue;
     await copyDirWithoutSymlinks(join(source, entry.name), join(target, entry.name));
   }
 }

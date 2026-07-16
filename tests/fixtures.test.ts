@@ -2,8 +2,8 @@
 // 后续 S1.3 scan、S1.4 CLI 的验收都建立在这些不变量上。
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import matter from 'gray-matter';
 import { describe, expect, it } from 'vitest';
+import { parseFrontmatter } from '../src/core/frontmatter.ts';
 
 const HOME_BASIC = join(import.meta.dirname, 'fixtures', 'home-basic');
 
@@ -30,8 +30,7 @@ describe('fixtures: home-basic', () => {
       join(HOME_BASIC, '.claude/skills/broken-frontmatter/SKILL.md'),
       'utf8',
     );
-    // 空 options 绕过 gray-matter 全局缓存,保证重复断言稳定抛错(见 scan.ts 注释)
-    expect(() => matter(raw, {})).toThrow();
+    expect(() => parseFrontmatter(raw)).toThrow();
   });
 
   it('mismatched-name sample declares a name different from its directory', () => {
@@ -39,7 +38,7 @@ describe('fixtures: home-basic', () => {
       join(HOME_BASIC, '.agents/skills/mismatched-name/SKILL.md'),
       'utf8',
     );
-    const { data } = matter(raw);
+    const { data } = parseFrontmatter(raw);
     expect(typeof data.name).toBe('string');
     expect(data.name).not.toBe('mismatched-name');
   });
@@ -53,7 +52,7 @@ describe('fixtures: home-basic', () => {
     ];
     for (const [dir, skill] of clean) {
       const raw = readFileSync(join(HOME_BASIC, dir, skill, 'SKILL.md'), 'utf8');
-      const { data } = matter(raw);
+      const { data } = parseFrontmatter(raw);
       expect(data.name, `${skill} frontmatter name`).toBe(skill);
       expect(typeof data.description).toBe('string');
       expect((data.description as string).length).toBeGreaterThan(0);

@@ -78,6 +78,31 @@ export interface ScanOptions {
   timeoutMs?: number;
   /** fetch 注入(测试);默认全局 fetch */
   fetchImpl?: typeof fetch;
+  /** 同时连接的 server 上限;默认 4,避免串行 timeout 叠加和无界 fan-out。 */
+  concurrency?: number;
+}
+
+const DEFAULT_SCAN_CONCURRENCY = 4;
+const MAX_SCAN_CONCURRENCY = 16;
+
+async function mapWithConcurrency<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  mapper: (value: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(values.length, Math.max(1, concurrency));
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= values.length) return;
+      results[index] = await mapper(values[index]!, index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 /**
@@ -86,6 +111,11 @@ export interface ScanOptions {
  */
 export async function scanServers(opts: ScanOptions): Promise<ScanReport> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const requestedConcurrency = opts.concurrency ?? DEFAULT_SCAN_CONCURRENCY;
+  if (!Number.isSafeInteger(requestedConcurrency) || requestedConcurrency < 1) {
+    throw new Error('mcp-scan concurrency 必须是正整数');
+  }
+  const concurrency = Math.min(requestedConcurrency, MAX_SCAN_CONCURRENCY);
 
   // 拉取基线(缺失不报错)
   const baselinePath = mcpScanBaselinePath(opts.home);
@@ -114,13 +144,10 @@ export async function scanServers(opts: ScanOptions): Promise<ScanReport> {
     ? all.filter((s) => filterSet.has(baselineKey(s)))
     : all;
 
-  // 跑每个 server
-  const servers: ScanServerResult[] = [];
-  for (const spec of targets) {
-    // eslint-disable-next-line no-await-in-loop
-    const r = await scanOneServer(spec, baseline, timeoutMs, opts.fetchImpl);
-    servers.push(r);
-  }
+  // 有界并发连接,结果仍按发现顺序写回。最坏 wall time 从约 S*timeout
+  // 降为 ceil(S/concurrency)*timeout,同时避免无界 Promise.all 打爆本机。
+  const servers = await mapWithConcurrency(targets, concurrency, (spec) =>
+    scanOneServer(spec, baseline, timeoutMs, opts.fetchImpl));
 
   const findings: AuditFinding[] = [];
   for (const r of servers) {
@@ -136,6 +163,8 @@ export async function scanServers(opts: ScanOptions): Promise<ScanReport> {
     findings,
   };
 }
+
+export { mapWithConcurrency as _mapWithConcurrencyForTest };
 
 /** 单 server 扫描:连 → 静态审计 → rug-pull 比对。 */
 async function scanOneServer(

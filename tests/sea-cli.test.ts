@@ -173,7 +173,7 @@ describe('SEA CLI 自包含打包', () => {
     expect(restoreArgs({ id: '123' })).toEqual(['restore', '--id', '123', '--json']);
   });
 
-  it('跑 SEA 打包并真子进程 spawn 产物,断言 argv 分流到 scan 子命令', () => {
+  it('跑 SEA 打包并真子进程验证 scan、嵌入版本与 MCP rules 资源', () => {
     const cliStdout = execFileSync(
       process.execPath,
       ['--import', 'tsx', join(ROOT, 'src/cli/index.ts'), 'scan', '--home', FIXTURE_HOME, '--json'],
@@ -194,5 +194,33 @@ describe('SEA CLI 自包含打包', () => {
 
     expect(sea.status, sea.stderr || sea.stdout).toBe(0);
     expect(parseTotal(sea.stdout)).toBe(6);
+
+    const packageVersion = (JSON.parse(readText('package.json')) as { version: string }).version;
+    const version = spawnSync(builtSeaPath(), ['--version'], {
+      cwd: '/tmp',
+      encoding: 'utf8',
+      env: { HOME: '/tmp', PATH: '/usr/bin:/bin' },
+    });
+    expect(version.status, version.stderr || version.stdout).toBe(0);
+    expect(version.stdout.trim()).toBe(packageVersion);
+
+    const resource = spawnSync(builtSeaPath(), ['mcp'], {
+      cwd: '/tmp',
+      encoding: 'utf8',
+      env: { HOME: '/tmp', PATH: '/usr/bin:/bin' },
+      input: `${JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'resources/read',
+        params: { uri: 'skill-switch://rules' },
+      })}\n`,
+    });
+    expect(resource.status, resource.stderr || resource.stdout).toBe(0);
+    expect(resource.stderr).toContain(`MCP server v${packageVersion}`);
+    const response = JSON.parse(resource.stdout.trim()) as {
+      result: { contents: Array<{ text: string }> };
+    };
+    const rules = JSON.parse(response.result.contents[0]!.text) as { ruleCount: number };
+    expect(rules.ruleCount).toBeGreaterThan(40);
   }, 60_000);
 });

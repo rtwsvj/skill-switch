@@ -45,7 +45,7 @@ exports[`scan CLI > json output matches the normalized snapshot 1`] = `
       "dirName": "broken-frontmatter",
       "dir": "<home>/.claude/skills/broken-frontmatter",
       "path": "<home>/.claude/skills/broken-frontmatter/SKILL.md",
-      "error": "missed comma between flow collection entries at line 4, column 1:\\n    tags: {also: broken\\n    ^"
+      "error": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1:\\n\\ndescription: [this flow sequence is never closed\\ntags: {also: broken\\n^\\n"
     },
     {
       "agents": [

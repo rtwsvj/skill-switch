@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/rtwsvj/skill-switch/releases/latest)
 [![CI](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml/badge.svg)](https://github.com/rtwsvj/skill-switch/actions/workflows/ci.yml)
 
-**Security audit for AI agent skills & MCP configs.** Scan the skills and MCP/agent configs of Claude Code, Cursor, Gemini CLI, Windsurf, Zed, and VS Code for **reverse shells, data exfiltration, credential phishing, dangerous MCP servers, plaintext remote transport, and hardcoded secrets** — 80+ detection rules, **1,600+ tests**. Emit **SARIF straight into GitHub code-scanning**, set a project policy (`.skill-switch-policy.json`), and apply guided fixes (`--fix`).
+**Security audit for AI agent skills & MCP configs.** Scan the skills and MCP/agent configs of Claude Code, Cursor, Gemini CLI, Windsurf, Zed, and VS Code for **reverse shells, data exfiltration, credential phishing, dangerous MCP servers, plaintext remote transport, and hardcoded secrets** — 80+ detection rules, **2,500+ tests**. Emit **SARIF straight into GitHub code-scanning**, set a project policy (`.skill-switch-policy.json`), and apply guided fixes (`--fix`).
 
 ```bash
 npx @rtwsvj/skill-switch audit            # audit this project's skills / configs
@@ -17,9 +17,9 @@ npx @rtwsvj/skill-switch audit --configs  # also scan ~/.claude, MCP, and agent 
 
 Or drop the [GitHub Action](docs/github-action.md) into CI to audit every PR and upload results to code-scanning.
 
-On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and roll back — every write is **snapshotted first and one-click reversible**, and dangerous skills are blocked before they install. Available as a **CLI** (`npx @rtwsvj/skill-switch`) and a signed + notarized **native macOS app** (SwiftUI).
+On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and restore. A per-home lock serializes cooperating writers, important agent directories are snapshotted, and known failures are compensated. Snapshots are not cross-filesystem ACID transactions and do not include every `.skill-switch` state file. The CLI is the complete interface; the native macOS GUI exposes a common subset.
 
-> Status: **v0.9.0** is shipped across all channels — npm `@rtwsvj/skill-switch@0.9.0` is `latest`, the GitHub Release `v0.9.0` carries a Developer ID-signed + Apple-notarized DMG, and the macOS app `skill-switch.app` is published alongside the CLI.
+> Repository version: **v0.9.0**. The verifiable delivery paths are the Node.js 20+ npm/npx CLI, the source CLI, and a locally built unsigned SwiftUI app on macOS 14+. The tag workflow uploads an unsigned `.app.zip` preview. A signed/notarized DMG exists only when a maintainer actually produces and uploads one. Homebrew, Scoop, MSI, AppImage, and deb channels remain planned.
 
 ![demo](assets/demo.svg)
 
@@ -36,28 +36,36 @@ AI coding agents increasingly run on *skills* — reusable bundles of instructio
 
 ## Highlights
 
-- **Safety net** — every write (`install` / `toggle` / `sync` / `remove` / `restore`) takes a `tar.gz` snapshot *before* touching disk; one-click rollback to any point in time from the History view.
+- **Safety net** — a per-home operation lock prevents cooperating writers from losing updates; affected agent directories are snapshotted where supported, JSON state uses atomic replacement, and tested exceptions trigger compensation.
 - **Pre-install security gate** — every skill is audited before it lands; reverse shells, secret exfiltration, phishing for credentials, and prompt-injection / hidden instructions get blocked. Forcing past the gate is recorded.
 - **Three-way reconciliation** — `skills.json` (declared) × `skills.lock.json` (locked) × disk; `doctor` flags drift (`--ci` exits 1 on any mismatch).
 - **Cross-agent** — one governance layer over claude-code / codex / gemini-cli / cursor / copilot.
 - **Zero telemetry, local-first** — collects nothing, uploads nothing, no account; works fully offline after install (only an explicit `install` from a git source ever hits the network).
 - **4 languages** — English / 简体中文 / 日本語 / Español.
 
-## Install (macOS, Apple Silicon)
+## Install and support matrix
 
-1. Download `skill-switch_0.9.0_aarch64.dmg` from the [latest release](https://github.com/rtwsvj/skill-switch/releases/latest).
-2. Open it and drag **skill-switch** into Applications.
-3. It's signed with a Developer ID and notarized by Apple, so it opens with a double-click — Gatekeeper won't block it.
+| Form | Platform | Current status |
+|---|---|---|
+| npm / `npx` CLI | macOS, Linux, Windows | Supported; Node.js 20+ |
+| Source CLI | macOS, Linux, Windows | Supported; Node.js 20+ and pnpm 10 |
+| Native GUI | macOS 14+ | Buildable from source; automated Release artifact is an unsigned preview zip |
+| Homebrew / Scoop / MSI / AppImage / deb | — | Planned, not currently installable |
 
-The app only writes to your tools' skill directories (`~/.claude`, `~/.codex`, `~/.gemini`, …) when you explicitly click Install / Disable / Delete / Sync / Restore — and it snapshots before every write.
+```bash
+npx @rtwsvj/skill-switch --help
+npx @rtwsvj/skill-switch audit --configs
+```
+
+The npm package supports the `skill-switch` executable, not a package-root Node library import. See [distribution](docs/distribution.md) for source builds and for the difference between unsigned and maintainer-signed artifacts. Do not infer that a signed DMG exists from the version number alone.
 
 ### What the native app does
 
-A SwiftUI shell over the same CLI — seven sidebar screens: **Overview** / **Skills** / **Safety** / **Maintenance** / **History** / **Usage** / **MCP**. The MCP screen lists MCP servers from your configs (never connects by default); "Scan" shows a native confirmation stating exactly what local process will be launched or what URL will be requested, then fetches the live tool list, audits it, and flags rug-pull changes in plain language with a "re-accept" flow. Writes (`install` / `toggle` / `sync` / `remove` / `restore`) go through a native confirmation dialog + automatic pre-write snapshot, with audit results surfaced inline. **4 languages** (English / 简体中文 / 日本語 / Español) with an in-app toolbar switcher; light/dark theme follows the system.
+A SwiftUI shell over the same CLI — seven sidebar screens: **Overview** / **Skills** / **Safety** / **Maintenance** / **History** / **Usage** / **MCP**. The MCP screen lists MCP servers from your configs (never connects by default); "Scan" shows a native confirmation stating exactly what local process will be launched or what URL will be requested, then fetches the live tool list, audits it, and flags rug-pull changes in plain language with a "re-accept" flow. Writes (`install` / `toggle` / `sync` / `remove` / `restore`) go through a native confirmation and the same CLI safety mechanisms. **4 languages** (English / 简体中文 / 日本語 / Español) with an in-app toolbar switcher; light/dark theme follows the system.
 
 ## CLI
 
-The CLI ships inside the app at `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli`. Link it onto your `PATH`:
+Use the npm CLI directly, or, after building/installing the app, link its bundled CLI from `/Applications/skill-switch.app/Contents/Resources/skill-switch-cli` onto your `PATH`:
 
 ```bash
 ln -sf /Applications/skill-switch.app/Contents/Resources/skill-switch-cli /usr/local/bin/skill-switch
@@ -71,7 +79,7 @@ skill-switch --help
 | `status` | One-glance overview: skill counts, agents detected, declaration/lock health (read-only; start here). |
 | `scan` | Inventory installed skills per tool (read-only). |
 | `init` | Scan installed skills and draft an initial `skills.json` (skips if one exists; `--force` to overwrite, `--dry-run` to preview). |
-| `audit` | Security audit; any critical/high or score < 70 → exit 1. Add `--configs` to also audit agent config files (settings.json / MCP), covering Claude Code, Gemini CLI, Cursor, and VS Code. `--format junit` (Jenkins/GitLab/CircleCI), `--min-severity <level>` filter, `--exit-code <n>` (e.g. `0` for report-only), and inline `# skill-switch:suppress[ruleId]`. |
+| `audit` | Security audit; incomplete coverage, any critical/high, or score < 70 blocks by default. Oversized, too-deep, too-many, unreadable, nested-symlink, and unclassified executable inputs cannot be reported SAFE. Human and JSON output expose coverage reasons. Add `--configs`, `--format junit`, `--min-severity`, or `--exit-code` as needed. |
 | `explain` | Explain an audit rule: what it detects, why it's dangerous, how to fix it, and the three suppression methods. `--json` for machine-readable output; unknown ruleId → exit 1 with suggestions. |
 | `ci` | Scaffold a GitHub Actions workflow (`.github/workflows/skill-switch.yml`) in one command. `--format sarif` (default, uploads to code-scanning) or `--format github` (inline PR annotations); `--pin <ref>` to pin the action version; `--baseline` to also write a finding baseline so CI only fails on new findings; `--force` to overwrite an existing file; `--pre-commit` instead scaffolds a local `.pre-commit-config.yaml` gate. |
 | `add` | **One-click install**: paste a GitHub link / `git clone` / `npx·npm` command → auto-parse the git source → clone (read-only) → audit each → list candidate skills with a safety verdict → install (a single non-dangerous one installs directly; for several, pick with `--skill`/`--all`). **Never executes the pasted command** (`curl\|bash` is refused); for an npm package it read-only-resolves the registry to find the source repo, then audits that. `--dry-run` previews only. |
@@ -84,10 +92,10 @@ skill-switch --help
 | `doctor` | Declared × locked × disk reconciliation (`--ci` exits 1 on drift). Also prints a "Config security:" advisory section summarizing critical/high config findings; `--json` includes a `configAudit` field (advisory only — does not affect exit code). |
 | `diff` | Content drift, file-by-file: disk vs. stored copy; plus a one-line narrative summary (files changed, +N/−M lines, and whether a new security signal was introduced). |
 | `drift` | Upstream HEAD / locked commit / local content three-way drift. `--review` approves drift one-by-one (cargo-vet style), `--approve-all` batch-approves; approved drift no longer counts toward `--ci` (auto-invalidated when content changes again). |
-| `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). |
+| `stats` | Trigger stats + dormant ("zombie") skills (`--days N`). Reads supported transcripts and updates a v2 aggregate-only cache that excludes raw args, commands, and conversation text. |
 | `packs` | **Discover packs from usage:** `packs suggest` reads your local conversations (skill names only) to suggest bundles of skills you use together; `packs save <id> [--enrich]` freezes one into a portable `pack.json` (`--enrich` back-fills sources from the lock for cross-machine reinstall); `packs install <pack.json|builtin-id>` installs a pack onto a new machine / another agent (`--lock` writes a reproducible lock; optional skills don't block on failure); `packs list [--builtin]` lists packs / builtin starter packs; `packs show <file>` inspects one; supports `extends` inheritance. |
-| `mcp` | Run skill-switch as an **MCP server** (stdio) so agents like Cursor / Claude Code can call its **read-only** audit tools (`skill_switch_scan` / `status` / `audit`) in real time. Zero-dependency; never writes disk over this path. `--list-tools` to list exposed tools. |
-| `mcp-scan` | **Runtime MCP audit (opt-in)**: connect to MCP servers from your configs, fetch the **live** tool list, audit tool descriptions with the 80+ static rules (catches tool poisoning), and fingerprint each tool definition into a baseline — on later scans a changed definition is flagged as a **rug-pull suspect** (`mcp/tool-definition-changed`, high; new tools medium). Safety posture: with no flags it only lists servers and **never connects**; `--server "<source>::<name>"` gives per-server explicit consent (TTY confirms one by one; non-TTY requires `--yes`; a stdio server means launching the configured command — stated before connecting); http is localhost-only, everything else must be https; **never calls tools** (`tools/call`); hard timeout kill (`--timeout <ms>`); header/env values never reach output or the baseline. `--reset-baseline` re-accepts the current list; `--ci` exits 1 on critical/high. See [docs/mcp-scan.md](docs/mcp-scan.md). |
+| `mcp` | Run skill-switch as an **MCP server** (stdio) exposing filesystem-read-only scan/status/audit/packs/stats tools. MCP stats explicitly disables its cache; this differs from standalone CLI stats. Frames and pending requests are bounded. |
+| `mcp-scan` | **Runtime MCP audit (opt-in)**: no flags means list only and no connection. Each HTTP redirect is revalidated; HTTPS downgrade is blocked and cross-origin credentials are stripped. A successful first scan writes a tool-definition baseline; later changes are flagged for review. It never calls `tools/call`. See [docs/mcp-scan.md](docs/mcp-scan.md). |
 | `lock` | Inspect the lock; `--verify` re-hashes disk to compare. |
 | `export` | Bundle skills.json + skills.lock.json into a portable .ssp archive (read-only). |
 | `import` | Restore skills.json + skills.lock.json from a .ssp archive (does not sync to disk). |
@@ -101,8 +109,8 @@ Common options: `--json`, `--home <dir>`, `--agent <tool>` (claude-code / codex 
 
 ## Safety model
 
-- **Read-only commands never write:** `status`, `scan`, `audit`, `lint`, `doctor`, `drift`, `stats`, `lock`.
-- **Write commands snapshot first:** `install`, `toggle`, `sync`, `remove`, `restore` write a `tar.gz` to `~/.skill-switch/backups/` before changing anything; everything is reversible.
+- **Read-only contracts are scoped:** MCP tools do not write; standalone CLI `stats` and `doctor` can update privacy-reduced derived caches.
+- **Writes are serialized and recoverable on tested errors:** the home lock, atomic state replacement, scoped snapshots, and compensation prevent common torn updates. Abrupt process death is not a cross-file transaction; verify with `doctor` and `lock --verify` after abnormal termination.
 - **Audit before install:** anything matching reverse shells, sensitive-file exfiltration, credential phishing, unofficial package registries (`supply-chain/unofficial-registry`), or hidden/prompt-injection is blocked; you must `--force` (and leave a recorded reason) to override.
 - **Config-file audit:** `audit --configs` scans Claude Code, Gemini CLI, Cursor, and VS Code config files (settings.json / MCP configs) for credential-path access (`mcp/credential-path-access`), hardcoded secrets, and dangerous MCP server patterns. `doctor` also surfaces the same findings as an advisory summary in its output.
 - **Hardened boundaries:** rejects path-traversal / absolute / hidden skill names; copy mode doesn't follow symlinks; audit doesn't follow symlinks and caps size/count/depth/per-line matching. Known blind spots are documented in [docs/known-limitations.md](docs/known-limitations.md).
