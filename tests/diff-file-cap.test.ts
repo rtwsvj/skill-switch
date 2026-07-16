@@ -1,4 +1,5 @@
 // 卡 A:skill-diff 每文件字节上限 + 二进制检测 + 确定性 oversized 报告
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -198,5 +199,125 @@ describe('per-file byte cap + oversized report', () => {
     expect(patch).toContain('--- a/SKILL.md');
     expect(patch).toContain('-original');
     expect(patch).toContain('+EDITED');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 边界用例(Codex 核验后补钉,2026-07-16)
+// ---------------------------------------------------------------------------
+
+describe('boundary cases', () => {
+  it('identical binary content returns empty diff (same as text semantics)', () => {
+    const bin = Buffer.from([0x00, 0x01, 0x02, 0x03]);
+    expect(generateUnifiedDiff('same.bin', bin, Buffer.from(bin))).toBe('');
+  });
+
+  it('NUL beyond the 8 KiB probe window is treated as text', () => {
+    const head = Buffer.alloc(8192, 0x61); // 探测窗口内全是 'a'
+    const a = Buffer.concat([head, Buffer.from('x\n')]);
+    const b = Buffer.concat([head, Buffer.from([0x00]), Buffer.from('\n')]); // NUL 在第 8193 字节
+    const patch = generateUnifiedDiff('tail-nul.txt', a, b);
+    expect(patch).not.toContain('Binary files');
+    expect(patch).toContain('--- a/tail-nul.txt');
+  });
+
+  it('empty-file modification is diffed as text, not binary', async () => {
+    const name = 'edge-empty';
+    await mkdir(storeDir(name), { recursive: true });
+    await writeFile(join(storeDir(name), 'notes.txt'), '');
+    await mkdir(diskDir(name), { recursive: true });
+    await writeFile(join(diskDir(name), 'notes.txt'), 'content\n');
+
+    const result = await diffSkillWithContents(home, AGENT, name);
+    expect(result.diff.files).toEqual([{ path: 'notes.txt', status: 'modified' }]);
+    const patch = buildUnifiedDiffText(result.diff, result.diskFiles, result.storeFiles);
+    expect(patch).not.toContain('Binary files');
+    expect(patch).toContain('+content');
+  });
+
+  it('size exactly at limit diffs normally; limit+1 becomes oversized', async () => {
+    const name = 'edge-limit';
+    const limit = 1024;
+    // exact.txt:两侧都恰为 limit 字节,内容不同 → 正常逐行 diff
+    const exactOld = Buffer.concat([Buffer.from('old'), Buffer.alloc(limit - 4, 0x61), Buffer.from('\n')]);
+    const exactNew = Buffer.concat([Buffer.from('new'), Buffer.alloc(limit - 4, 0x61), Buffer.from('\n')]);
+    // over.txt:limit + 1 字节 → oversized
+    const overOld = Buffer.alloc(limit + 1, 0x63);
+    const overNew = Buffer.alloc(limit + 1, 0x64);
+
+    await mkdir(storeDir(name), { recursive: true });
+    await writeFile(join(storeDir(name), 'exact.txt'), exactOld);
+    await writeFile(join(storeDir(name), 'over.txt'), overOld);
+    await mkdir(diskDir(name), { recursive: true });
+    await writeFile(join(diskDir(name), 'exact.txt'), exactNew);
+    await writeFile(join(diskDir(name), 'over.txt'), overNew);
+
+    const result = await diffSkillWithContents(home, AGENT, name, { maxFileBytes: limit });
+    const byPath = Object.fromEntries(result.diff.files.map((f) => [f.path, f]));
+    expect(byPath['exact.txt']?.oversized).toBeUndefined();
+    expect(byPath['over.txt']?.oversized).toBe(true);
+    expect(result.diskFiles.has('exact.txt')).toBe(true);
+    expect(result.diskFiles.has('over.txt')).toBe(false);
+
+    const patch = buildUnifiedDiffText(result.diff, result.diskFiles, result.storeFiles);
+    expect(patch).toContain('-old');
+    expect(patch).toContain('+new');
+    expect(patch).toContain(`@@ oversized file skipped: disk=${limit + 1}B store=${limit + 1}B limit=${limit}B @@`);
+  });
+
+  it('reports disk=absent for removed oversized file (store-only)', async () => {
+    const name = 'edge-removed';
+    const limit = 1024;
+    await mkdir(storeDir(name), { recursive: true });
+    await writeFile(join(storeDir(name), 'SKILL.md'), 'base\n');
+    await writeFile(join(storeDir(name), 'gone.bin'), Buffer.alloc(2048, 0x46));
+    await mkdir(diskDir(name), { recursive: true });
+    await writeFile(join(diskDir(name), 'SKILL.md'), 'base\n');
+
+    const result = await diffSkillWithContents(home, AGENT, name, { maxFileBytes: limit });
+    const file = result.diff.files.find((f) => f.path === 'gone.bin');
+    expect(file).toMatchObject({ status: 'removed', oversized: true, storeBytes: 2048 });
+    expect(file!.diskBytes).toBeUndefined();
+
+    const patch = buildUnifiedDiffText(result.diff, result.diskFiles, result.storeFiles);
+    expect(patch).toContain('@@ oversized file skipped: disk=absent store=2048B limit=1024B @@');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLI 集成:narrative 对 oversized 的如实标注(内容不读,行数不计,必须说明)
+// ---------------------------------------------------------------------------
+
+const ROOT = join(import.meta.dirname, '..');
+const BIN = join(ROOT, 'bin', 'skill-switch.mjs');
+
+function runBin(args: string[]): { stdout: string; status: number } {
+  try {
+    const stdout = execFileSync(process.execPath, [BIN, ...args], { cwd: ROOT, encoding: 'utf8' });
+    return { stdout, status: 0 };
+  } catch (err) {
+    const e = err as { stdout?: string; status?: number };
+    return { stdout: e.stdout ?? '', status: e.status ?? -1 };
+  }
+}
+
+describe('CLI diff — oversized 如实标注', () => {
+  it('text 输出追加过大文件说明;--json 输出 oversizedFiles 计数', async () => {
+    const name = 'cli-oversized';
+    const big = Buffer.alloc(MAX_DIFF_FILE_BYTES + 1, 0x61); // 刚好超默认上限
+    await mkdir(storeDir(name), { recursive: true });
+    await writeFile(join(storeDir(name), 'SKILL.md'), '---\nname: c\n---\nold\n');
+    await mkdir(diskDir(name), { recursive: true });
+    await writeFile(join(diskDir(name), 'SKILL.md'), '---\nname: c\n---\nnew\n');
+    await writeFile(join(diskDir(name), 'big.txt'), big);
+
+    const text = runBin(['--home', home, 'diff', name]);
+    expect(text.status).toBe(0);
+    expect(text.stdout).toContain('1 个文件过大');
+
+    const json = runBin(['--home', home, 'diff', name, '--json']);
+    expect(json.status).toBe(0);
+    const parsed = JSON.parse(json.stdout) as { oversizedFiles?: number };
+    expect(parsed.oversizedFiles).toBe(1);
   });
 });

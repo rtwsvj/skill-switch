@@ -243,6 +243,10 @@ export function generateUnifiedDiff(
   aContent: Buffer | undefined,
   bContent: Buffer | undefined,
 ): string {
+  // 两侧内容完全相同 → 与文本路径一致,返回空 diff(二进制也不例外)。
+  if (aContent !== undefined && bContent !== undefined && aContent.equals(bContent)) {
+    return '';
+  }
   // 任一侧为二进制 → 不逐行 diff,输出 git 风格单行报告。
   if (isBinaryBuffer(aContent) || isBinaryBuffer(bContent)) {
     return `Binary files a/${path} and b/${path} differ`;

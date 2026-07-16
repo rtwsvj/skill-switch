@@ -78,6 +78,8 @@ export function registerDiffCommand(program: Command): void {
         // 只在至少一个 agent 可对比时才计算;若全不可对比则跳过(无内容可分析)。
         const comparableResults = results.filter((r) => r.diff.comparable);
         let narrative: DiffNarrative | null = null;
+        // oversized 文件不读内容,narrative 的行数统计不含它们;计数用于如实标注。
+        let oversizedFilesCount = 0;
         if (comparableResults.length > 0) {
           // 合并所有 agent 的 disk/store 文件 Map
           const mergedDisk = new Map<string, Buffer>();
@@ -85,6 +87,7 @@ export function registerDiffCommand(program: Command): void {
           let totalFilesChanged = 0;
           for (const r of comparableResults) {
             totalFilesChanged += r.diff.files.length;
+            oversizedFilesCount += r.diff.files.filter((f) => f.oversized).length;
             for (const [p, buf] of r.diskFiles) mergedDisk.set(p, buf);
             for (const [p, buf] of r.storeFiles) mergedStore.set(p, buf);
           }
@@ -109,10 +112,10 @@ export function registerDiffCommand(program: Command): void {
               return { ...diff, unifiedDiff: unifiedText };
             });
             // narrative 作为附加字段;不改变 diffs 数组结构
-            console.log(JSON.stringify({ name, format: 'unified', diffs: withUnified, ...(narrative ? { narrative } : {}) }, null, 2));
+            console.log(JSON.stringify({ name, format: 'unified', diffs: withUnified, ...(narrative ? { narrative } : {}), ...(oversizedFilesCount > 0 ? { oversizedFiles: oversizedFilesCount } : {}) }, null, 2));
           } else {
             // narrative 作为附加字段;name/diffs 键顺序不变
-            console.log(JSON.stringify({ name, diffs, ...(narrative ? { narrative } : {}) }, null, 2));
+            console.log(JSON.stringify({ name, diffs, ...(narrative ? { narrative } : {}), ...(oversizedFilesCount > 0 ? { oversizedFiles: oversizedFilesCount } : {}) }, null, 2));
           }
           return;
         }
@@ -125,6 +128,9 @@ export function registerDiffCommand(program: Command): void {
         // 叙述摘要行:在所有具体文件改动条目之前打印
         if (narrative) {
           console.log(narrative.summary);
+          if (oversizedFilesCount > 0) {
+            console.log(`(其中 ${oversizedFilesCount} 个文件过大,未做逐行分析,上面的行数统计不含它们)`);
+          }
         }
 
         if (format === 'unified') {
