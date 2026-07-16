@@ -27,17 +27,11 @@
 //   两个标志必须配合 --configs 使用;单独使用会产生友好错误。
 //   写入时:--write-config-baseline 优先,写完 exit 0,不再继续常规审计流程。
 //   对比时:drift finding 与其它 config finding 走同一输出/退出码路径。
-import { readFile } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { promisify } from 'node:util';
 import type { Command } from 'commander';
-import type { AuditReport } from '../../core/audit/engine.ts';
 import { flattenConfigFindings, readMcpConfigsRaw, readSettingsConfigsRaw } from '../../core/audit/config-discovery.ts';
 import {
-  loadPolicyFile,
   PolicyFileError,
-  DEFAULT_POLICY,
   type ResolvedPolicy,
 } from '../../core/audit/policy.ts';
 import {
@@ -56,7 +50,7 @@ import {
   configDiffToFindings,
   ConfigBaselineError,
 } from '../../core/audit/config-baseline.ts';
-import { runGuidedFix, type GuidedFixSummary } from '../../core/audit/guided-fix.ts';
+import { runGuidedFix } from '../../core/audit/guided-fix.ts';
 import { toCodeClimateEntries } from '../../core/audit/codeclimate.ts';
 import { toGithubAnnotations } from '../../core/audit/github-annotations.ts';
 import { toJunitDocument } from '../../core/audit/junit.ts';
@@ -64,28 +58,31 @@ import { toRdJsonDocument } from '../../core/audit/rdjson.ts';
 import { toSarifDocument } from '../../core/audit/sarif.ts';
 import type { AuditFinding, Severity } from '../../core/audit/types.ts';
 import {
-  applyBaselineToFindings,
   applyPolicyAndBaselineToFindings,
-  applyPolicyToFindings,
   auditHome,
-  auditSkillDir,
   auditSkillDirWithContents,
-  isPathIgnored,
-  MAX_AUDIT_FILES,
-  MAX_AUDIT_WALK_DEPTH,
-  MAX_FILE_BYTES,
   SEVERITY_RANK,
-  shouldBlock,
   shouldBlockWithAll,
   shouldBlockWithPolicy,
-  type AuditCoverage,
-  type AuditHomeReport,
-  type AuditHomeSkillReport,
-  type AuditIncompleteReason,
 } from '../../core/audit/service.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
-import { sanitizeOutputText } from '../../core/security/output-safety.ts';
 import { SKILL_SWITCH_VERSION } from '../../version.ts';
+import {
+  formatAuditHomeTable,
+  formatAuditReport,
+  formatGuidedFixOutput,
+  serializeGuidedFix,
+} from './audit-format.ts';
+import {
+  filterBySeverity,
+  getChangedFiles,
+  IGNORE_FILE_NAME,
+  isInlineSuppressed,
+  loadIgnorePatterns,
+  resolveFormat,
+  resolveMinSeverity,
+  resolvePolicy,
+} from './audit-options.ts';
 
 export {
   applyBaselineToFindings,
@@ -100,485 +97,19 @@ export {
   shouldBlock,
   shouldBlockWithAll,
   shouldBlockWithPolicy,
-};
-export type { AuditCoverage, AuditHomeReport, AuditHomeSkillReport, AuditIncompleteReason };
-
-/** 默认策略文件在 cwd 的文件名 */
-const POLICY_FILE_NAME = '.skill-switch-policy.json';
-
-/** 默认忽略文件名 */
-const IGNORE_FILE_NAME = '.skill-switch-ignore';
-
-const execFileAsync = promisify(execFile);
-
-/**
- * 用 `git diff --name-only <commit>...HEAD` 取出改动文件集合(相对仓库根的路径)。
- * 失败时返回 null(调用方视同未指定 --diff-from,全量审计)。
- */
-async function getChangedFiles(commit: string, cwd: string): Promise<Set<string> | null> {
-  try {
-    // Resolve user input to an object id first. `--end-of-options` prevents an
-    // option-looking ref from becoming a git flag; the subsequent diff receives
-    // only the canonical hexadecimal id.
-    const { stdout: resolvedStdout } = await execFileAsync(
-      'git',
-      ['rev-parse', '--verify', '--end-of-options', `${commit}^{commit}`],
-      { cwd },
-    );
-    const resolved = resolvedStdout.trim();
-    if (!/^[0-9a-f]{40,64}$/iu.test(resolved)) return null;
-    const { stdout } = await execFileAsync(
-      'git',
-      ['diff', '--name-only', '--end-of-options', `${resolved}...HEAD`],
-      { cwd },
-    );
-    const files = stdout.split('\n').map((l) => l.trim()).filter(Boolean);
-    return new Set(files);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 解析 .gitignore 风格忽略文件,返回逐行 glob/前缀列表。
- * 忽略空行和 # 注释行。文件不存在时返回空列表。
- */
-async function loadIgnorePatterns(ignoreFilePath: string): Promise<string[]> {
-  try {
-    const content = await readFile(ignoreFilePath, 'utf8');
-    return content
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.startsWith('#'));
-  } catch {
-    return [];
-  }
-}
-
-/**
- * 判断相对路径 rel 是否被忽略模式列表中的某条规则命中。
- * 支持:
- *   - 精确路径匹配(e.g. `foo/bar.md`)
- *   - 前缀目录匹配(e.g. `vendor` → 匹配 `vendor/...`)
- *   - 简单 glob:`*` 匹配任意非 `/` 字符;`**` 匹配任意字符(含 `/`)
- * 不引入外部依赖,纯 JS 实现。
- */
-
-const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'] as const;
-
-/**
- * 将 findings 列表按严重度排序后格式化为缩进文本行。
- * 供 formatAuditReport 和 formatAuditHomeTable 共用,避免重复实现渲染逻辑。
- * baselinedFingerprints 非空时,已基线化的 finding 追加"（基线已接受）"标注。
- */
-function formatFindingLines(
-  findings: AuditFinding[],
-  baselinedFingerprints: ReadonlySet<string> = new Set(),
-): string[] {
-  const sorted = [...findings].sort(
-    (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity),
-  );
-  const needsBaseline = baselinedFingerprints.size > 0;
-  const lines: string[] = [];
-  for (const f of sorted) {
-    const baselineTag = needsBaseline && baselinedFingerprints.has(fingerprintFinding(f))
-      ? '  （基线已接受）'
-      : '';
-    lines.push(
-      `  [${f.severity.toUpperCase()}] ${sanitizeOutputText(f.ruleId)}  ${sanitizeOutputText(f.file)}:${f.line}${baselineTag}`,
-    );
-    lines.push(`    ${sanitizeOutputText(f.message)}`);
-    lines.push(`    > ${sanitizeOutputText(f.excerpt.trim())}`);
-  }
-  return lines;
-}
-
-// ── 致命三要素人类可读摘要 ───────────────────────────────────────────────────
-//
-// 仅在 human 格式下、且至少有一条 `agentic/lethal-trifecta` finding 时,
-// 在输出末尾追加一行提示。该 finding 已是 medium(advisory)且 report-only,
-// 摘要只是把它的存在直观化,不改退出码、不改 --json / SARIF 结构。
-// 路径模式按 finding 计数;home 模式按受影响 skill 计数。
-
-const LETHAL_TRIFECTA_RULE_ID = 'agentic/lethal-trifecta';
-
-/** path 模式:按本报告 findings 内 trifecta 数生成单行摘要,无则返回 null。 */
-function lethalTrifectaSummaryForFindings(findings: AuditFinding[]): string | null {
-  const count = findings.filter((f) => f.ruleId === LETHAL_TRIFECTA_RULE_ID).length;
-  if (count === 0) return null;
-  return `⚠ 致命三要素:此 skill 同时具备三种能力(读私有数据 + 摄入不可信内容 + 对外发送),一段被投毒的内容就可能诱导它把你的数据带出去。建议移除其中任一能力(架构边界隔离)。`;
-}
-
-/** home 模式:按受影响 skill 数生成单行摘要,无则返回 null。 */
-function lethalTrifectaSummaryForHome(report: AuditHomeReport): string | null {
-  const affected = report.skills.filter((s) =>
-    s.findings.some((f) => f.ruleId === LETHAL_TRIFECTA_RULE_ID),
-  ).length;
-  if (affected === 0) return null;
-  return `⚠ 致命三要素:${affected} 个 skill 同时具备三种能力(读私有数据 + 摄入不可信内容 + 对外发送),建议移除其中任一能力(架构边界隔离)。`;
-}
-
-export function formatAuditReport(
-  path: string,
-  report: AuditReport & { coverage?: AuditCoverage },
-  baselinedFingerprints: ReadonlySet<string> = new Set(),
-): string {
-  const lines: string[] = [
-    `audit: ${sanitizeOutputText(path)}`,
-    `score: ${report.score}/100  verdict: ${report.verdict}`,
-  ];
-  if (report.coverage) {
-    const coverage = report.coverage;
-    const status = coverage.complete ? 'complete' : 'INCOMPLETE (blocks by default)';
-    const reasons = coverage.complete ? '' : `  reasons: ${coverage.incompleteReasons.join(', ')}`;
-    lines.push(
-      `coverage: ${status}  scanned: ${coverage.scannedFiles}/${coverage.visitedFiles} files  bytes: ${coverage.scannedBytes}${reasons}`,
-    );
-  }
-  if (report.findings.length === 0) {
-    lines.push('findings: none');
-    return lines.join('\n');
-  }
-  lines.push(`findings: ${report.findings.length}`, '');
-  lines.push(...formatFindingLines(report.findings, baselinedFingerprints));
-  const trifecta = lethalTrifectaSummaryForFindings(report.findings);
-  if (trifecta !== null) lines.push('', trifecta);
-  return lines.join('\n');
-}
-
-
-function formatAuditHomeTable(
-  report: AuditHomeReport,
-  baselinedFingerprints: ReadonlySet<string> = new Set(),
-): string {
-  const parts: string[] = [`audit home: ${sanitizeOutputText(report.home)}`];
-
-  if (report.skills.length === 0) {
-    parts.push('未发现任何 skill。');
-  } else {
-    const header = ['NAME', 'DIR', 'SCORE', 'VERDICT', 'COVERAGE', 'BLOCK'];
-    const rows = report.skills.map((skill) => [
-      sanitizeOutputText(skill.name),
-      sanitizeOutputText(skill.dir),
-      String(skill.score),
-      skill.verdict,
-      skill.coverage.complete ? 'complete' : 'INCOMPLETE',
-      skill.blocked ? 'yes' : 'no',
-    ]);
-    const widths = header.map((h, col) => Math.max(h.length, ...rows.map((row) => row[col]!.length)));
-    const renderRow = (row: string[]) => row.map((cell, col) => cell.padEnd(widths[col]!)).join('  ').trimEnd();
-    parts.push(renderRow(header), ...rows.map(renderRow));
-
-    const incompleteSkills = report.skills.filter((skill) => !skill.coverage.complete);
-    if (incompleteSkills.length > 0) {
-      parts.push('', '--- incomplete audit coverage ---');
-      for (const skill of incompleteSkills) {
-        parts.push(
-          `${sanitizeOutputText(skill.name)}: ${skill.coverage.incompleteReasons.join(', ')}`,
-        );
-      }
-    }
-  }
-
-  if (report.configs !== undefined) {
-    parts.push('', '--- config files ---');
-    if (report.configs.length === 0) {
-      parts.push('no agent config files found');
-    } else {
-      for (const cfg of report.configs) {
-        if (cfg.findings.length === 0) {
-          parts.push(`${sanitizeOutputText(cfg.relPath)}: ok`);
-        } else {
-          parts.push(`${sanitizeOutputText(cfg.relPath)}: ${cfg.findings.length} finding(s)`);
-          parts.push(...formatFindingLines(cfg.findings, baselinedFingerprints));
-        }
-      }
-    }
-  }
-
-  if (report.crossSkillFindings && report.crossSkillFindings.length > 0) {
-    parts.push('', '--- cross-skill collusion(跨-skill 协同攻击)---');
-    parts.push(`${report.crossSkillFindings.length} finding(s)`);
-    parts.push(...formatFindingLines(report.crossSkillFindings, baselinedFingerprints));
-  }
-
-  // 致命三要素人类可读摘要(末尾追加,仅在有命中时出现)。结构纯 additive,
-  // 不影响 --json / SARIF,不影响退出码。
-  const trifecta = lethalTrifectaSummaryForHome(report);
-  if (trifecta !== null) parts.push('', trifecta);
-
-  return parts.join('\n');
-}
-
-// ── 引导式修复输出格式化 ──────────────────────────────────────────────────────
-
-/**
- * 把 GuidedFixSummary 格式化为人类可读的文本块。
- * dry-run 时展示 diff 预览;apply 时显示已写盘的文件与备份路径。
- */
-export function formatGuidedFixOutput(summary: GuidedFixSummary, apply: boolean): string {
-  const lines: string[] = [];
-
-  if (apply) {
-    lines.push(`[guided-fix] 模式:apply(实际写盘)`);
-  } else {
-    lines.push(`[guided-fix] 模式:dry-run(预览;加 --apply 才写盘)`);
-  }
-
-  for (const r of summary.results) {
-    const safeRelFile = sanitizeOutputText(r.relFile);
-    const safeRuleId = sanitizeOutputText(r.finding.ruleId);
-    const safeMessage = sanitizeOutputText(r.finding.message);
-    if (r.kind === 'skipped-config') {
-      lines.push(`  跳过(配置文件,只读): ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
-      continue;
-    }
-    if (r.kind === 'manual') {
-      lines.push(`  需手动修复 (no safe auto-fix): ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
-      lines.push(`    ${safeMessage}`);
-      lines.push(`    > ${sanitizeOutputText(r.finding.excerpt.trim())}`);
-      continue;
-    }
-    // fixable
-    if (r.diffPreview === '') {
-      lines.push(`  已处理(幂等,无变化): ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
-      continue;
-    }
-    if (apply) {
-      lines.push(`  已修复: ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
-      if (r.backupPath) {
-        const created = r.backupCreated ? '(新建)' : '(已存在,保留原备份)';
-        lines.push(`    备份: ${sanitizeOutputText(r.backupPath)} ${created}`);
-      }
-    } else {
-      lines.push(`  可自动修复: ${safeRelFile}:${r.finding.line}  [${safeRuleId}]`);
-    }
-    lines.push(`    ${safeMessage}`);
-    // diff 预览缩进 4 格
-    for (const dl of r.diffPreview.split('\n')) {
-      lines.push(`    ${sanitizeOutputText(dl)}`);
-    }
-  }
-
-  lines.push('');
-  if (apply) {
-    lines.push(`已修改 ${summary.filesModified} 个文件,修复 ${summary.fixableCount} 条 finding,${summary.manualCount} 条需手动复核。`);
-  } else {
-    lines.push(`可自动修复: ${summary.fixableCount} 条;需手动复核: ${summary.manualCount} 条;config 文件跳过: ${summary.configSkipCount} 条。`);
-  }
-  if (summary.configSkipCount > 0) {
-    lines.push(`注意:--configs 发现的 ${summary.configSkipCount} 条 config finding 永远不会被 --fix 修改(只读保护)。`);
-  }
-
-  return lines.join('\n');
-}
-
-// ── 引导式修复 JSON 序列化 ────────────────────────────────────────────────────
-
-/**
- * GuidedFixEntry:单条 finding 的机器可读修复信息。
- * 稳定 schema——CI 脚本可依赖此结构。
- */
-export interface GuidedFixEntry {
-  /** 触发此 finding 的规则 ID */
-  ruleId: string;
-  /** finding 所在的相对文件路径(相对 audit 根目录) */
-  file: string;
-  /** finding 所在的行号(1-based) */
-  line: number;
-  /** 修复分类:'fixable'=有自动修复器;'manual'=需人工处理;'skipped-config'=config 文件,永远只读 */
-  kind: 'fixable' | 'manual' | 'skipped-config';
-  /** finding 是否被当前策略抑制(当策略激活时由 CI 读取;未传入策略时不含此字段) */
-  suppressed?: boolean;
-  /** apply 模式且实际写盘后为 true;dry-run 或未修改则为 false */
-  applied: boolean;
-  /** apply 模式且写盘成功时备份文件的绝对路径 */
-  backupPath?: string;
-  /** unified diff 预览字符串;幂等(已处理)或无 diff 时为空字符串 */
-  diff?: string;
-}
-
-/**
- * GuidedFixJsonSection:嵌入 JSON 报告的顶层 guidedFix 对象。
- */
-export interface GuidedFixJsonSection {
-  /** 干运行还是实际写盘 */
-  mode: 'dry-run' | 'apply';
-  /** 每条 finding 的修复条目 */
-  entries: GuidedFixEntry[];
-  /** 合计:有自动修复器的 finding 数(含幂等) */
-  fixableCount: number;
-  /** 合计:需手动处理的 finding 数 */
-  manualCount: number;
-  /** 合计:因来自 config 文件而跳过的 finding 数 */
-  configSkipCount: number;
-  /** apply 模式下实际修改的文件数;dry-run 时恒为 0 */
-  filesModified: number;
-}
-
-/**
- * 把 GuidedFixSummary 转换为可稳定序列化的 GuidedFixJsonSection。
- * 此函数为纯函数(无副作用),供 path 模式与 home 模式共用。
- */
-export function serializeGuidedFix(
-  summary: GuidedFixSummary,
-  apply: boolean,
-): GuidedFixJsonSection {
-  const entries: GuidedFixEntry[] = summary.results.map((r) => {
-    if (r.kind === 'skipped-config') {
-      return {
-        ruleId: r.finding.ruleId,
-        file: r.relFile,
-        line: r.finding.line,
-        kind: 'skipped-config' as const,
-        applied: false,
-      };
-    }
-    if (r.kind === 'manual') {
-      return {
-        ruleId: r.finding.ruleId,
-        file: r.relFile,
-        line: r.finding.line,
-        kind: 'manual' as const,
-        applied: false,
-      };
-    }
-    // fixable
-    const entry: GuidedFixEntry = {
-      ruleId: r.finding.ruleId,
-      file: r.relFile,
-      line: r.finding.line,
-      kind: 'fixable' as const,
-      applied: apply && r.diffPreview !== '' && r.backupPath !== undefined,
-      diff: r.diffPreview,
-    };
-    if (r.backupPath !== undefined) {
-      entry.backupPath = r.backupPath;
-    }
-    return entry;
-  });
-
-  return {
-    mode: apply ? 'apply' : 'dry-run',
-    entries,
-    fixableCount: summary.fixableCount,
-    manualCount: summary.manualCount,
-    configSkipCount: summary.configSkipCount,
-    filesModified: summary.filesModified,
-  };
-}
-
-// 解析最终输出格式:--format 优先;若无 --format 但有 --json 则等价于 json。
-type OutputFormat = 'human' | 'json' | 'sarif' | 'github' | 'junit' | 'codeclimate' | 'rdjson';
-
-function resolveFormat(options: { format?: string; json?: boolean }): OutputFormat {
-  if (options.format === 'sarif') return 'sarif';
-  if (options.format === 'github') return 'github';
-  if (options.format === 'junit') return 'junit';
-  if (options.format === 'codeclimate') return 'codeclimate';
-  if (options.format === 'rdjson') return 'rdjson';
-  if (options.format === 'json' || options.json === true) return 'json';
-  return 'human';
-}
-
-// ── 最低严重度过滤 ────────────────────────────────────────────────────────────
-
-/**
- * 解析 --min-severity 参数为 Severity 类型。
- * 无效值时抛出 RangeError(由调用方捕获并 exit 1)。
- */
-function resolveMinSeverity(raw: string | undefined): Severity | undefined {
-  if (raw === undefined) return undefined;
-  const valid: Severity[] = ['critical', 'high', 'medium', 'low'];
-  const lower = raw.toLowerCase() as Severity;
-  if (!valid.includes(lower)) {
-    throw new RangeError(`--min-severity 无效值 "${raw}";合法值: critical | high | medium | low`);
-  }
-  return lower;
-}
-
-/**
- * 按最低严重度过滤 findings。
- * minSeverity=undefined → 全部保留(默认,与旧版行为完全一致)。
- * minSeverity='high'    → 只保留 critical 和 high。
- */
-export function filterBySeverity(
-  findings: AuditFinding[],
-  minSeverity: Severity | undefined,
-): AuditFinding[] {
-  if (minSeverity === undefined) return findings;
-  const minRank = SEVERITY_RANK[minSeverity];
-  return findings.filter((f) => SEVERITY_RANK[f.severity] <= minRank);
-}
-
-// ── 行内抑制:skill-switch:suppress ──────────────────────────────────────────
-
-/**
- * 检测 finding 是否被行内抑制注释抑制。
- * 抑制条件:finding 所在行或其上一行包含 `skill-switch:suppress` 注释。
- * 可选的 `[ruleId]` 后缀使抑制只针对特定规则:
- *   - `# skill-switch:suppress`            → 抑制当前行所有 finding
- *   - `// skill-switch:suppress[rule/id]`  → 仅抑制 ruleId === 'rule/id'
- * 无内容(fileContent=undefined)时返回 false。
- */
-export function isInlineSuppressed(
-  finding: AuditFinding,
-  fileContent: string | undefined,
-): boolean {
-  if (fileContent === undefined) return false;
-  // 将文件内容按行分割(1-based 行号 → 数组下标 line-1)
-  const lines = fileContent.split('\n');
-  // 检查指定行和上一行
-  const checkLines = [finding.line - 1, finding.line - 2].filter((i) => i >= 0);
-  for (const idx of checkLines) {
-    const lineText = lines[idx] ?? '';
-    // 匹配 skill-switch:suppress 注释(含可选 [ruleId])
-    const match = lineText.match(/skill-switch:suppress(?:\[([^\]]*)\])?/);
-    if (!match) continue;
-    const targetRule = match[1]; // undefined → 无 ruleId 限制 → 抑制全部
-    if (targetRule === undefined || targetRule === finding.ruleId) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * 将 findings 列表按行内抑制注释标注 inlineSuppressed 字段。
- * fileContents: Map<相对文件路径 → 文件内容字符串>。
- * 仅补 inlineSuppressed 字段;不过滤;与 applyPolicyToFindings 可链式组合。
- */
-export function applyInlineSuppression(
-  findings: AuditFinding[],
-  fileContents: Map<string, string>,
-): Array<AuditFinding & { inlineSuppressed: boolean }> {
-  return findings.map((f) => ({
-    ...f,
-    inlineSuppressed: isInlineSuppressed(f, fileContents.get(f.file)),
-  }));
-}
-
-// ── 策略加载辅助 ─────────────────────────────────────────────────────────────
-
-/**
- * 根据 CLI 选项加载策略。
- * - noPolicy=true → 返回 { policy: DEFAULT_POLICY, policyActive: false }
- * - 文件不存在 → { policy: DEFAULT_POLICY, policyActive: false }
- * - 文件存在且合法 → { policy: 解析结果, policyActive: true }
- * - 文件存在但损坏 → 抛 PolicyFileError
- *
- * policyActive=false 时输出格式与旧版完全一致(不附加 suppressed 字段)。
- */
-async function resolvePolicy(opts: {
-  noPolicy?: boolean;
-  policy?: string;
-}): Promise<{ policy: ResolvedPolicy; policyActive: boolean }> {
-  if (opts.noPolicy) return { policy: DEFAULT_POLICY, policyActive: false };
-  const filePath = opts.policy ?? join(process.cwd(), POLICY_FILE_NAME);
-  const loaded = await loadPolicyFile(filePath);
-  if (loaded === null) return { policy: DEFAULT_POLICY, policyActive: false };
-  return { policy: loaded, policyActive: true };
-}
+} from '../../core/audit/service.ts';
+export type { AuditCoverage, AuditHomeReport, AuditHomeSkillReport, AuditIncompleteReason } from '../../core/audit/service.ts';
+export {
+  formatAuditReport,
+  formatGuidedFixOutput,
+  serializeGuidedFix,
+} from './audit-format.ts';
+export type { GuidedFixEntry, GuidedFixJsonSection } from './audit-format.ts';
+export {
+  filterBySeverity,
+  isInlineSuppressed,
+  applyInlineSuppression,
+} from './audit-options.ts';
 
 export function registerAuditCommand(program: Command): void {
   program
