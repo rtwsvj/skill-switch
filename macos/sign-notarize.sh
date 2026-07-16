@@ -19,7 +19,8 @@ cd "$(dirname "$0")"
 
 APP="dist/skill-switch.app"
 CLI="$APP/Contents/Resources/skill-switch-cli"
-DMG="dist/skill-switch_0.9.0_aarch64.dmg"
+VERSION="$(node -p "require('../package.json').version")"
+DMG="dist/skill-switch_${VERSION}_aarch64.dmg"
 
 if [ "${SKIP_BUILD:-0}" != "1" ]; then
   echo "==> 0/6 打包(未签名)"
