@@ -132,6 +132,7 @@ Base64 编码的危险命令、Trojan-Source 不可见字符、ANSI 终端注入
 | `obfuscation/invisible-bidi-chars` | high | 双向覆盖/隔离控制字符（U+202A–U+202E/U+2066–U+2069）——Trojan-Source 混淆 |
 | `obfuscation/unicode-tag-chars` | high | Unicode Tag 字符块（U+E0000–U+E007F）——可编码对人眼不可见的 ASCII 隐藏指令 |
 | `obfuscation/deprecated-bidi-format` | high | Unicode 3.0 废弃双向格式字符（U+206A–U+206F）——任何合法现代文本均不应包含 |
+| `obfuscation/unicode-supplementary-variation-selectors` | high | Unicode 补充变体选择符（U+E0100–U+E01EF，VS17–VS256）——LLM 可见的隐藏数据走私载体（emoji/CJK 合法变体 `U+FE00–U+FE0F` 已显式排除） |
 | `obfuscation/invisible-math-operators` | medium | 不可见数学运算符（U+2061–U+2064）——在非 MathML 上下文中可疑 |
 | `obfuscation/ansi-escape-injection` | high | 原始 ANSI 转义序列（ESC U+001B）——可操控终端显示或隐藏文字 |
 
@@ -158,6 +159,16 @@ Base64 编码的危险命令、Trojan-Source 不可见字符、ANSI 终端注入
 | `prompt-injection/conceal-from-user` | high | "do not tell/reveal/warn … user"——指示对用户隐瞒 agent 行为 |
 | `prompt-injection/zero-width-chars` | medium | 零宽空格/ZWJ 等不可见 Unicode（紧贴 ASCII 字母时才报）——拆词绕过扫描 |
 | `prompt-injection/hidden-style-text` | medium | `display:none`/`font-size:0`/`visibility:hidden`——用 CSS 隐藏对模型的指令 |
+
+---
+
+## Agentic 综合风险（agentic）
+
+OWASP Agentic Security Initiative（2026）收录的"致命三要素"能力合成——同一个 skill 同时具备三种能力时，即便代码本身无漏洞，也会被一段投毒内容（恶意 URL / PR 评论 / issue 正文 / email 正文）诱导外泄数据。与 `exfiltration/taint-source-to-sink` 的分工：taint 抓已成形的数据流（high），本规则抓能力组合层面的结构性风险（medium、advisory、report-only、不阻断 CI）。
+
+| ruleId | 严重度 | 抓什么 |
+|--------|--------|--------|
+| `agentic/lethal-trifecta` | medium | 同一文件同时具备 ① 读私有数据（env/凭据/历史/浏览器·钱包）② 摄入不可信内容（`WebFetch`/`WebSearch`/自然语言「follow this PR/issue/email」/把 fetch 输出管道到解释器/eval 注入外部内容）③ 对外发送（curl 上传/nc/scp/base64 管道等）——命中后提示用户移除其中一种能力以做架构边界隔离 |
 
 ---
 
@@ -326,9 +337,10 @@ Hook 在 agent 事件（如每次工具调用前后）自动执行；被植入�
 | destructive | 4 |
 | obfuscation | 6 |
 | prompt-injection | 4 |
+| agentic | 1 |
 | mcp（所有子类） | 29 |
 | settings（所有子类） | 16 |
-| **合计** | **85** |
+| **合计** | **86** |
 
 ---
 

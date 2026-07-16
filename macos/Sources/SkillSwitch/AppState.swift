@@ -151,6 +151,25 @@ final class AppState: ObservableObject {
         }
     }
 
+    // ── MCP scan ───────────────────────────────────────────────────────
+    // 该屏自管加载/刷新;不进 reload() 全局链以免每次首屏拉 5 块数据。
+    // mcp-scan 自身 10s/server 超时,GUI 侧宽限 30s/server × 1。
+
+    /// list 模式:无 --server/--all,CLI 只列不连(天然安全姿态)。
+    /// 直接上抛错误——吞掉会让「CLI 找不到/解码失败」都变成一句通用文案,没法排查。
+    func loadMcpList() async throws -> McpScanListReport {
+        try await CLI.runJSON(["mcp-scan", "--json"] + homeArgs(), as: McpScanListReport.self)
+    }
+
+    /// scan 模式:跑单个 server(GUI 确认即同意 → --yes 合法)。返回扫描结果。
+    /// resetBaseline=true 时覆盖写基线(对应「重新接受」按钮)。
+    /// 超时:CLI 端 10s/server 默认 → GUI 端也显式传 30s/server(宽于 CLI 默认,允许慢启动)。
+    func scanMcp(serverKey: String, resetBaseline: Bool) async throws -> McpScanReport {
+        var args = ["mcp-scan", "--server", serverKey, "--yes", "--timeout", "30000", "--json"]
+        if resetBaseline { args += ["--reset-baseline"] }
+        return try await CLI.runJSON(args + homeArgs(), as: McpScanReport.self)
+    }
+
     // ── 派生指标(总览用)──────────────────────────────────────────────
     var agentCount: Int { Set(scan.skills.flatMap { $0.agents }).count }
     var skillCount: Int { scan.total }

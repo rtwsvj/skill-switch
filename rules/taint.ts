@@ -155,15 +155,34 @@ interface LineClass {
   sink: boolean;
 }
 
+/**
+ * 判断一行是否构成「读私有数据」(axis-1 of Lethal Trifecta)。
+ * 等价于 taint 单文件判定里的 source 行:`hasCommandContext(line) && matchAny(SOURCE_PATTERNS, line)`。
+ *
+ * 仅作语义化重命名导出,行为与原 `classifyLines` 内部判定逐字节一致:
+ *   - 先要求命令上下文(管道 / 重定向 / 命令前缀 / 变量引用 / process.env / printenv),
+ *   - 再要求命中 SOURCE_PATTERNS 至少一条。
+ * 导出供 `rules/lethal-trifecta.ts` 第三轴合成复用;tests/lethal-trifecta-helpers.test.ts
+ * 守门确保与既有 taint 命中 profile 完全一致。
+ */
+export function privateDataAccessLine(line: string): boolean {
+  return hasCommandContext(line) && matchAny(SOURCE_PATTERNS, line);
+}
+
+/**
+ * 判断一行是否构成「对外发送」(axis-3 of Lethal Trifecta)。
+ * 等价于 taint 单文件判定里的 sink 行:`hasCommandContext(line) && matchAny(SINK_PATTERNS, line)`。
+ * 同样仅作语义化重命名导出,行为不变;供 lethal-trifecta.ts 第三轴合成复用。
+ */
+export function externalCommLine(line: string): boolean {
+  return hasCommandContext(line) && matchAny(SINK_PATTERNS, line);
+}
+
 function classifyLines(lines: string[]): LineClass[] {
-  return lines.map((line) => {
-    const ctx = hasCommandContext(line);
-    if (!ctx) return { source: false, sink: false };
-    return {
-      source: matchAny(SOURCE_PATTERNS, line),
-      sink: matchAny(SINK_PATTERNS, line),
-    };
-  });
+  return lines.map((line) => ({
+    source: privateDataAccessLine(line),
+    sink: externalCommLine(line),
+  }));
 }
 
 /**

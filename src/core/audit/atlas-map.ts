@@ -78,6 +78,8 @@ export const RULE_CATEGORY_ATLAS_TAGS: ReadonlyMap<string, string[]> = new Map([
   ['taint', ['atlas:AML.T0051.001', 'atlas:AML.T0048']],
   // 跨 skill(一个 skill 影响/污染另一个)→ 借供应链与插件链条侵蚀完整性
   ['cross-skill', ['atlas:AML.T0010', 'atlas:AML.T0031']],
+  // 致命三要素(能力合成)→ 间接提示注入操纵意图 + 经网络手段外联触发外部危害
+  ['agentic', ['atlas:AML.T0051.001', 'atlas:AML.T0025']],
 ]);
 
 /**
@@ -136,6 +138,9 @@ export const RULE_CATEGORY_AGENTIC_TAGS: ReadonlyMap<string, string[]> = new Map
   ['taint', ['owasp-agentic:T6', 'owasp-agentic:T2']],
   // 跨 skill → 一个 skill 污染另一个,属智能体通信投毒 + 多体中的失控/恶意体
   ['cross-skill', ['owasp-agentic:T12', 'owasp-agentic:T13']],
+  // 致命三要素(agentic 综合能力合成,advisory)→ 摄入不可信内容操纵意图 + 工具滥用外联
+  // 顶层类目 'agentic' 而非 'taint',因三要素是 OWASP Agentic 2026 独立编目项。
+  ['agentic', ['owasp-agentic:T6', 'owasp-agentic:T2']],
 ]);
 
 /** 取规则 ID 的类目前缀(第一段),与 sarif.ts 内的拆分方式一致。 */

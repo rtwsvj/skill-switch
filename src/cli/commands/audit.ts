@@ -443,6 +443,31 @@ function formatFindingLines(
   return lines;
 }
 
+// ── 致命三要素人类可读摘要 ───────────────────────────────────────────────────
+//
+// 仅在 human 格式下、且至少有一条 `agentic/lethal-trifecta` finding 时,
+// 在输出末尾追加一行提示。该 finding 已是 medium(advisory)且 report-only,
+// 摘要只是把它的存在直观化,不改退出码、不改 --json / SARIF 结构。
+// 路径模式按 finding 计数;home 模式按受影响 skill 计数。
+
+const LETHAL_TRIFECTA_RULE_ID = 'agentic/lethal-trifecta';
+
+/** path 模式:按本报告 findings 内 trifecta 数生成单行摘要,无则返回 null。 */
+function lethalTrifectaSummaryForFindings(findings: AuditFinding[]): string | null {
+  const count = findings.filter((f) => f.ruleId === LETHAL_TRIFECTA_RULE_ID).length;
+  if (count === 0) return null;
+  return `⚠ 致命三要素:此 skill 同时具备三种能力(读私有数据 + 摄入不可信内容 + 对外发送),一段被投毒的内容就可能诱导它把你的数据带出去。建议移除其中任一能力(架构边界隔离)。`;
+}
+
+/** home 模式:按受影响 skill 数生成单行摘要,无则返回 null。 */
+function lethalTrifectaSummaryForHome(report: AuditHomeReport): string | null {
+  const affected = report.skills.filter((s) =>
+    s.findings.some((f) => f.ruleId === LETHAL_TRIFECTA_RULE_ID),
+  ).length;
+  if (affected === 0) return null;
+  return `⚠ 致命三要素:${affected} 个 skill 同时具备三种能力(读私有数据 + 摄入不可信内容 + 对外发送),建议移除其中任一能力(架构边界隔离)。`;
+}
+
 export function formatAuditReport(
   path: string,
   report: AuditReport,
@@ -455,6 +480,8 @@ export function formatAuditReport(
   }
   lines.push(`findings: ${report.findings.length}`, '');
   lines.push(...formatFindingLines(report.findings, baselinedFingerprints));
+  const trifecta = lethalTrifectaSummaryForFindings(report.findings);
+  if (trifecta !== null) lines.push('', trifecta);
   return lines.join('\n');
 }
 
@@ -574,6 +601,11 @@ function formatAuditHomeTable(
     parts.push(`${report.crossSkillFindings.length} finding(s)`);
     parts.push(...formatFindingLines(report.crossSkillFindings, baselinedFingerprints));
   }
+
+  // 致命三要素人类可读摘要(末尾追加,仅在有命中时出现)。结构纯 additive,
+  // 不影响 --json / SARIF,不影响退出码。
+  const trifecta = lethalTrifectaSummaryForHome(report);
+  if (trifecta !== null) parts.push('', trifecta);
 
   return parts.join('\n');
 }

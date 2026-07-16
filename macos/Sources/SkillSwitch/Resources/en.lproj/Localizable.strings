@@ -2,6 +2,7 @@
 "nav.overview" = "Overview";
 "nav.skills" = "Skills";
 "nav.safety" = "Safety";
+"nav.mcp" = "MCP";
 "nav.ops" = "Maintenance";
 "nav.history" = "History";
 "nav.usage" = "Usage";
@@ -176,3 +177,38 @@
 "usage.zombies.label" = "Skills never used";
 "usage.zombies.empty" = "No zombie skills.";
 "usage.zombies.pill" = "Never used";
+
+/* MCP screen (milestone 6) */
+"mcpscan.subtitle.count" = "%d server(s)";
+"mcpscan.intro" = "These are MCP servers installed by your AI tools. Tap “Scan” to connect (a local process or a remote endpoint) and audit the tool list. Safe by default — nothing connects until you confirm.";
+"mcpscan.empty" = "No MCP servers found. Configure one in ~/.claude/mcp.json, ~/.cursor/mcp.json, ~/.vscode/mcp.json, etc. and it will appear here automatically.";
+"mcpscan.load.failed" = "Failed to load the server list.";
+"mcpscan.scan.failed" = "Scan %1$@ failed: %2$@";
+"mcpscan.scan.noResult" = "Scan finished, but the CLI returned no result for this server.";
+"mcpscan.transport.stdio" = "Local process";
+"mcpscan.transport.http" = "Remote endpoint";
+"mcpscan.row.source" = "Config file";
+"mcpscan.row.describe" = "Will run";
+"mcpscan.action.scan" = "Scan";
+"mcpscan.action.rescan" = "Scan again";
+"mcpscan.action.reset" = "Re-accept this list";
+"mcpscan.confirm.cancel" = "Cancel";
+"mcpscan.confirm.scan.title" = "Connect to this MCP server?";
+"mcpscan.confirm.scan.btn" = "Connect & scan";
+"mcpscan.confirm.scan.msg.stdio" = "Scan %1$@. This will start a local process: %2$@. skill-switch only reads the tool list; it never calls any tool.";
+"mcpscan.confirm.scan.msg.http" = "Scan %1$@. This will request %2$@. skill-switch only reads the tool list; it never calls any tool.";
+"mcpscan.confirm.reset.title" = "Save this result as the new baseline?";
+"mcpscan.confirm.reset.btn" = "Save as new baseline";
+"mcpscan.confirm.reset.msg" = "This overwrites the saved tool list for \"%@\"; next scan will not flag this diff. Auto-snapshot is taken first; you can restore from History.";
+"mcpscan.result.connectFailed" = "Connection failed";
+"mcpscan.result.tools" = "Received %d tool(s)";
+"mcpscan.result.findings" = "%d finding(s)";
+"mcpscan.result.rugPull.title" = "Changed since last time (needs your confirmation)";
+"mcpscan.result.rugPull.hint" = "A tool definition in the baseline was modified. Could be a legit update, could be a sneaky new instruction. Decide carefully before accepting.";
+"mcpscan.result.removed" = "%d tool(s) disappeared";
+"mcpscan.baseline.pill" = "Last record";
+"mcpscan.baseline.established" = "“%@” — first scan; current tool list recorded";
+"mcpscan.baseline.compared" = "“%@” — compared against the last record";
+"mcpscan.baseline.reset" = "“%@” — current list re-accepted";
+"mcpscan.baseline.missing" = "“%@” — no record yet";
+"mcpscan.baseline.unknown" = "“%@” — unknown record state";

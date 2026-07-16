@@ -16,12 +16,22 @@ const WEIGHTS: Record<Severity, number> = {
   low: 1,
 };
 
-export function scoreFindings(findings: ReadonlyArray<{ severity: Severity }>): number {
+/**
+ * Advisory 规则:仍产出 finding 供人复核,但**不计入安全评分**——因此无法把 score
+ * 压到 DANGER_THRESHOLD 以下,不会翻转默认退出码(兑现 report-only 承诺)。
+ * 注:自定义 policy 的 `failOn: medium` 仍可显式对其阻断(opt-in)——那条路径按 severity
+ * 判定、不经 score,故本豁免只影响"默认(评分驱动)"退出码,不影响用户显式选择的门控。
+ */
+export const ADVISORY_RULE_IDS: ReadonlySet<string> = new Set(['agentic/lethal-trifecta']);
+
+export function scoreFindings(findings: ReadonlyArray<{ severity: Severity; ruleId?: string }>): number {
   let criticals = 0;
   let penalty = 0;
-  for (const { severity } of findings) {
-    if (severity === 'critical') criticals += 1;
-    penalty += WEIGHTS[severity];
+  for (const f of findings) {
+    // advisory finding 不计分(report-only);ruleId 缺省的裸对象按普通 finding 计。
+    if (f.ruleId !== undefined && ADVISORY_RULE_IDS.has(f.ruleId)) continue;
+    if (f.severity === 'critical') criticals += 1;
+    penalty += WEIGHTS[f.severity];
   }
   if (criticals >= INSTANT_ZERO_CRITICALS) return 0;
   return Math.max(0, 100 - penalty);

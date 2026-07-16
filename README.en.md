@@ -53,7 +53,7 @@ The app only writes to your tools' skill directories (`~/.claude`, `~/.codex`, `
 
 ### What the native app does
 
-A SwiftUI shell over the same CLI — six sidebar screens: **Overview** / **Skills** / **Safety** / **Maintenance** / **History** / **Usage**. Writes (`install` / `toggle` / `sync` / `remove` / `restore`) go through a native confirmation dialog + automatic pre-write snapshot, with audit results surfaced inline. **4 languages** (English / 简体中文 / 日本語 / Español) with an in-app toolbar switcher; light/dark theme follows the system.
+A SwiftUI shell over the same CLI — seven sidebar screens: **Overview** / **Skills** / **Safety** / **Maintenance** / **History** / **Usage** / **MCP**. The MCP screen lists MCP servers from your configs (never connects by default); "Scan" shows a native confirmation stating exactly what local process will be launched or what URL will be requested, then fetches the live tool list, audits it, and flags rug-pull changes in plain language with a "re-accept" flow. Writes (`install` / `toggle` / `sync` / `remove` / `restore`) go through a native confirmation dialog + automatic pre-write snapshot, with audit results surfaced inline. **4 languages** (English / 简体中文 / 日本語 / Español) with an in-app toolbar switcher; light/dark theme follows the system.
 
 ## CLI
 

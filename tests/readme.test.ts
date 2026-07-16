@@ -41,7 +41,7 @@ describe('README', () => {
       // 截图已从 gui/docs/ 迁到 assets/screenshots/
       'assets/screenshots/g1-overview.png',
       'assets/screenshots/g1-audit.png',
-      'assets/screenshots/p1-i18n-zh-CN.png',
+      'assets/screenshots/p1-i18n-en.png',
       // i18n 四语言覆盖
       'zh-CN',
       'en',

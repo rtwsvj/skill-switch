@@ -51,6 +51,8 @@ const CATEGORY_WHY: Record<string, string> = {
     'MCP 配置安全规则检测危险的 MCP server 配置——反弹 shell 内联命令、硬编码密钥、无版本号供应链、元数据提示注入等——任何一项都可让 AI agent 成为攻击跳板。',
   settings:
     'agent 配置(settings.json)安全规则检测恶意 hook 命令、过宽权限、硬编码密钥及禁用确认等设置——被植入后会在每次 agent 事件中静默执行。',
+  agentic:
+    '致命三要素(Lethal Trifecta,Simon Willison 提出、OWASP Agentic 2026 收录):一个 skill 同时具备①读私有数据 ②摄入不可信内容(PR/issue/email 等)③对外发送三种能力,即便代码无漏洞也可能被一段投毒内容诱导外泄数据。报告为 advisory(medium),不会阻断 CI,但提示能力组合层面的结构性风险。',
 };
 
 const CATEGORY_HOW_TO_FIX: Record<string, string> = {
@@ -80,6 +82,8 @@ const CATEGORY_HOW_TO_FIX: Record<string, string> = {
     '检查 MCP server 配置:移除 shell 包装器中的危险命令;为 npx/uvx 指定版本;把密钥改为环境变量引用(如 $MY_KEY);对远程 server 改用 https://。',
   settings:
     '检查 hooks 中的每条命令是否只做必要操作;移除通配符权限(Bash(*) / *);把硬编码密钥改为环境变量引用($ENV_VAR);避免 dangerouslySkipPermissions: true。',
+  agentic:
+    '架构层移除三要素中的至少一种(优先移除能力最强的轴):①不让 skill 接触 env/凭据文件(把数据访问交给独立进程);②不让 skill 直接执行外部内容(WebFetch 结果不进入 LLM 上下文);③不让 skill 直接对外发送(所有外联走审计代理)。若是合法功能必须三者俱全,在 .skill-switch-policy.json 的 suppress[] 中注明豁免理由并加 review。',
 };
 
 // 兜底(未知类目)

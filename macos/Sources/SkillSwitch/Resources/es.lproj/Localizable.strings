@@ -2,6 +2,7 @@
 "nav.overview" = "Resumen";
 "nav.skills" = "Habilidades";
 "nav.safety" = "Seguridad";
+"nav.mcp" = "MCP";
 "nav.ops" = "Mantenimiento";
 "nav.history" = "Historial";
 "nav.usage" = "Uso";
@@ -176,3 +177,38 @@
 "usage.zombies.label" = "Habilidades nunca usadas";
 "usage.zombies.empty" = "No hay habilidades zombi.";
 "usage.zombies.pill" = "Nunca usada";
+
+/* MCP screen (milestone 6) */
+"mcpscan.subtitle.count" = "%d servidor(es)";
+"mcpscan.intro" = "Estos son los servidores MCP instalados por tus herramientas de IA. Pulsa «Escanear» para conectar (un proceso local o un endpoint remoto) y auditar la lista de herramientas. Seguro por defecto: nada se conecta hasta que lo confirmes.";
+"mcpscan.empty" = "No se encontraron servidores MCP. Configura uno en ~/.claude/mcp.json, ~/.cursor/mcp.json, ~/.vscode/mcp.json, etc. y aparecerá aquí automáticamente.";
+"mcpscan.load.failed" = "Error al cargar la lista de servidores.";
+"mcpscan.scan.failed" = "Error al escanear %1$@: %2$@";
+"mcpscan.scan.noResult" = "Escaneo terminado, pero la CLI no devolvió resultados para este servidor.";
+"mcpscan.transport.stdio" = "Proceso local";
+"mcpscan.transport.http" = "Endpoint remoto";
+"mcpscan.row.source" = "Archivo de config";
+"mcpscan.row.describe" = "Ejecutará";
+"mcpscan.action.scan" = "Escanear";
+"mcpscan.action.rescan" = "Escanear de nuevo";
+"mcpscan.action.reset" = "Re-aceptar esta lista";
+"mcpscan.confirm.cancel" = "Cancelar";
+"mcpscan.confirm.scan.title" = "¿Conectar a este servidor MCP?";
+"mcpscan.confirm.scan.btn" = "Conectar y escanear";
+"mcpscan.confirm.scan.msg.stdio" = "Escanear %1$@. Esto arrancará un proceso local: %2$@. skill-switch solo lee la lista de herramientas; nunca llama a ninguna herramienta.";
+"mcpscan.confirm.scan.msg.http" = "Escanear %1$@. Esto solicitará %2$@. skill-switch solo lee la lista de herramientas; nunca llama a ninguna herramienta.";
+"mcpscan.confirm.reset.title" = "¿Guardar este resultado como nueva base?";
+"mcpscan.confirm.reset.btn" = "Guardar como nueva base";
+"mcpscan.confirm.reset.msg" = "Sobrescribe la lista de herramientas guardada de \"%@\"; el próximo escaneo no marcará esta diferencia. Se hace copia de seguridad antes; puedes restaurar desde Historial.";
+"mcpscan.result.connectFailed" = "Conexión fallida";
+"mcpscan.result.tools" = "Recibidas %d herramienta(s)";
+"mcpscan.result.findings" = "%d hallazgo(s)";
+"mcpscan.result.rugPull.title" = "Cambió desde la última vez (necesita tu confirmación)";
+"mcpscan.result.rugPull.hint" = "Se modificó una definición de herramienta de la base. Puede ser una actualización legítima o una instrucción maliciosa inyectada. Decide con cuidado antes de aceptar.";
+"mcpscan.result.removed" = "Desaparecieron %d herramienta(s)";
+"mcpscan.baseline.pill" = "Registro anterior";
+"mcpscan.baseline.established" = "«%@» — primer escaneo; lista de herramientas registrada";
+"mcpscan.baseline.compared" = "«%@» — comparado con el registro anterior";
+"mcpscan.baseline.reset" = "«%@» — lista actual reaceptada";
+"mcpscan.baseline.missing" = "«%@» — todavía no hay registro";
+"mcpscan.baseline.unknown" = "«%@» — estado del registro desconocido";

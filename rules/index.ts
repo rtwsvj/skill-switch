@@ -12,6 +12,7 @@ import { destructiveRules } from './destructive.ts';
 import { exfiltrationRules } from './exfiltration.ts';
 import { globalTamperRules } from './global-tamper.ts';
 import { invisibleCharRules } from './invisible-chars.ts';
+import { lethalTrifectaRules } from './lethal-trifecta.ts';
 import { persistenceRules } from './persistence.ts';
 import { promptInjectionRules } from './prompt-injection.ts';
 import { reverseShellRules } from './reverse-shell.ts';
@@ -40,4 +41,5 @@ export const allFileRules: AuditFileRule[] = [
   ...ansiInjectionRules,    // R2-b:ANSI 转义序列/终端控制序列注入
   ...binaryMasqueradeRules, // A1:二进制魔数伪装(文本扩展名却以可执行/归档魔数开头)
   ...taintRules,            // A3:taint 单文件内 source→sink 数据外渗链
+  ...lethalTrifectaRules,   // OWASP Agentic 2026:致命三要素能力合成(advisory medium)
 ];
