@@ -25,10 +25,11 @@
 //     声明/锁路径由 home 内联重算。skill 名恢复时再过 assertSafeSkillName。
 //   - nonce 仅作诊断关联(记录当时的锁 owner);恢复发生在下一任锁内,旧锁 owner
 //     文件已随锁回收消失,nonce 不构成安全绑定。
-import { lstat, readFile, rm, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { lstat, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
-import { assertSafeArchive, restoreSnapshot } from './backup.ts';
+import { assertSafeArchive, restoreSnapshot, snapshot, type SnapshotInfo } from './backup.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { assertSafeSkillName } from './skill-name.ts';
 import { readJsonState, writeJsonState, writeTextState, StateFileError } from './state-io.ts';
@@ -124,6 +125,49 @@ export async function captureFileState(path: string): Promise<JournalFileState> 
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { content: null };
     throw error;
   }
+}
+
+/**
+ * 把 snapshotAgents 的进程内补偿快照映射为 journal 结构化快照(toggle/remove/sync
+ * 共用)。codex 特例:snapshotAgents 拍的是 .codex 整根(含 config.toml),sourceDir
+ * 不等于 skills 根,不能映射进 agent-skills-root scope——为 journal 单独拍 skills 根;
+ * 整根快照仍归进程内补偿与用户资产,不进 journal。
+ */
+export async function walSnapshotsForAgents(
+  home: string,
+  agents: Iterable<AgentType>,
+  processSnapshots: readonly SnapshotInfo[],
+  label: string,
+): Promise<JournalSnapshotRef[]> {
+  const wal: JournalSnapshotRef[] = [];
+  const backupsStore = join(home, '.skill-switch', 'backups');
+
+  for (const agent of new Set(agents)) {
+    const location = getAgentSkillsLocations().find((l) => l.agent === agent);
+    if (!location) continue;
+    const skillsDir = resolveGlobalSkillsDir(home, location);
+
+    if (agent === 'codex') {
+      if (existsSync(skillsDir) && (await readdir(skillsDir)).length > 0) {
+        const snap = await snapshot(skillsDir, {
+          store: backupsStore,
+          label: `${label}-codex-skills`,
+        });
+        wal.push({ path: snap.path, scope: { kind: 'agent-skills-root', agent: 'codex' } });
+      }
+      continue;
+    }
+
+    const match = processSnapshots.find(
+      (s) => s.sourceDir !== undefined && resolve(s.sourceDir) === resolve(skillsDir),
+    );
+    if (!match) continue;
+    if (!match.sourceDir) {
+      throw new Error(`快照缺少 sourceDir,无法写入 journal: ${match.path}`);
+    }
+    wal.push({ path: match.path, scope: { kind: 'agent-skills-root', agent } });
+  }
+  return wal;
 }
 
 function declarationPathFor(home: string): string {

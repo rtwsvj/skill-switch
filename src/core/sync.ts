@@ -7,17 +7,30 @@
 // P3-D5:plan artifact 持久化(对标 Terraform plan -out)。
 //   sync plan --out <file>  把 planSync 结果 + 声明 sha256 摘要 + 时间戳序列化写盘。
 //   sync apply --plan <file> 读回后校验声明文件 sha256 未变,变则拒绝提示重 plan。
+//
+// WAL:journal 只接带锁入口 applySync;applySyncUnlocked 被 toggle 等复用,内部不动,
+// 避免嵌套两份 journal。
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
+import { snapshotAgents } from './agent-snapshots.ts';
 import {
   getCodexConfigPath,
   readCodexSkillEnabled,
   setCodexSkillEnabled,
 } from './codex-toggle.ts';
+import {
+  beginJournal,
+  captureFileState,
+  walSnapshotsForAgents,
+  recoverPendingJournal,
+  type JournalManagedTarget,
+  type JournalPreState,
+} from './journal.ts';
+import { getSkillsLockPath } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { withOperationLock } from './operation-lock.ts';
 import { copyDirWithoutSymlinks } from './safe-copy.ts';
@@ -404,16 +417,113 @@ export async function readAndVerifyPlanArtifact(
 
 // ---------- applySync ----------
 
+export interface ApplySyncOptions {
+  /**
+   * WAL 步骤回调,仅供崩溃矩阵测试注入故障(在指定步骤后自杀);生产不传。
+   * 步骤 id:prepare / applying / apply-sync / commit。
+   */
+  onStep?: (stepId: string) => void | Promise<void>;
+}
+
+function targetsFromPlan(actions: SyncAction[]): JournalManagedTarget[] {
+  const seen = new Set<string>();
+  const targets: JournalManagedTarget[] = [];
+  for (const action of actions) {
+    if (action.kind === 'noop' || action.kind === 'config-disable' || action.kind === 'config-enable') {
+      continue;
+    }
+    const key = `${action.agent}\0${action.name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({
+      agent: action.agent,
+      name: action.name,
+      existedBefore: existsSync(action.target),
+    });
+  }
+  return targets;
+}
+
+/**
+ * 带锁的公开 sync 入口。journal 只在此接入;持锁调用方请用 applySyncUnlocked
+ * (toggle 等外层已有自己的 journal 事务)。
+ */
 export async function applySync(
   home: string,
   declaration: SkillsDeclarationFile,
+  options: ApplySyncOptions = {},
 ): Promise<{ actions: SyncAction[] }> {
-  return withOperationLock(home, 'sync', () => applySyncUnlocked(home, declaration));
+  return withOperationLock(home, 'sync', (lock) =>
+    applySyncJournaled(home, declaration, lock.owner.nonce, options),
+  );
+}
+
+async function applySyncJournaled(
+  home: string,
+  declaration: SkillsDeclarationFile,
+  lockNonce: string,
+  options: ApplySyncOptions,
+): Promise<{ actions: SyncAction[] }> {
+  const declarationPath = getSkillsJsonPath(home);
+  const lockPath = getSkillsLockPath(home);
+
+  // preState 必须在任何权威写之前:先 plan + 拍根快照,再开 journal。
+  const planned = await planSync(home, declaration);
+  const agents = new Set(declaration.skills.flatMap((s) => s.agents));
+  const label = 'pre-sync';
+  const processSnapshots = await snapshotAgents(home, agents, label);
+  const walSnapshots = await walSnapshotsForAgents(home, agents, processSnapshots, label);
+  const preState: JournalPreState = {
+    declaration: await captureFileState(declarationPath),
+    lockfile: await captureFileState(lockPath),
+    snapshots: walSnapshots,
+    targets: targetsFromPlan(planned),
+    storeTargets: [],
+  };
+
+  const journal = await beginJournal(home, {
+    operation: 'sync',
+    nonce: lockNonce,
+    preState,
+    steps: ['apply-sync'],
+  });
+  await options.onStep?.('prepare');
+
+  try {
+    await journal.markApplying();
+    await options.onStep?.('applying');
+
+    // 已持锁;unlocked 内部会重新 plan,以当前磁盘状态安全应用。
+    const result = await applySyncUnlocked(home, declaration);
+    await journal.markStep('apply-sync');
+    await options.onStep?.('apply-sync');
+
+    await journal.markCommit();
+    await options.onStep?.('commit');
+    await journal.clear();
+    return result;
+  } catch (error) {
+    // 进程内就地恢复:锁仍持有,立刻按 journal 回滚。sync 本身无其它补偿路径。
+    // 恢复失败则保留 journal,下次获锁操作会重试。
+    try {
+      await recoverPendingJournal(home, {
+        log: (message) => console.error(message),
+      });
+    } catch (recoveryError) {
+      throw new AggregateError(
+        [error, recoveryError],
+        'sync 失败且就地恢复未完成;写操作日志已保留,下次任意写操作将自动重试恢复',
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 /**
  * Sync implementation for callers that already hold the home operation lock.
  * @internal Do not call this as a standalone public write operation.
+ * journal 不在此接入——外层(toggle / CLI 自持锁路径)负责事务边界。
  */
 export async function applySyncUnlocked(
   home: string,
