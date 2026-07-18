@@ -25,8 +25,12 @@ import {
   sanitizeOutputText,
 } from '../security/output-safety.ts';
 import {
-  assertResolvedHostPolicy,
-  defaultHostResolver,
+  createPinnedFetch,
+  pinnedFetch,
+  type PinnedFetchInit,
+  type PinnedResponse,
+} from '../security/pinned-http.ts';
+import {
   hasUrlCredentials,
   HostResolutionPolicyError,
   type HostResolver,
@@ -39,6 +43,21 @@ import {
 } from '../security/url-safety.ts';
 import type { ToolDefinition } from './baseline.ts';
 import type { McpServerSpec } from './discover.ts';
+
+/**
+ * 可注入的 fetch 形状:PinnedResponse 是 Response 的受控子集(无 text()/json())。
+ * 测试注入的假 fetch 返回标准 Response(超集)必须继续可用。
+ */
+export type McpScanFetchImpl = (
+  url: string,
+  init?: PinnedFetchInit,
+) => Promise<PinnedResponse | Response>;
+
+/**
+ * MCP 本地 http transport 专用钉扎实例:allowLoopback 仅此文件此用途。
+ * 与公网 https 默认实例分离,绝不共享(协议策略不同)。
+ */
+const loopbackPinnedFetch = createPinnedFetch({ allowLoopback: true });
 
 // ── 公开错误类型 ─────────────────────────────────────────────────────────────
 
@@ -419,19 +438,81 @@ async function killChild(child: ChildProcess): Promise<void> {
 // ── http 传输 ────────────────────────────────────────────────────────────────
 
 /**
- * http 传输:POST JSON-RPC 到 URL。复用全局 fetch(零新依赖)。
+ * 解析 http 传输使用的 fetch:
+ *   - 显式 fetchImpl → 原样用(测试 mock)
+ *   - 仅 hostResolver → createPinnedFetch 一次性实例(测试 DNS;http 带 allowLoopback)
+ *   - 都无 → 按协议分实例:https 用默认 pinnedFetch;http 用 loopbackPinnedFetch
+ *     (两实例不共享:协议策略不同)
+ */
+function resolveHttpFetchImpl(
+  url: URL,
+  fetchImpl: McpScanFetchImpl | undefined,
+  hostResolver: HostResolver | undefined,
+): McpScanFetchImpl {
+  if (fetchImpl) return fetchImpl;
+  if (hostResolver) {
+    return createPinnedFetch({
+      resolver: hostResolver,
+      allowLoopback: url.protocol === 'http:',
+    });
+  }
+  return url.protocol === 'http:' ? loopbackPinnedFetch : pinnedFetch;
+}
+
+/**
+ * 经 body 流读响应并强制 2MB 上限。PinnedResponse 无 text()/json(),一律走流。
+ */
+async function readHttpBodyCapped(
+  res: { body: ReadableStream<Uint8Array> | null },
+  pathnameForError: string,
+): Promise<string> {
+  const body = res.body;
+  if (!body || typeof body.getReader !== 'function') {
+    return '';
+  }
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        received += value.byteLength;
+        if (received > MAX_RESPONSE_BYTES) {
+          await reader.cancel().catch(() => {});
+          throw new McpScanClientError(
+            `响应体超过 ${MAX_RESPONSE_BYTES} 字节上限,已断开: ${pathnameForError}`,
+            'too-large',
+          );
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+    }
+    text += decoder.decode();
+    return text;
+  } finally {
+    reader.releaseLock?.();
+  }
+}
+
+/**
+ * http 传输:POST JSON-RPC 到 URL。默认走 pinned-http(连接时 DNS 钉扎)。
  * 超时用 AbortController;响应体限制 2MB(流式读超限即 abort)。
+ * POST 为非幂等:pinned-http 只试第一个已验证地址(不重放),属有意语义。
  */
 export async function connectHttp(
   spec: McpServerSpec,
   timeoutMs: number,
-  fetchImpl: typeof fetch = fetch,
-  hostResolver: HostResolver = defaultHostResolver,
+  fetchImpl?: McpScanFetchImpl,
+  hostResolver?: HostResolver,
 ): Promise<ConnectResult> {
   if (spec.transport !== 'http' || !spec.url) {
     throw new McpScanClientError(`connectHttp 仅支持 http transport: ${spec.name}`, 'protocol-error');
   }
   const url = assertScanUrl(spec.url);
+  const resolvedFetch = resolveHttpFetchImpl(url, fetchImpl, hostResolver);
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -447,15 +528,13 @@ export async function connectHttp(
     let currentUrl = url;
     let currentHeaders = { ...reqHeaders };
     let redirectsFollowed = 0;
-    let res: Response;
+    let res: PinnedResponse | Response;
 
     for (;;) {
       try {
-        await assertResolvedHostPolicy(currentUrl, {
-          resolver: hostResolver,
-          allowLoopback: currentUrl.protocol === 'http:',
-        });
-        res = await fetchImpl(currentUrl.toString(), {
+        // 钉扎在 resolvedFetch 内部完成;循环内不再单独做策略预解析
+        // (否则每跳双倍解析且外层结果未被钉扎)。
+        res = await resolvedFetch(currentUrl.toString(), {
           method: 'POST',
           signal: ctrl.signal,
           headers: currentHeaders,
@@ -514,52 +593,7 @@ export async function connectHttp(
       );
     }
 
-    // 流式读 body,超 2MB 立刻 abort
-    const body = res.body;
-    if (body && typeof body.getReader === 'function') {
-      const reader = body.getReader();
-      const decoder = new TextDecoder();
-      let received = 0;
-      let text = '';
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            received += value.byteLength;
-            if (received > MAX_RESPONSE_BYTES) {
-              await reader.cancel().catch(() => {});
-              throw new McpScanClientError(
-                `响应体超过 ${MAX_RESPONSE_BYTES} 字节上限,已断开: ${sanitizeOutputText(currentUrl.pathname)}`,
-                'too-large',
-              );
-            }
-            text += decoder.decode(value, { stream: true });
-          }
-        }
-        text += decoder.decode();
-      } finally {
-        reader.releaseLock?.();
-      }
-      try {
-        return JSON.parse(text) as JsonRpcResponse;
-      } catch {
-        throw new McpScanClientError(
-          `JSON-RPC 响应解析失败: ${sanitizeOutputText(currentUrl.pathname)}`,
-          'protocol-error',
-        );
-      }
-    }
-
-    // 退化路径(没有 reader):读 text 后校验字节长度
-    const text = await res.text();
-    const bytes = Buffer.byteLength(text, 'utf8');
-    if (bytes > MAX_RESPONSE_BYTES) {
-      throw new McpScanClientError(
-        `响应体超过 ${MAX_RESPONSE_BYTES} 字节上限,已断开: ${sanitizeOutputText(currentUrl.pathname)}`,
-        'too-large',
-      );
-    }
+    const text = await readHttpBodyCapped(res, sanitizeOutputText(currentUrl.pathname));
     try {
       return JSON.parse(text) as JsonRpcResponse;
     } catch {
@@ -634,7 +668,7 @@ export async function connectHttp(
 export async function connectAndListTools(
   spec: McpServerSpec,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
-  opts: { fetchImpl?: typeof fetch; spawner?: StdioSpawner; hostResolver?: HostResolver } = {},
+  opts: { fetchImpl?: McpScanFetchImpl; spawner?: StdioSpawner; hostResolver?: HostResolver } = {},
 ): Promise<ConnectResult> {
   if (spec.transport === 'stdio') {
     return connectStdio(spec, timeoutMs, opts.spawner);
