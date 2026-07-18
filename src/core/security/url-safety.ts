@@ -113,16 +113,16 @@ export class HostResolutionPolicyError extends Error {
 }
 
 /**
- * Resolve a URL hostname immediately before a request and reject non-public answers.
- * `allowLoopback` exists only for the explicitly local HTTP MCP transport.
+ * Resolve a URL hostname and return the vetted address list, rejecting non-public
+ * answers. `allowLoopback` exists only for the explicitly local HTTP MCP transport.
  *
- * This closes ordinary hostname-to-private-IP SSRF. It is not connect-time DNS pinning:
- * a malicious resolver can still rebind between this lookup and the HTTP client's lookup.
+ * pinned-http.ts consumes the returned addresses to pin the actual socket to the
+ * exact answers that passed policy — one lookup, no revalidation window.
  */
-export async function assertResolvedHostPolicy(
+export async function resolveVerifiedAddresses(
   url: URL,
   options: { resolver?: HostResolver; allowLoopback?: boolean } = {},
-): Promise<void> {
+): Promise<readonly ResolvedHostAddress[]> {
   const resolver = options.resolver ?? defaultHostResolver;
   const host = normalizedHostname(url.hostname);
   let addresses: readonly ResolvedHostAddress[];
@@ -145,6 +145,18 @@ export async function assertResolvedHostPolicy(
       'non-public-address',
     );
   }
+  return addresses;
+}
+
+/**
+ * Policy check without address pinning (legacy call sites). Prefer pinned-http,
+ * which connects to the exact addresses returned by resolveVerifiedAddresses.
+ */
+export async function assertResolvedHostPolicy(
+  url: URL,
+  options: { resolver?: HostResolver; allowLoopback?: boolean } = {},
+): Promise<void> {
+  await resolveVerifiedAddresses(url, options);
 }
 
 /** Resolve a redirect Location header without applying any trust policy. */
