@@ -22,6 +22,12 @@ import {
   type DoctorHashCacheFile,
 } from './doctor-hash-cache.ts';
 import { readBypassLedger, type BypassRecord } from './bypass-ledger.ts';
+import {
+  journalPath,
+  JournalRecoveryError,
+  readPendingJournal,
+  type JournalPhase,
+} from './journal.ts';
 import { getSkillsLockPath, readSkillsLock, removeLockEntries } from './lock.ts';
 import { withOperationLock } from './operation-lock.ts';
 import { isCanonicalSkillName } from './skill-name.ts';
@@ -57,6 +63,20 @@ export interface DoctorDeclaration {
   agentSources?: Partial<Record<AgentType, SkillAgentSource>>;
 }
 
+/** WAL journal 检查项状态(只读诊断;不影响 clean——clean 只表三方一致)。 */
+export type JournalCheckStatus = 'ok' | 'pending' | 'corrupt';
+
+export interface JournalCheck {
+  status: JournalCheckStatus;
+  detail: string;
+  /** pending 时的 operation 名(如 install:claude-code) */
+  operation?: string;
+  /** pending 时的 phase */
+  phase?: JournalPhase;
+  /** journal 文件路径(pending/corrupt 时给出,便于人工检查) */
+  path?: string;
+}
+
 export interface DoctorReport {
   findings: DriftFinding[];
   clean: boolean;
@@ -71,6 +91,11 @@ export interface DoctorReport {
    * 与 `audit --configs` 返回相同的 ConfigFileResult[] 形态。
    */
   configAudit: ConfigFileResult[];
+  /**
+   * W3:WAL journal 检查项(只读)。ok=无待恢复;pending=上次写被中断(黄);
+   * corrupt=日志损坏/格式不认识(红)。不影响 clean 与 --ci 退出码。
+   */
+  journal: JournalCheck;
 }
 
 export type FixStatus = 'fixed' | 'skipped' | 'manual';
@@ -235,6 +260,50 @@ function summarizeDeclaration(skill: SkillDeclaration): DoctorDeclaration {
   };
 }
 
+/**
+ * W3:只读检查 WAL journal。绝不调用 recoverPendingJournal。
+ * 损坏/格式不认识 → status=corrupt(红);有未完成 journal → pending(黄);无 → ok(绿)。
+ */
+export async function checkJournal(home: string): Promise<JournalCheck> {
+  const path = journalPath(home);
+  try {
+    const pending = await readPendingJournal(home);
+    if (!pending) {
+      return { status: 'ok', detail: '无待恢复的写操作日志' };
+    }
+    return {
+      status: 'pending',
+      operation: pending.operation,
+      phase: pending.phase,
+      path,
+      detail:
+        `上次的 ${pending.operation} 写操作被中断,` +
+        '下一次任何写操作会自动恢复;也可运行 doctor --fix 立即恢复',
+    };
+  } catch (error) {
+    if (error instanceof JournalRecoveryError) {
+      return {
+        status: 'corrupt',
+        path: error.journalFile,
+        detail:
+          `写操作日志损坏,自动恢复已停用,` +
+          `请人工检查 ${error.journalFile} 或删除该文件后用快照恢复`,
+      };
+    }
+    throw error;
+  }
+}
+
+/**
+ * W3:在持锁上下文内触发 journal 恢复(withOperationLock 入口已自动 recover)。
+ * 空操作即可;若 journal 损坏,JournalRecoveryError 上抛给调用方转红色报告。
+ * 返回恢复后的 JournalCheck(期望 ok;若仍 pending/corrupt 如实回报)。
+ */
+export async function fixPendingJournal(home: string): Promise<JournalCheck> {
+  await withOperationLock(home, 'doctor-fix', async () => undefined);
+  return checkJournal(home);
+}
+
 export async function runDoctor(home: string): Promise<DoctorReport> {
   const declaration = await readDeclaration(getSkillsJsonPath(home));
   const lock = await readSkillsLock(getSkillsLockPath(home));
@@ -330,6 +399,9 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
     // 配置扫描失败:advisory 段落,不报错、不改变本次结论。
   }
 
+  // W3:WAL journal 只读检查(绝不 recover)。损坏→corrupt 报告,不抛出。
+  const journal = await checkJournal(home);
+
   return {
     findings,
     clean: findings.length === 0,
@@ -338,5 +410,6 @@ export async function runDoctor(home: string): Promise<DoctorReport> {
     bypasses,
     legacyNames,
     configAudit,
+    journal,
   };
 }

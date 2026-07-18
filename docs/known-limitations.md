@@ -3,16 +3,21 @@
 ## Operational and Trust Boundaries
 
 - **Crash recovery is process-level and journal-enabled per operation.** A write-ahead
-  intent journal gives journal-enabled mutations (`install` today) automatic rollback/
-  roll-forward on the next locked write after a `SIGKILL`/OOM kill. Boundaries: power
-  loss is not promised (snapshot tars and directory copies are not fsynced end to end);
-  operations not yet journal-enabled (`toggle`/`remove`/`sync` pending), direct
-  third-party edits, and filesystem failures can still leave `skills.json`,
-  `skills.lock.json`, `store/`, and agent directories inconsistent — run `doctor` and
-  `lock --verify` after abnormal termination. Recovery refuses (and defers to `doctor`)
-  when the journal is corrupted, references missing/unsafe snapshots, or a managed root
-  has been replaced by a symlink; snapshots of roots containing symlink-mode skills
-  cannot be restored by the tar-based safety contract and are likewise refused.
+  intent journal gives journal-enabled mutations (`install`, `toggle`, `remove`, CLI
+  `sync`) automatic rollback/roll-forward on the next locked write after a `SIGKILL`/OOM
+  kill; `doctor` reports pending/corrupt journals and `doctor --fix` can recover a
+  pending one immediately. Boundaries: power loss is not promised (snapshot tars and
+  directory copies are not fsynced end to end); **write paths not yet journal-enabled**
+  are `import --apply`, `init`, `apm-import --apply`, and `drift` approval writes — they
+  still hold the home lock (and thus benefit from lock-time auto-recovery of *other*
+  interrupted journaled ops) but a crash mid-operation of their own cannot be rolled
+  back from a journal. Direct third-party edits and filesystem failures can still leave
+  `skills.json`, `skills.lock.json`, `store/`, and agent directories inconsistent — run
+  `doctor` and `lock --verify` after abnormal termination. Recovery refuses (and defers
+  to `doctor`) when the journal is corrupted, references missing/unsafe snapshots, or a
+  managed root has been replaced by a symlink; snapshots of roots containing
+  symlink-mode skills cannot be restored by the tar-based safety contract and are
+  likewise refused.
 - **Snapshots are scoped, not full-home checkpoints.** Agent directory snapshots do not
   necessarily contain every file under `.skill-switch`. Restore rejects archive links
   and special members; this intentionally means a legacy snapshot containing symlinks
