@@ -16,42 +16,34 @@ function redirectResponse(location: string): Response {
 }
 
 describe('redirect revalidation regression', () => {
-  it('rejects registry hostnames that resolve to private addresses before fetch', async () => {
-    const fetchImpl = vi.fn();
-    await expect(fetchJson('https://registry.example.test/catalog.json', {
-      fetchImpl: fetchImpl as never,
+  it('rejects registry hostnames that resolve to private addresses via hostResolver (pinned path)', async () => {
+    // 不注入 fetchImpl:hostResolver 经 createPinnedFetch 透传,策略拒绝后零连接。
+    await expect(fetchJsonImpl('https://registry.example.test/catalog.json', {
       hostResolver: async () => [{ address: '10.0.0.5', family: 4 }],
     })).rejects.toMatchObject({ code: 'insecure-url' });
-    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('re-resolves every registry redirect target and blocks a private DNS answer', async () => {
-    const fetchImpl = vi.fn(async () =>
-      redirectResponse('https://internal.example.test/catalog.json'));
+  it('blocks a private DNS answer on a redirect target hostname via hostResolver', async () => {
+    // 钉扎路径下每跳独立解析;私网答案在 createPinnedFetch 内拒绝(无 fetchImpl)。
     const hostResolver = vi.fn(async (hostname: string) => [
       hostname === 'internal.example.test'
         ? { address: '192.168.1.20', family: 4 }
         : { address: '93.184.216.34', family: 4 },
     ]);
 
-    await expect(fetchJson('https://registry.example.test/catalog.json', {
-      fetchImpl: fetchImpl as never,
+    await expect(fetchJsonImpl('https://internal.example.test/catalog.json', {
       hostResolver,
     })).rejects.toMatchObject({ code: 'insecure-url' });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(hostResolver).toHaveBeenCalledWith('registry.example.test');
     expect(hostResolver).toHaveBeenCalledWith('internal.example.test');
   });
 
-  it('rejects MCP HTTPS hostnames resolving to private addresses before fetch', async () => {
-    const fetchImpl = vi.fn();
+  it('rejects MCP HTTPS hostnames resolving to private addresses via hostResolver (pinned path)', async () => {
     await expect(connectHttp({
       name: 'private-dns', source: '.claude/mcp.json', transport: 'http',
       url: 'https://mcp.example.test/v1',
-    }, 1000, fetchImpl as never, async () => [
+    }, 1000, undefined, async () => [
       { address: '169.254.169.254', family: 4 },
     ])).rejects.toMatchObject({ code: 'insecure-url' });
-    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('registry fetch handles redirects manually and rejects HTTPS downgrade before following it', async () => {
@@ -76,7 +68,7 @@ describe('redirect revalidation regression', () => {
       name: 'redirecting-server', source: '.claude/mcp.json', transport: 'http',
       url: 'https://mcp.example.test/v1',
       headers: { authorization: 'Bearer redirect-secret' },
-    }, 1000, fetchImpl as never, PUBLIC_RESOLVER)).rejects.toMatchObject({ code: 'insecure-url' });
+    }, 1000, fetchImpl as never)).rejects.toMatchObject({ code: 'insecure-url' });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -85,7 +77,7 @@ describe('redirect revalidation regression', () => {
     await expect(connectHttp({
       name: 'redirecting-server', source: '.claude/mcp.json', transport: 'http',
       url: 'https://mcp.example.test/v1',
-    }, 1000, fetchImpl as never, PUBLIC_RESOLVER)).rejects.toMatchObject({ code: 'insecure-url' });
+    }, 1000, fetchImpl as never)).rejects.toMatchObject({ code: 'insecure-url' });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -110,7 +102,7 @@ describe('redirect revalidation regression', () => {
       name: 'redirecting-server', source: '.claude/mcp.json', transport: 'http',
       url: 'https://mcp.example.test/v1',
       headers: { authorization: 'Bearer redirect-secret' },
-    }, 1000, fetchImpl as never, PUBLIC_RESOLVER).catch(() => undefined);
+    }, 1000, fetchImpl as never).catch(() => undefined);
 
     expect(seen.length).toBeGreaterThanOrEqual(2);
     expect(seen[0]!.headers.authorization).toBe('Bearer redirect-secret');

@@ -93,7 +93,8 @@ describe('registry install: dry-run 不写盘', () => {
     const fileUrl = await makeLocalSkillRepo();
     const home = tmpDir('ss-reg-home-');
 
-    // mock 全局 fetch:registry search 阶段返回一条条目(installHint 指向本地 file:// 仓库)。
+    // mock 钉扎出口(生产默认 pinnedFetch,不再走 globalThis.fetch):
+    // registry search 阶段返回一条条目(installHint 指向本地 file:// 仓库)。
     const mcpBody = {
       servers: [
         {
@@ -109,8 +110,8 @@ describe('registry install: dry-run 不写盘', () => {
     const fetchStub = vi.fn(async () =>
       new Response(JSON.stringify(mcpBody), { status: 200, headers: { 'content-type': 'application/json' } }),
     );
-    const origFetch = globalThis.fetch;
-    globalThis.fetch = fetchStub as never;
+    const pinned = await import('../src/core/security/pinned-http.ts');
+    const pinnedSpy = vi.spyOn(pinned, 'pinnedFetch').mockImplementation(fetchStub as never);
     const logs: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((...a) => logs.push(a.join(' ')));
 
@@ -121,7 +122,7 @@ describe('registry install: dry-run 不写盘', () => {
         { from: 'user' },
       );
     } finally {
-      globalThis.fetch = origFetch;
+      pinnedSpy.mockRestore();
     }
 
     // 没写声明 / 没建 .skill-switch
@@ -180,6 +181,35 @@ describe('registry: ⑥ 零真实网络哨兵 + 源码静态检查', () => {
       expect(src, file).not.toMatch(/from ['"]node:(http|https|net|dns|tls|child_process)['"]/);
       expect(src, file).not.toMatch(/require\(['"]node:(http|https|net|dns|tls|child_process)['"]\)/);
     }
+    // 唯一网络出口是 pinned-http(import 钉扎传输,不直接持 socket)
+    const fetchSrc = await readFile(join(root, 'fetch.ts'), 'utf8');
+    expect(fetchSrc).toMatch(/from ['"]\.\.\/security\/pinned-http\.ts['"]/);
+    expect(fetchSrc).toMatch(/\bpinnedFetch\b/);
+  });
+
+  it('src/core 全域(除 security/pinned-http.ts)不得 import node:http(s)——pinned-http 是唯一持有 socket 的模块', async () => {
+    const { readdir } = await import('node:fs/promises');
+    const coreRoot = join(import.meta.dirname, '..', 'src', 'core');
+    const pinnedHttp = join(coreRoot, 'security', 'pinned-http.ts');
+    const stack = [coreRoot];
+    const offenders: string[] = [];
+    while (stack.length > 0) {
+      const dir = stack.pop()!;
+      for (const ent of await readdir(dir, { withFileTypes: true })) {
+        const full = join(dir, ent.name);
+        if (ent.isDirectory()) {
+          stack.push(full);
+          continue;
+        }
+        if (!ent.name.endsWith('.ts')) continue;
+        if (full === pinnedHttp) continue;
+        const src = await readFile(full, 'utf8');
+        if (/from ['"]node:(http|https)['"]/.test(src) || /require\(['"]node:(http|https)['"]\)/.test(src)) {
+          offenders.push(full.replace(`${coreRoot}/`, 'src/core/'));
+        }
+      }
+    }
+    expect(offenders, `非 pinned-http 模块不得 import node:http(s): ${offenders.join(', ')}`).toEqual([]);
   });
 
   it('registry 取数层不带 import.meta.url(SEA 安全)', async () => {
