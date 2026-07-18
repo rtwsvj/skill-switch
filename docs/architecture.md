@@ -185,11 +185,16 @@ Public commands that modify authority-bearing home state use this model:
 ```
 
 This prevents lost updates between cooperating processes and handles tested exception
-paths. It does **not** provide a multi-file crash transaction: `SIGKILL`, power loss,
-direct third-party writes, or a filesystem failure between two authoritative writes can
-still leave representations inconsistent. Snapshot restore covers the recorded agent
-directory, not every file under `.skill-switch`; after recovery, run `doctor` and
-`lock --verify`. A durable write-ahead journal/state bundle remains the path to full
+paths. A write-ahead intent journal (`src/core/journal.ts`) additionally records the
+pre-state (declaration/lockfile originals, structured targets, snapshots) before the
+authoritative writes of journal-enabled mutations (`install` today); the next locked
+write operation automatically rolls an interrupted transaction back to its pre-state
+(or rolls a committed one forward). This recovery is **process-crash level**
+(`SIGKILL`/OOM): journal and state files are fsynced, but snapshot tars and directory
+copies are not, so power-loss durability is not promised. Direct third-party writes or
+filesystem failures remain out of scope. Snapshot restore covers the recorded agent
+directory, not every file under `.skill-switch`; after abnormal termination you can
+still run `doctor` and `lock --verify`. Extending journal coverage to the remaining
 crash recovery.
 
 ---

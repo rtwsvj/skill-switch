@@ -2,13 +2,17 @@
 
 ## Operational and Trust Boundaries
 
-- **No cross-file crash transaction.** Per-home locking prevents lost updates between
-  cooperating skill-switch processes, state files use durable atomic replacement, and
-  tested exceptions trigger compensation. A `SIGKILL`, power loss, direct third-party
-  edit, or filesystem failure between multiple authority-bearing writes can still leave
-  `skills.json`, `skills.lock.json`, `store/`, and agent directories inconsistent. Run
-  `doctor` and `lock --verify` after abnormal termination. A write-ahead journal or
-  versioned full-state bundle is still required for automatic crash recovery.
+- **Crash recovery is process-level and journal-enabled per operation.** A write-ahead
+  intent journal gives journal-enabled mutations (`install` today) automatic rollback/
+  roll-forward on the next locked write after a `SIGKILL`/OOM kill. Boundaries: power
+  loss is not promised (snapshot tars and directory copies are not fsynced end to end);
+  operations not yet journal-enabled (`toggle`/`remove`/`sync` pending), direct
+  third-party edits, and filesystem failures can still leave `skills.json`,
+  `skills.lock.json`, `store/`, and agent directories inconsistent — run `doctor` and
+  `lock --verify` after abnormal termination. Recovery refuses (and defers to `doctor`)
+  when the journal is corrupted, references missing/unsafe snapshots, or a managed root
+  has been replaced by a symlink; snapshots of roots containing symlink-mode skills
+  cannot be restored by the tar-based safety contract and are likewise refused.
 - **Snapshots are scoped, not full-home checkpoints.** Agent directory snapshots do not
   necessarily contain every file under `.skill-switch`. Restore rejects archive links
   and special members; this intentionally means a legacy snapshot containing symlinks

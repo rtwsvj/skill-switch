@@ -33,7 +33,7 @@ async function writeRawJournal(value: unknown): Promise<void> {
 
 function baseJournal(overrides: Partial<OperationJournal> = {}): OperationJournal {
   return {
-    version: 1,
+    version: 2,
     operation: 'install:claude-code',
     nonce: 'test-nonce',
     startedAt: new Date().toISOString(),
@@ -131,7 +131,7 @@ describe('recoverPendingJournal', () => {
         declaration: { content: '{"v":"pre-declaration"}\n' },
         lockfile: { content: null },
         snapshots: [],
-        targets: [{ path: target, existedBefore: false }],
+        targets: [{ agent: 'claude-code', name: 'crashed-skill', existedBefore: false }],
         storeTargets: [],
       },
     }));
@@ -153,41 +153,80 @@ describe('recoverPendingJournal', () => {
   });
 
   it('refuses unknown journal versions', async () => {
-    await writeRawJournal({ ...baseJournal(), version: 2 });
+    await writeRawJournal({ ...baseJournal(), version: 99 });
     await expect(recoverPendingJournal(home)).rejects.toThrow(JournalRecoveryError);
   });
 
-  it('refuses out-of-boundary snapshot and target paths (tamper resistance)', async () => {
+  it('refuses tampered journals: path escapes, unknown agents, illegal names', async () => {
     const outside = mkdtempSync(join(tmpdir(), 'wal-outside-'));
     try {
-      await writeRawJournal(baseJournal({
-        preState: {
-          ...baseJournal().preState,
-          snapshots: [{ path: join(outside, 'x.tar.gz'), sourceDir: skillsRoot() }],
-        },
-      }));
-      await expect(recoverPendingJournal(home)).rejects.toThrow(/越界/);
-
+      // 快照 tar 路径越界(不在 backups / journal 私有目录前缀内)。
       await writeRawJournal(baseJournal({
         preState: {
           ...baseJournal().preState,
           snapshots: [{
-            path: join(home, '.skill-switch', 'backups', 'x.tar.gz'),
-            sourceDir: join(outside, '.ssh'),
+            path: join(outside, 'x.tar.gz'),
+            scope: { kind: 'agent-skills-root', agent: 'claude-code' },
           }],
         },
       }));
       await expect(recoverPendingJournal(home)).rejects.toThrow(/越界/);
 
+      // 未知 agent → 无法推导受管路径,拒绝。
       await writeRawJournal(baseJournal({
         preState: {
           ...baseJournal().preState,
-          targets: [{ path: join(outside, 'anywhere'), existedBefore: false }],
+          targets: [{ agent: 'not-an-agent' as never, name: 'x', existedBefore: false }],
         },
       }));
-      await expect(recoverPendingJournal(home)).rejects.toThrow(/越界/);
-      // 拒绝恢复时越界目标必须原样未动。
-      expect(await captureFileState(join(outside, 'anywhere'))).toEqual({ content: null });
+      await expect(recoverPendingJournal(home)).rejects.toThrow(/未知 agent/);
+
+      // 非法 skill 名(路径穿越尝试)→ 拒绝。
+      await writeRawJournal(baseJournal({
+        preState: {
+          ...baseJournal().preState,
+          targets: [{ agent: 'claude-code', name: '../../.ssh', existedBefore: false }],
+        },
+      }));
+      await expect(recoverPendingJournal(home)).rejects.toThrow(JournalRecoveryError);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses rollback when a referenced snapshot is missing or unreadable (pre-validation)', async () => {
+    const declaration = getSkillsJsonPath(home);
+    await writeFile(declaration, '{"v":"torn"}\n');
+    await writeRawJournal(baseJournal({
+      preState: {
+        ...baseJournal().preState,
+        declaration: { content: '{"v":"pre"}\n' },
+        snapshots: [{
+          path: join(home, '.skill-switch', 'backups', 'missing.tar.gz'),
+          scope: { kind: 'agent-skills-root', agent: 'claude-code' },
+        }],
+      },
+    }));
+    await expect(recoverPendingJournal(home)).rejects.toThrow(/快照缺失|无法安全还原/);
+    // 预验失败 → 世界保持原样(撕裂态保留,等 doctor),journal 未删。
+    expect(await readFile(declaration, 'utf8')).toBe('{"v":"torn"}\n');
+    expect(await readPendingJournal(home)).toBeDefined();
+  });
+
+  it('refuses rollback when a managed root has been replaced by a symlink', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'wal-symlink-outside-'));
+    try {
+      const root = skillsRoot();
+      await mkdir(join(root, '..'), { recursive: true });
+      const { symlink } = await import('node:fs/promises');
+      await symlink(outside, root, 'dir');
+      await writeRawJournal(baseJournal({
+        preState: {
+          ...baseJournal().preState,
+          targets: [{ agent: 'claude-code', name: 'x', existedBefore: false }],
+        },
+      }));
+      await expect(recoverPendingJournal(home)).rejects.toThrow(/符号链接/);
     } finally {
       rmSync(outside, { recursive: true, force: true });
     }

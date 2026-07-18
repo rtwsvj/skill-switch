@@ -16,7 +16,7 @@ if (!home || !source) {
 
 await installFromSource(source, {
   home,
-  agent: 'claude-code',
+  agent: process.env.WAL_AGENT || 'claude-code',
   mode: 'copy',
   onStep: (stepId) => {
     if (crashAfter && stepId === crashAfter) {

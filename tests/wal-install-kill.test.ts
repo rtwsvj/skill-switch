@@ -2,8 +2,8 @@
 // 断言 ①确实留下撕裂中间态 ②恢复后四方(声明/锁/store/agent 磁盘)逐字节回到
 // 操作前,或(commit 后)保持操作后状态 ③端到端重跑收敛到完整成功态。
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, type Dirent } from 'node:fs';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
@@ -54,12 +54,53 @@ async function captureWorld(): Promise<WorldState> {
   };
 }
 
-function runInstall(source: string, crashAfter?: string): ReturnType<typeof spawnSync> {
+/**
+ * 全树捕获:home 下除 backups(pre-install 用户快照按设计保留)、journal(事务
+ * 内部产物)与源目录外的完整目录树 {相对路径 → 内容或 'DIR'},用于逐字节级
+ * 世界状态对比(Codex 核验要求:六个文件的抽样对比不足以证明"逐字节一致")。
+ */
+async function captureTree(): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  // operation.lock 是瞬态协调产物:SIGKILL 后残留属正确行为(死进程锁由下一
+  // 操作回收),不属于要对比的"世界状态"。
+  const skip = new Set(['backups', 'journal', 'operation.lock']);
+  async function walk(dir: string, rel: string): Promise<void> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+      if (rel === '' && (entry.name === 'src-v1' || entry.name === 'src-v2')) continue;
+      if (rel === '.skill-switch' && skip.has(entry.name)) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        out[relPath] = 'DIR';
+        await walk(full, relPath);
+      } else if (entry.isFile()) {
+        out[relPath] = await readFile(full, 'utf8');
+      } else {
+        out[relPath] = `SPECIAL:${entry.isSymbolicLink() ? 'symlink' : 'other'}`;
+      }
+    }
+  }
+  await walk(home, '');
+  return out;
+}
+
+function runInstall(
+  source: string,
+  crashAfter?: string,
+  agent = 'claude-code',
+): ReturnType<typeof spawnSync> {
   return spawnSync(process.execPath, [HELPER], {
     env: {
       ...process.env,
       WAL_HOME: home,
       WAL_SOURCE: source,
+      WAL_AGENT: agent,
       ...(crashAfter ? { WAL_CRASH_AFTER: crashAfter } : {}),
     },
     encoding: 'utf8',
@@ -162,6 +203,40 @@ describe('WAL install kill matrix', () => {
     expect(world.declaration).toContain('bar');
     expect(world.lockfile).toContain('bar');
     expect(await readPendingJournal(home)).toBeUndefined();
+  });
+
+  it('full-tree byte comparison: mid-apply crash rollback restores the entire tree', async () => {
+    const v1 = runInstall(sourceV1);
+    expect(v1.status).toBe(0);
+    const preTree = await captureTree();
+
+    expectKilled(runInstall(sourceV2, 'write-declaration'));
+    expect(await recoverPendingJournal(home)).toBe('rolled-back');
+    expect(await captureTree()).toEqual(preTree);
+  });
+
+  it('codex agent: crash recovery works for the .codex/skills root', async () => {
+    const v1 = runInstall(sourceV1, undefined, 'codex');
+    expect(v1.status).toBe(0);
+    const preTree = await captureTree();
+
+    expectKilled(runInstall(sourceV2, 'write-lock', 'codex'));
+    expect((await readPendingJournal(home))?.phase).toBe('applying');
+    expect(await recoverPendingJournal(home)).toBe('rolled-back');
+    expect(await captureTree()).toEqual(preTree);
+  });
+
+  it('interrupted rollback is idempotent: partial manual rollback then recover converges', async () => {
+    const v1 = runInstall(sourceV1);
+    expect(v1.status).toBe(0);
+    const preTree = await captureTree();
+
+    expectKilled(runInstall(sourceV2, 'write-lock'));
+    // 模拟"回滚进行到一半再崩":先手工删掉一个 target(回滚的第一步动作),
+    // journal 原样保留 → 再走完整恢复,结果必须仍与 pre 全树一致。
+    await rm(join(skillsRoot(), 'bar'), { recursive: true, force: true });
+    expect(await recoverPendingJournal(home)).toBe('rolled-back');
+    expect(await captureTree()).toEqual(preTree);
   });
 
   it('fresh-home install crash rolls back to empty world', async () => {
