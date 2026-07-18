@@ -4,7 +4,7 @@
 // ④进程内失败补偿成功后 journal 已被 clear。
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, type Dirent } from 'node:fs';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { journalPath, readPendingJournal, recoverPendingJournal } from '../src/core/journal.ts';
@@ -373,5 +373,96 @@ describe('WAL mutation helper sanity', () => {
     await installFromSource(sourceDir, { home, agent: 'claude-code', mode: 'copy' });
     expectKilled(runMutation('remove', { WAL_NAME: 'foo', WAL_AGENT: 'claude-code' }, 'remove-target'));
     expect(existsSync(journalPath(home))).toBe(true);
+    await recoverPendingJournal(home);
+
+    // sync 同样留下 journal(补全"三操作"覆盖)。注意:全 noop 的 sync 不开
+    // journal(R26-a 语义),必须先制造真实 drift——删掉磁盘上的 skill 目录。
+    await installFromSource(sourceDir, { home, agent: 'claude-code', mode: 'copy' });
+    await rm(join(skillsRoot(), 'foo'), { recursive: true, force: true });
+    expectKilled(runMutation('sync', {}, 'apply-sync'));
+    expect(existsSync(journalPath(home))).toBe(true);
+  });
+});
+
+describe('W2.5 hardening (Codex review follow-ups)', () => {
+  it('commit-phase failure never rolls the world back (clear fails after markCommit)', async () => {
+    await installFromSource(sourceDir, { home, agent: 'claude-code', mode: 'copy' });
+    await expect(
+      toggleSkill(home, 'foo', false, {
+        onStep: async (id) => {
+          if (id === 'commit') throw new Error('injected post-commit failure');
+        },
+      }),
+    ).rejects.toThrow(/injected post-commit failure/);
+
+    // markCommit 已落盘=已提交:世界保持 post-state(disabled),journal 已清,不回滚。
+    const world = await captureWorld();
+    expect(world.diskFoo).toBeNull();
+    expect(JSON.parse(world.declaration!).skills[0].enabled).toBe(false);
+    expect(await readPendingJournal(home)).toBeUndefined();
+  });
+
+  it('codex mutations capture config.toml in preState and keep WAL snapshots out of user backups', async () => {
+    const { mkdir: mkdirP, writeFile: writeFileP, readdir: readdirP } = await import('node:fs/promises');
+    // codex 基线:声明一个 codex skill(store 源),config.toml 打开
+    await installFromSource(sourceDir, { home, agent: 'codex', mode: 'copy' });
+    const configPath = join(home, '.codex', 'config.toml');
+    await mkdirP(join(home, '.codex'), { recursive: true });
+    const configBefore = await readFile(configPath, 'utf8').catch(() => null);
+
+    let sawExtraFiles = false;
+    let walSnapshotPaths: string[] = [];
+    await toggleSkill(home, 'foo', false, {
+      onStep: async (id) => {
+        if (id === 'prepare') {
+          const journal = await readPendingJournal(home);
+          sawExtraFiles = (journal?.preState.extraFiles ?? []).some(
+            (f) => f.id === 'codex-config',
+          );
+          walSnapshotPaths = (journal?.preState.snapshots ?? []).map((s) => s.path);
+        }
+      },
+    });
+
+    expect(sawExtraFiles).toBe(true);
+    // codex skills 根的 WAL 单拍快照只进 journal 私有目录,绝不污染用户 backups;
+    // 非 codex agent 的条目按设计复用 snapshotAgents 的用户快照(在 backups),不受此限。
+    const codexSnaps = walSnapshotPaths.filter((path) => path.includes('codex-skills'));
+    expect(codexSnaps.length).toBeGreaterThan(0);
+    for (const path of codexSnaps) {
+      expect(path).toContain(`${home}/.skill-switch/journal/snapshots`);
+      expect(path).not.toContain(`${home}/.skill-switch/backups`);
+    }
+    // 正常完成后 journal 与私有快照均已清理。
+    expect(await readPendingJournal(home)).toBeUndefined();
+    const journalDir = await readdirP(join(home, '.skill-switch', 'journal')).catch(() => []);
+    expect(journalDir).toEqual([]);
+    void configBefore;
+    void writeFileP;
+  });
+
+  it('CLI-facing applySync reads declaration in-lock and refuses on stale plan artifact', async () => {
+    await installFromSource(sourceDir, { home, agent: 'claude-code', mode: 'copy' });
+    // 无声明参数:锁内自读,返回 actions+snapshots(CLI sync real path)。
+    const result = await applySync(home);
+    expect(Array.isArray(result.actions)).toBe(true);
+    expect(Array.isArray(result.snapshots)).toBe(true);
+    expect(await readPendingJournal(home)).toBeUndefined();
+
+    // 过期 artifact:声明 sha 不匹配 → 拒绝且零写入。
+    const artifactPath = join(home, 'stale-plan.json');
+    const { writeFile: writeFileP } = await import('node:fs/promises');
+    await writeFileP(artifactPath, JSON.stringify({
+      version: 1,
+      declarationSha256: 'f'.repeat(64),
+      createdAt: new Date().toISOString(),
+      actions: [],
+    }));
+    const pre = await captureWorld();
+    await expect(
+      applySync(home, undefined, { verifyPlanArtifactPath: artifactPath }),
+    ).rejects.toThrow();
+    expect(await captureWorld()).toEqual(pre);
+    expect(await readPendingJournal(home)).toBeUndefined();
   });
 });

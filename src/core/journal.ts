@@ -30,6 +30,7 @@ import { lstat, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { assertSafeArchive, restoreSnapshot, snapshot, type SnapshotInfo } from './backup.ts';
+import { getCodexConfigPath } from './codex-toggle.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { assertSafeSkillName } from './skill-name.ts';
 import { readJsonState, writeJsonState, writeTextState, StateFileError } from './state-io.ts';
@@ -62,9 +63,17 @@ export interface JournalSnapshotRef {
   scope: JournalSnapshotScope;
 }
 
+/** 受控附加文件:id 枚举、路径恢复时推导(目前仅 codex 的 config.toml 开关位)。 */
+export interface JournalExtraFile {
+  id: 'codex-config';
+  content: string | null;
+}
+
 export interface JournalPreState {
   declaration: JournalFileState;
   lockfile: JournalFileState;
+  /** 可选受控附加文件(如 toggle/sync 涉 codex 时的 config.toml 原文)。 */
+  extraFiles?: JournalExtraFile[];
   snapshots: JournalSnapshotRef[];
   /** agent 磁盘上本次将写/覆盖的 skill。回滚时删除,再由快照铺回旧状态。 */
   targets: JournalManagedTarget[];
@@ -140,7 +149,6 @@ export async function walSnapshotsForAgents(
   label: string,
 ): Promise<JournalSnapshotRef[]> {
   const wal: JournalSnapshotRef[] = [];
-  const backupsStore = join(home, '.skill-switch', 'backups');
 
   for (const agent of new Set(agents)) {
     const location = getAgentSkillsLocations().find((l) => l.agent === agent);
@@ -149,8 +157,10 @@ export async function walSnapshotsForAgents(
 
     if (agent === 'codex') {
       if (existsSync(skillsDir) && (await readdir(skillsDir)).length > 0) {
+        // WAL 内部快照:放 journal 私有目录随事务清理,绝不污染用户 backups
+        // (否则会成为 restore --latest 选中的最新快照)。
         const snap = await snapshot(skillsDir, {
-          store: backupsStore,
+          store: journalSnapshotsDir(home),
           label: `${label}-codex-skills`,
         });
         wal.push({ path: snap.path, scope: { kind: 'agent-skills-root', agent: 'codex' } });
@@ -246,6 +256,12 @@ function isJournal(value: unknown): value is OperationJournal {
     return content === null || typeof content === 'string';
   };
   if (!fileStateOk(pre.declaration) || !fileStateOk(pre.lockfile)) return false;
+  if (pre.extraFiles !== undefined) {
+    if (!Array.isArray(pre.extraFiles)) return false;
+    const extraOk = pre.extraFiles.every((f) =>
+      f && f.id === 'codex-config' && (f.content === null || typeof f.content === 'string'));
+    if (!extraOk) return false;
+  }
   if (!Array.isArray(pre.snapshots) || !Array.isArray(pre.targets) ||
     !Array.isArray(pre.storeTargets)) {
     return false;
@@ -439,6 +455,15 @@ async function rollback(home: string, journal: OperationJournal, file: string): 
     await rm(lockfile, { force: true });
   } else {
     await writeTextState(lockfile, journal.preState.lockfile.content);
+  }
+  // 4) 受控附加文件(id 枚举,路径推导——同样不信任 journal 内路径)。
+  for (const extra of journal.preState.extraFiles ?? []) {
+    const path = getCodexConfigPath(home);
+    if (extra.content === null) {
+      await rm(path, { force: true });
+    } else {
+      await writeTextState(path, extra.content);
+    }
   }
 }
 

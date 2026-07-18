@@ -121,6 +121,7 @@ async function removeSkillUnlocked(
   let targetMutationStarted = false;
   let lockWritten = false;
   let declarationWritten = false;
+  let committed = false;
   try {
     await journal.markApplying();
     await options.onStep?.('applying');
@@ -141,9 +142,16 @@ async function removeSkillUnlocked(
     await options.onStep?.('write-declaration');
 
     await journal.markCommit();
+    committed = true;
     await options.onStep?.('commit');
     await journal.clear();
   } catch (error) {
+    // markCommit 已落盘 = 事务语义上已提交:绝不再回滚世界,清 journal(失败则
+    // 保留 commit 态,下次前滚)后原样上抛。
+    if (committed) {
+      await journal.clear().catch(() => undefined);
+      throw error;
+    }
     const rollbackErrors: unknown[] = [];
 
     if (declarationWritten) {

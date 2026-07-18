@@ -13,6 +13,7 @@ import {
   type JournalManagedTarget,
   type JournalPreState,
 } from './journal.ts';
+import { getCodexConfigPath } from './codex-toggle.ts';
 import { getSkillsLockPath } from './lock.ts';
 import { withOperationLock } from './operation-lock.ts';
 import { writeJsonState } from './state-io.ts';
@@ -134,6 +135,11 @@ async function toggleSkillUnlocked(
     snapshots: walSnapshots,
     targets: targetsFromPlan(planned),
     storeTargets: [],
+    // codex 的启停走 .codex/config.toml(config-* action),不在目录/声明回滚面内;
+    // 涉 codex 即捕获原文,崩溃回滚时一并写回,避免 config 与声明不一致。
+    ...(skill.agents.includes('codex')
+      ? { extraFiles: [{ id: 'codex-config' as const, content: (await captureFileState(getCodexConfigPath(home))).content }] }
+      : {}),
   };
 
   const journal: JournalHandle = await beginJournal(home, {
@@ -146,6 +152,7 @@ async function toggleSkillUnlocked(
 
   let declarationWritten = false;
   let syncStarted = false;
+  let committed = false;
   try {
     await journal.markApplying();
     await options.onStep?.('applying');
@@ -161,11 +168,18 @@ async function toggleSkillUnlocked(
     await options.onStep?.('apply-sync');
 
     await journal.markCommit();
+    committed = true;
     await options.onStep?.('commit');
     await journal.clear();
 
     return { name, enabled, declarationPath, snapshots, actions };
   } catch (error) {
+    // markCommit 已落盘 = 事务语义上已提交:绝不再回滚世界,清 journal(失败则
+    // 保留 commit 态,下次前滚)后原样上抛。
+    if (committed) {
+      await journal.clear().catch(() => undefined);
+      throw error;
+    }
     const rollbackErrors: unknown[] = [];
 
     if (declarationWritten) {

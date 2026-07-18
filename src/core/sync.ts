@@ -17,6 +17,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
 import { snapshotAgents } from './agent-snapshots.ts';
+import type { SnapshotInfo } from './backup.ts';
 import {
   getCodexConfigPath,
   readCodexSkillEnabled,
@@ -423,6 +424,8 @@ export interface ApplySyncOptions {
    * 步骤 id:prepare / applying / apply-sync / commit。
    */
   onStep?: (stepId: string) => void | Promise<void>;
+  /** CLI --plan:锁内先校验 plan artifact(声明 sha256 变了则拒绝执行)。 */
+  verifyPlanArtifactPath?: string;
 }
 
 function targetsFromPlan(actions: SyncAction[]): JournalManagedTarget[] {
@@ -450,9 +453,9 @@ function targetsFromPlan(actions: SyncAction[]): JournalManagedTarget[] {
  */
 export async function applySync(
   home: string,
-  declaration: SkillsDeclarationFile,
+  declaration?: SkillsDeclarationFile,
   options: ApplySyncOptions = {},
-): Promise<{ actions: SyncAction[] }> {
+): Promise<{ actions: SyncAction[]; snapshots: SnapshotInfo[] }> {
   return withOperationLock(home, 'sync', (lock) =>
     applySyncJournaled(home, declaration, lock.owner.nonce, options),
   );
@@ -460,16 +463,30 @@ export async function applySync(
 
 async function applySyncJournaled(
   home: string,
-  declaration: SkillsDeclarationFile,
+  declarationInput: SkillsDeclarationFile | undefined,
   lockNonce: string,
   options: ApplySyncOptions,
-): Promise<{ actions: SyncAction[] }> {
+): Promise<{ actions: SyncAction[]; snapshots: SnapshotInfo[] }> {
   const declarationPath = getSkillsJsonPath(home);
   const lockPath = getSkillsLockPath(home);
 
+  // CLI --plan:声明 sha256 与 artifact 不符则在任何写动作前拒绝(锁内校验,无 TOCTOU)。
+  if (options.verifyPlanArtifactPath) {
+    await readAndVerifyPlanArtifact(options.verifyPlanArtifactPath, declarationPath);
+  }
+  // 锁内自读声明(CLI 场景),或使用调用方在锁外构造的声明(toggle 等 core 场景不走这里)。
+  const declaration = declarationInput ?? (await readDeclaration(declarationPath));
+
   // preState 必须在任何权威写之前:先 plan + 拍根快照,再开 journal。
   const planned = await planSync(home, declaration);
-  const agents = new Set(declaration.skills.flatMap((s) => s.agents));
+  // 只对有实际变化(非 noop,含 config-*)的 agent 拍快照——与既有 CLI 语义一致:
+  // 已同步(全 noop)的 sync 不产生额外快照(R26-a 行为承诺)。
+  const agents = new Set(planned.filter((a) => a.kind !== 'noop').map((a) => a.agent));
+  if (agents.size === 0) {
+    // 零写面:无权威写即无崩溃恢复需求,不开 journal、不拍快照,与旧行为逐字节一致。
+    const result = await applySyncUnlocked(home, declaration);
+    return { ...result, snapshots: [] };
+  }
   const label = 'pre-sync';
   const processSnapshots = await snapshotAgents(home, agents, label);
   const walSnapshots = await walSnapshotsForAgents(home, agents, processSnapshots, label);
@@ -479,6 +496,11 @@ async function applySyncJournaled(
     snapshots: walSnapshots,
     targets: targetsFromPlan(planned),
     storeTargets: [],
+    // codex 的启停走 .codex/config.toml(config-* action),不在目录/声明回滚面内;
+    // 涉 codex 即捕获原文,崩溃回滚时一并写回,避免 config 与声明不一致。
+    ...([...agents].includes('codex')
+      ? { extraFiles: [{ id: 'codex-config' as const, content: (await captureFileState(getCodexConfigPath(home))).content }] }
+      : {}),
   };
 
   const journal = await beginJournal(home, {
@@ -489,6 +511,7 @@ async function applySyncJournaled(
   });
   await options.onStep?.('prepare');
 
+  let committed = false;
   try {
     await journal.markApplying();
     await options.onStep?.('applying');
@@ -499,10 +522,17 @@ async function applySyncJournaled(
     await options.onStep?.('apply-sync');
 
     await journal.markCommit();
+    committed = true;
     await options.onStep?.('commit');
     await journal.clear();
-    return result;
+    return { ...result, snapshots: processSnapshots };
   } catch (error) {
+    // markCommit 已落盘 = 事务语义上已提交:绝不再回滚世界,清 journal(失败则
+    // 保留 commit 态,下次前滚)后原样上抛。
+    if (committed) {
+      await journal.clear().catch(() => undefined);
+      throw error;
+    }
     // 进程内就地恢复:锁仍持有,立刻按 journal 回滚。sync 本身无其它补偿路径。
     // 恢复失败则保留 journal,下次获锁操作会重试。
     try {
