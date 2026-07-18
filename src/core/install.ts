@@ -18,6 +18,14 @@ import { auditSkillDir, shouldBlock } from './audit/service.ts';
 import { snapshot } from './backup.ts';
 import { getCliVersion, recordBypasses } from './bypass-ledger.ts';
 import { assertSafeGitSource } from './git-safe.ts';
+import {
+  beginJournal,
+  captureFileState,
+  journalSnapshotsDir,
+  type JournalPreState,
+  type JournalSnapshotRef,
+  type JournalTargetRef,
+} from './journal.ts';
 import { getSkillsLockPath, readSkillsLock, upsertLockEntries, type SkillsLockEntry } from './lock.ts';
 import { withOperationLock } from './operation-lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
@@ -43,6 +51,12 @@ export interface InstallOptions {
   ref?: string;
   /** 写进 lock 的来源标签(缺省用原始 source 字符串) */
   sourceLabel?: string;
+  /**
+   * WAL 步骤回调,仅供崩溃矩阵测试注入故障(在指定步骤后自杀);生产不传。
+   * 步骤 id:prepare / applying / store-write:<name> / disk-write:<name> /
+   * write-lock / write-declaration / record-bypasses / commit。
+   */
+  onStep?: (stepId: string) => void | Promise<void>;
 }
 
 export interface BlockedSkill {
@@ -132,14 +146,15 @@ export async function installFromSource(
   source: string,
   options: InstallOptions,
 ): Promise<InstallResult> {
-  return withOperationLock(options.home, `install:${options.agent}`, () =>
-    installFromSourceUnlocked(source, options),
+  return withOperationLock(options.home, `install:${options.agent}`, (lock) =>
+    installFromSourceUnlocked(source, options, lock.owner.nonce),
   );
 }
 
 async function installFromSourceUnlocked(
   source: string,
   options: InstallOptions,
+  lockNonce: string,
 ): Promise<InstallResult> {
   // 先解析 agent(失败要早于任何 clone/写动作)
   const skillsDir = targetSkillsDir(options.home, options.agent);
@@ -207,14 +222,48 @@ async function installFromSourceUnlocked(
     await readDeclaration(declarationPath);
 
     // 装前快照(目标目录已存在且非空才有内容可保)
+    const backupsStore = join(options.home, '.skill-switch', 'backups');
     let snapshotPath: string | undefined;
+    const walSnapshots: JournalSnapshotRef[] = [];
     if (existsSync(skillsDir) && (await readdir(skillsDir)).length > 0) {
       const snap = await snapshot(skillsDir, {
-        store: join(options.home, '.skill-switch', 'backups'),
+        store: backupsStore,
         label: `pre-install-${options.agent}`,
       });
       snapshotPath = snap.path;
+      walSnapshots.push({ path: snap.path, sourceDir: skillsDir });
     }
+
+    // WAL preState:在任何权威写之前,记下声明/锁原文与将被触碰的具体路径;
+    // copy 模式下已存在的 store 目录会被 rm+重写,先逐个快照以便回滚铺回。
+    const walTargets: JournalTargetRef[] = [];
+    const walStoreTargets: JournalTargetRef[] = [];
+    for (const dir of skillDirs) {
+      const name = basename(dir);
+      const target = join(skillsDir, name);
+      walTargets.push({ path: target, existedBefore: existsSync(target) });
+      if (options.mode === 'copy') {
+        const storeTarget = durableCopySource(options.home, options.agent, name);
+        const existedBefore = existsSync(storeTarget);
+        walStoreTargets.push({ path: storeTarget, existedBefore });
+        if (existedBefore) {
+          // WAL 内部快照:放 journal 私有目录,随事务 commit/恢复清理,
+          // 绝不进用户的 backups(否则会污染 restore --latest 的快照列表)。
+          const snap = await snapshot(storeTarget, {
+            store: journalSnapshotsDir(options.home),
+            label: `pre-install-store-${options.agent}-${name}`,
+          });
+          walSnapshots.push({ path: snap.path, sourceDir: storeTarget });
+        }
+      }
+    }
+    const preState: JournalPreState = {
+      declaration: await captureFileState(declarationPath),
+      lockfile: await captureFileState(lockPath),
+      snapshots: walSnapshots,
+      targets: walTargets,
+      storeTargets: walStoreTargets,
+    };
 
     // git 来源:记录 clone 到的精确 commit(S3.4,agent-skills-cli 的字段设计)
     let commit: string | undefined;
@@ -222,6 +271,27 @@ async function installFromSourceUnlocked(
       const { stdout } = await execFileAsync('git', ['-C', sourceRoot, 'rev-parse', 'HEAD']);
       commit = stdout.trim();
     }
+
+    const stepIds = [
+      ...skillDirs.flatMap((dir) => {
+        const name = basename(dir);
+        return options.mode === 'copy'
+          ? [`store-write:${name}`, `disk-write:${name}`]
+          : [`disk-write:${name}`];
+      }),
+      'write-lock',
+      'write-declaration',
+      ...(options.force && bypassed.length > 0 ? ['record-bypasses'] : []),
+    ];
+    const journal = await beginJournal(options.home, {
+      operation: `install:${options.agent}`,
+      nonce: lockNonce,
+      preState,
+      steps: stepIds,
+    });
+    await options.onStep?.('prepare');
+    await journal.markApplying();
+    await options.onStep?.('applying');
 
     await mkdir(skillsDir, { recursive: true });
     const installed: InstallResult['installed'] = [];
@@ -238,6 +308,8 @@ async function installFromSourceUnlocked(
       if (options.mode === 'copy' && resolve(auditedRoot) !== resolve(declarationSource)) {
         await rm(declarationSource, { recursive: true, force: true });
         await copyDirWithoutSymlinks(auditedRoot, declarationSource);
+        await journal.markStep(`store-write:${name}`);
+        await options.onStep?.(`store-write:${name}`);
       }
 
       await rm(target, { recursive: true, force: true });
@@ -246,6 +318,8 @@ async function installFromSourceUnlocked(
       } else {
         await copyDirWithoutSymlinks(declarationSource, target);
       }
+      await journal.markStep(`disk-write:${name}`);
+      await options.onStep?.(`disk-write:${name}`);
       installed.push({ name, targetPath: target });
       declarationAdditions.push({
         name,
@@ -267,9 +341,14 @@ async function installFromSourceUnlocked(
 
     // lockPath / declarationPath 已在写盘前声明并预校验(见上方 fail-fast 块)。
     await upsertLockEntries(lockPath, lockEntries);
+    await journal.markStep('write-lock');
+    await options.onStep?.('write-lock');
     await upsertSkillDeclarations(declarationPath, declarationAdditions);
+    await journal.markStep('write-declaration');
+    await options.onStep?.('write-declaration');
 
     // force 越过 audit 的留痕:记录被越过的 skill + 命中的 findings + 理由 + 版本。
+    // 位于 commit 之前:崩溃回滚时安装被退掉而 bypass 记录保留 = 记录多于实际,保守方向。
     if (options.force && bypassed.length > 0) {
       const bypassedAt = new Date().toISOString();
       const cliVersion = await getCliVersion();
@@ -292,7 +371,13 @@ async function installFromSourceUnlocked(
           cliVersion,
         })),
       );
+      await journal.markStep('record-bypasses');
+      await options.onStep?.('record-bypasses');
     }
+
+    await journal.markCommit();
+    await options.onStep?.('commit');
+    await journal.clear();
 
     return { installed, blocked: [], snapshotPath, lockPath, declarationPath };
   } finally {
