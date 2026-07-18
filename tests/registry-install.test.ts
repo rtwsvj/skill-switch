@@ -196,6 +196,7 @@ describe('registry: ⑥ 零真实网络哨兵 + 源码静态检查', () => {
     const BARE_FETCH_ALLOWLIST = new Set([
       'src/core/osv.ts', // drift --osv:显式 opt-in POST OSV.dev
       'src/core/add/preview.ts', // add 流程远端预览
+      'src/core/add/resolve-npm.ts', // add 的 npm registry 解析(修好检测后新入册)
       'src/vendor/vercel-skills/source-parser.ts', // vendored;isRepoPrivate 当前无调用方
     ]);
     const stack = [srcRoot];
@@ -223,9 +224,11 @@ describe('registry: ⑥ 零真实网络哨兵 + 源码静态检查', () => {
           offenders.push(rel);
         }
         // 裸 fetch 出站(全局 fetch/globalThis.fetch):清单外新增即失败。
+        // 裸 fetch 出站的两种形态:直接引用 globalThis.fetch,或把全局 fetch 当
+        // 默认实现(`?? fetch` / `= fetch`)。清单外命中即失败。
         if (
           !BARE_FETCH_ALLOWLIST.has(rel) &&
-          (/globalThis\.fetch/.test(src) || /[^.\w]fetch\(/.test(src) && /\?\? fetch|=\s*fetch|fetchImpl \?\? fetch/.test(src))
+          (/globalThis\.fetch/u.test(src) || /\?\?\s*fetch\b/u.test(src) || /=\s*fetch\b/u.test(src))
         ) {
           fetchOffenders.push(rel);
         }

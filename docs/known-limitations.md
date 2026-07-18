@@ -5,8 +5,8 @@
 - **DNS pinning covers `registry` and `mcp-scan` egress.** Those paths resolve once,
   validate, and pin the socket to the vetted answers (`src/core/security/pinned-http.ts`).
   Remaining outbound call sites still on the platform fetch (validated per request but
-  not connect-time pinned): `add` remote preview (`src/core/add/preview.ts`) and
-  opt-in `drift --osv` (`src/core/osv.ts`); the vendored `isRepoPrivate`
+  not connect-time pinned): `add` remote preview and npm resolution (`src/core/add/preview.ts`,
+  `src/core/add/resolve-npm.ts`) and opt-in `drift --osv` (`src/core/osv.ts`); the vendored `isRepoPrivate`
   (`src/vendor/vercel-skills/source-parser.ts`) currently has no caller. The egress
   sentinel test enumerates these exceptions explicitly and fails on any new bare-fetch
   call site.
