@@ -201,3 +201,75 @@ describe('D2/D3 哨兵:pinned-http 是 core 唯一 socket 出口', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// ── D3.5(Codex 复核补钉):逐跳 redirect 钉扎回归 ────────────────────────────
+import { Readable } from 'node:stream';
+import { RegistryFetchError } from '../src/core/registry/fetch.ts';
+import type { PinnedTransport } from '../src/core/security/pinned-http.ts';
+
+describe('D3.5: per-hop redirect pinning regression', () => {
+  it('re-resolves each redirect hop through the pinned path and blocks private second hops before connecting', async () => {
+    const resolvedHosts: string[] = [];
+    const connectedHosts: string[] = [];
+    const resolver = async (hostname: string) => {
+      resolvedHosts.push(hostname);
+      if (hostname === 'private.hop') return [{ address: '10.0.0.8', family: 4 }];
+      return [{ address: '93.184.216.34', family: 4 }];
+    };
+    const transport: PinnedTransport = (options, onResponse) => {
+      connectedHosts.push(String(options.hostname));
+      const body = Readable.from([Buffer.from('')]) as unknown as Parameters<typeof onResponse>[0];
+      (body as { statusCode?: number }).statusCode = 302;
+      (body as { headers?: Record<string, string> }).headers = {
+        location: 'https://private.hop/next',
+      };
+      queueMicrotask(() => onResponse(body));
+      return { on: () => undefined, write: () => true, end: () => undefined } as never;
+    };
+    const fetchImpl = createPinnedFetch({ resolver, httpsTransport: transport });
+
+    await expect(
+      fetchJson('https://public.start/api', { fetchImpl: fetchImpl as never }),
+    ).rejects.toThrow(RegistryFetchError);
+    // 第一跳解析+连接;第二跳解析出私网 → 连接前被拒(绝无第二跳 socket)。
+    expect(resolvedHosts).toEqual(['public.start', 'private.hop']);
+    expect(connectedHosts).toEqual(['public.start']);
+  });
+});
+
+// 错误映射表驱动:HostResolutionPolicyError 的 code 分类在两个消费方保持稳定。
+import { HostResolutionPolicyError } from '../src/core/security/url-safety.ts';
+
+describe('D3.5: policy error code mapping is table-stable', () => {
+  const cases = [
+    { policyCode: 'non-public-address' as const, registry: 'insecure-url', mcp: 'insecure-url' },
+    { policyCode: 'lookup-failed' as const, registry: 'network', mcp: 'network' },
+  ];
+
+  for (const { policyCode, registry } of cases) {
+    it(`registry maps ${policyCode} → ${registry}`, async () => {
+      const thrower = async () => {
+        throw new HostResolutionPolicyError('mapped', policyCode);
+      };
+      await expect(
+        fetchJson('https://map.test/', { fetchImpl: thrower as never }),
+      ).rejects.toMatchObject({ name: 'RegistryFetchError', code: registry });
+    });
+  }
+
+  for (const { policyCode, mcp } of cases) {
+    it(`mcp-scan maps ${policyCode} → ${mcp}`, async () => {
+      const thrower = async () => {
+        throw new HostResolutionPolicyError('mapped', policyCode);
+      };
+      await expect(
+        connectHttp(
+          { name: 's', transport: 'http', url: 'https://map.test/' } as never,
+          1000,
+          thrower as never,
+        ),
+      ).rejects.toMatchObject({ name: 'McpScanClientError', code: mcp });
+    });
+  }
+});
+

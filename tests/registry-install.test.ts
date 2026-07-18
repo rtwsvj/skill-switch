@@ -187,12 +187,20 @@ describe('registry: ⑥ 零真实网络哨兵 + 源码静态检查', () => {
     expect(fetchSrc).toMatch(/\bpinnedFetch\b/);
   });
 
-  it('src/core 全域(除 security/pinned-http.ts)不得 import node:http(s)——pinned-http 是唯一持有 socket 的模块', async () => {
+  it('src 全域(除 security/pinned-http.ts)不得以任何形态引入 node:http(s);裸 fetch 出站只允许显式例外清单', async () => {
     const { readdir } = await import('node:fs/promises');
-    const coreRoot = join(import.meta.dirname, '..', 'src', 'core');
-    const pinnedHttp = join(coreRoot, 'security', 'pinned-http.ts');
-    const stack = [coreRoot];
+    const srcRoot = join(import.meta.dirname, '..', 'src');
+    const pinnedHttp = join(srcRoot, 'core', 'security', 'pinned-http.ts');
+    // 未钉扎的裸 fetch 出站例外清单(known-limitations 同步记载;下批迁移目标)。
+    // 新增任何清单外的 fetch 出站文件 = 本哨兵失败。
+    const BARE_FETCH_ALLOWLIST = new Set([
+      'src/core/osv.ts', // drift --osv:显式 opt-in POST OSV.dev
+      'src/core/add/preview.ts', // add 流程远端预览
+      'src/vendor/vercel-skills/source-parser.ts', // vendored;isRepoPrivate 当前无调用方
+    ]);
+    const stack = [srcRoot];
     const offenders: string[] = [];
+    const fetchOffenders: string[] = [];
     while (stack.length > 0) {
       const dir = stack.pop()!;
       for (const ent of await readdir(dir, { withFileTypes: true })) {
@@ -204,12 +212,30 @@ describe('registry: ⑥ 零真实网络哨兵 + 源码静态检查', () => {
         if (!ent.name.endsWith('.ts')) continue;
         if (full === pinnedHttp) continue;
         const src = await readFile(full, 'utf8');
-        if (/from ['"]node:(http|https)['"]/.test(src) || /require\(['"]node:(http|https)['"]\)/.test(src)) {
-          offenders.push(full.replace(`${coreRoot}/`, 'src/core/'));
+        const rel = full.replace(`${srcRoot}/`, 'src/');
+        // 静态 from-import / 副作用 import / 动态 import() / require 四种形态全拦。
+        if (
+          /from ['"]node:(http|https)['"]/.test(src) ||
+          /import ['"]node:(http|https)['"]/.test(src) ||
+          /import\(\s*['"]node:(http|https)['"]\s*\)/.test(src) ||
+          /require\(['"]node:(http|https)['"]\)/.test(src)
+        ) {
+          offenders.push(rel);
+        }
+        // 裸 fetch 出站(全局 fetch/globalThis.fetch):清单外新增即失败。
+        if (
+          !BARE_FETCH_ALLOWLIST.has(rel) &&
+          (/globalThis\.fetch/.test(src) || /[^.\w]fetch\(/.test(src) && /\?\? fetch|=\s*fetch|fetchImpl \?\? fetch/.test(src))
+        ) {
+          fetchOffenders.push(rel);
         }
       }
     }
-    expect(offenders, `非 pinned-http 模块不得 import node:http(s): ${offenders.join(', ')}`).toEqual([]);
+    expect(offenders, `非 pinned-http 模块不得引入 node:http(s): ${offenders.join(', ')}`).toEqual([]);
+    expect(
+      fetchOffenders,
+      `清单外出现裸 fetch 出站(应迁 pinned-http 或加入例外清单并记录): ${fetchOffenders.join(', ')}`,
+    ).toEqual([]);
   });
 
   it('registry 取数层不带 import.meta.url(SEA 安全)', async () => {
