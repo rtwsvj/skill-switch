@@ -24,6 +24,7 @@ import { request as httpsRequest, type RequestOptions } from 'node:https';
 import { Readable } from 'node:stream';
 import {
   HostResolutionPolicyError,
+  isLoopbackHost,
   resolveVerifiedAddresses,
   type HostResolver,
   type ResolvedHostAddress,
@@ -41,7 +42,11 @@ export interface PinnedFetchInit {
   credentials?: 'omit';
 }
 
-/** fetch Response 的受控子集(status/ok/headers.get/body 流/text/json)。 */
+/**
+ * fetch Response 的受控子集。刻意**不提供** text()/json():安全传输层不暴露无上限
+ * 的整体读取(内存 DoS 面+与 body 流的双消费歧义);调用方一律经 body 流配上限读取
+ * (registry readBodyCapped / mcp-scan 同型逻辑)。
+ */
 export interface PinnedResponse {
   ok: boolean;
   status: number;
@@ -49,8 +54,6 @@ export interface PinnedResponse {
   url: string;
   headers: { get(name: string): string | null };
   body: ReadableStream<Uint8Array> | null;
-  text(): Promise<string>;
-  json(): Promise<unknown>;
 }
 
 export type PinnedTransport = (options: RequestOptions, onResponse: (res: IncomingMessage) => void) => ClientRequest;
@@ -63,6 +66,8 @@ export interface PinnedFetchOptions {
   /** 传输层注入(测试);生产默认 node:https / node:http 的 request。 */
   httpsTransport?: PinnedTransport;
   httpTransport?: PinnedTransport;
+  /** 追加受信 CA(仅测试:让真实 TLS 握手用自签证书跑通;绝不放松校验)。 */
+  tlsCa?: readonly (string | Buffer)[];
 }
 
 export class PinnedConnectionError extends Error {
@@ -83,12 +88,6 @@ function headerGetter(res: IncomingMessage): PinnedResponse['headers'] {
       return Array.isArray(value) ? value.join(', ') : value;
     },
   };
-}
-
-async function collectText(res: IncomingMessage): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of res) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString('utf8');
 }
 
 type NodeLookupCallback = (
@@ -116,11 +115,20 @@ function pinnedLookup(pinned: ResolvedHostAddress) {
   };
 }
 
+/** 剥掉调用方试图覆盖的 Host 头:Host 永远由 URL 域名决定,防止头级重定向。 */
+function sanitizeHeaders(headers: Record<string, string> | undefined): Record<string, string> {
+  if (!headers) return {};
+  return Object.fromEntries(
+    Object.entries(headers).filter(([name]) => name.toLowerCase() !== 'host'),
+  );
+}
+
 function requestOnce(
   transport: PinnedTransport,
   url: URL,
   init: PinnedFetchInit,
   address: ResolvedHostAddress,
+  tlsCa: readonly (string | Buffer)[] | undefined,
 ): Promise<IncomingMessage> {
   return new Promise((resolvePromise, rejectPromise) => {
     const options: RequestOptions = {
@@ -131,10 +139,20 @@ function requestOnce(
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
       path: `${url.pathname}${url.search}`,
       method: init.method ?? 'GET',
-      headers: init.headers,
+      headers: sanitizeHeaders(init.headers),
       lookup: pinnedLookup(address) as RequestOptions['lookup'],
       signal: init.signal,
+      // 每请求独立连接:全局 Agent 的 keep-alive 复用可能把 socket 交给同 IP:port
+      // 的其它主机名请求,也可能被环境代理配置接管——安全传输拒绝共享连接池。
+      agent: false,
     };
+    if (url.protocol === 'https:') {
+      // 显式钉死 TLS 语义(即便与 Node 默认一致也不依赖默认):
+      // SNI/证书校验按域名,校验绝不放松;tlsCa 仅追加受信根(测试自签用)。
+      options.servername = url.hostname;
+      options.rejectUnauthorized = true;
+      if (tlsCa) options.ca = [...tlsCa];
+    }
     const req = transport(options, resolvePromise);
     req.on('error', rejectPromise);
     if (init.body !== undefined) req.write(init.body);
@@ -152,9 +170,26 @@ export function createPinnedFetch(options: PinnedFetchOptions = {}) {
     init: PinnedFetchInit = {},
   ): Promise<PinnedResponse> {
     const url = new URL(rawUrl);
-    if (url.protocol !== 'https:' && !(options.allowLoopback && url.protocol === 'http:')) {
+    // 传输层原语自身拒绝 URL userinfo,不依赖外层调用方把关。
+    if (url.username.length > 0 || url.password.length > 0) {
+      throw new HostResolutionPolicyError(
+        '出站 URL 不允许携带 userinfo 凭据',
+        'non-public-address',
+      );
+    }
+    const isHttp = url.protocol === 'http:';
+    if (url.protocol !== 'https:' && !(options.allowLoopback && isHttp)) {
       throw new HostResolutionPolicyError(
         `仅允许 https 出站(本地 MCP transport 除外): ${url.protocol}`,
+        'non-public-address',
+      );
+    }
+    // 明文 http 只服务"显式本机"场景:URL 主机名本身必须是 loopback 写法,
+    // 且下方解析出的全部地址也必须是 loopback——公网域名/公网地址一律拒绝,
+    // allowLoopback 实例绝不成为明文出站通道。https 始终走公网策略。
+    if (isHttp && !isLoopbackHost(url.hostname)) {
+      throw new HostResolutionPolicyError(
+        `明文 http 仅允许显式 loopback 主机: ${url.hostname}`,
         'non-public-address',
       );
     }
@@ -162,8 +197,19 @@ export function createPinnedFetch(options: PinnedFetchOptions = {}) {
     // 一次解析 + 策略校验;返回列表即连接目的地全集。
     const addresses = await resolveVerifiedAddresses(url, {
       resolver: options.resolver,
-      allowLoopback: options.allowLoopback,
+      allowLoopback: isHttp,
     });
+    if (isHttp && addresses.some(({ address }) => !isLoopbackHost(address))) {
+      throw new HostResolutionPolicyError(
+        `明文 http 的解析地址必须全部为 loopback: ${url.hostname}`,
+        'non-public-address',
+      );
+    }
+
+    // 非幂等方法禁止地址级自动重试:连接错误与"服务端已执行但响应中断"在传输层
+    // 不可区分,重发 POST 可能重放副作用(JSON-RPC 无传输层去重)。
+    const method = (init.method ?? 'GET').toUpperCase();
+    const attemptable = method === 'GET' || method === 'HEAD' ? addresses : addresses.slice(0, 1);
 
     const transport: PinnedTransport =
       url.protocol === 'https:'
@@ -172,16 +218,11 @@ export function createPinnedFetch(options: PinnedFetchOptions = {}) {
 
     const attempts: string[] = [];
     let lastError: unknown;
-    for (const address of addresses) {
+    for (const address of attemptable) {
       attempts.push(address.address);
       try {
-        const res = await requestOnce(transport, url, init, address);
+        const res = await requestOnce(transport, url, init, address, options.tlsCa);
         const bodyStream = Readable.toWeb(res) as ReadableStream<Uint8Array>;
-        let textPromise: Promise<string> | undefined;
-        const text = () => {
-          textPromise ??= collectText(res);
-          return textPromise;
-        };
         return {
           ok: (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300,
           status: res.statusCode ?? 0,
@@ -189,8 +230,6 @@ export function createPinnedFetch(options: PinnedFetchOptions = {}) {
           url: url.toString(),
           headers: headerGetter(res),
           body: bodyStream,
-          text,
-          json: async () => JSON.parse(await text()) as unknown,
         };
       } catch (error) {
         // AbortError(超时/取消)不换地址,原样上抛保留调用方的超时语义。
