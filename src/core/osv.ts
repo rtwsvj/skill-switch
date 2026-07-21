@@ -1,13 +1,15 @@
 // osv.ts — OSV.dev CVE 扫描(供应链漂移检测辅助模块)
 //
-// ⚠ 新网络出口:本模块是项目中唯一主动向外部网络发出请求的模块。
+// ⚠ 网络出口:本模块在被调用时向 OSV.dev 发起 POST querybatch。
 //   设计纪律:
-//     1. 严格 opt-in:调用方必须显式传入 fetchFn(或运行时传递的全局 fetch),
-//        默认值 undefined 表示"不联网"。
-//     2. 在 drift 命令里仅当 --osv 标志出现时才调用本模块;
-//        其余所有代码路径不会 import 本模块内的联网逻辑。
-//     3. 超时兜底:所有请求强制 10 秒超时(AbortController),避免 CI 挂死。
-//     4. 容错降级:网络失败、解析失败均返回空结果 + 诊断信息,不抛出。
+//     1. 严格 opt-in:仅 drift 命令在 --osv 标志出现时才动态 import 并调用;
+//        其余所有代码路径不会加载本模块的联网逻辑。
+//     2. 传输默认 pinnedFetch(连接时 DNS 钉扎);POST 为非幂等,pinned-http
+//        只试第一个已验证地址(单地址不重放),属有意语义。
+//     3. fetchFn 可注入(测试 mock);不传则走模块级 pinnedFetch。
+//     4. 超时兜底:所有请求强制 10 秒超时(AbortController),避免 CI 挂死。
+//     5. 容错降级:网络失败、解析失败均返回空结果 + 诊断信息,不抛出
+//        (scanSkillOsv);queryOsvBatch 自身抛出由上层捕获。
 //
 // 📌 对编排者的说明(是否设默认):
 //   当前设计是"默认关闭 / 仅 --osv 触发"。建议维持此默认:
@@ -15,10 +17,20 @@
 //     - CI 环境对网络连通性不一定有保证(代理、防火墙)
 //     - 建议仅在安全审查流程中显式启用(e.g., --osv 或专属 CI step)
 //
-// 无新依赖:仅使用 Node.js 内置(node:fs/promises、node:path)和全局 fetch。
+// 无新依赖:仅使用 Node.js 内置与 pinned-http。
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import {
+  createPinnedFetch,
+  pinnedFetch,
+  type PinnedFetchInit,
+  type PinnedResponse,
+} from './security/pinned-http.ts';
+import {
+  HostResolutionPolicyError,
+  type HostResolver,
+} from './security/url-safety.ts';
 
 // ─── 公共类型 ──────────────────────────────────────────────────────────────────
 
@@ -58,6 +70,31 @@ export interface OsvScanResult {
   /** 诊断信息(联网失败、解析失败等) */
   diagnostics: string[];
 }
+
+/**
+ * 可注入的 fetch 形状:PinnedResponse 是 Response 的受控子集(无 text()/json())。
+ * 测试注入的假 fetch 返回标准 Response(超集)必须继续可用。
+ */
+export type FetchFn = (
+  url: string,
+  init?: PinnedFetchInit,
+) => Promise<PinnedResponse | Response>;
+
+export interface OsvFetchOptions {
+  /** 注入 fetch(测试用);默认 pinnedFetch。 */
+  fetchFn?: FetchFn;
+  /**
+   * DNS resolver 注入(测试)。仅在未注入 fetchFn 时生效:经 createPinnedFetch
+   * 构造一次性钉扎实例。
+   */
+  hostResolver?: HostResolver;
+}
+
+/** 响应体读取面:只依赖 headers + body 流(PinnedResponse 无 text()/json())。 */
+type ReadableBodyResponse = {
+  headers: { get(name: string): string | null };
+  body: ReadableStream<Uint8Array> | null;
+};
 
 // ─── 依赖文件解析 ──────────────────────────────────────────────────────────────
 
@@ -149,6 +186,8 @@ export async function parseSkillDependencies(skillDir: string): Promise<OsvPacka
 
 // OSV.dev batch 查询端点(无认证,公开 API)
 const OSV_QUERYBATCH_URL = 'https://api.osv.dev/v1/querybatch';
+/** 响应体大小上限(字节);与 registry 取数层同量级。 */
+const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MiB
 
 /** OSV querybatch 请求格式 */
 interface OsvQueryBatchRequest {
@@ -169,26 +208,84 @@ interface OsvQueryBatchResponse {
   }>;
 }
 
-/** fetch 函数类型(方便测试注入假 fetch) */
-export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
+/**
+ * 解析出本次使用的 fetch 实现:
+ *   - 显式 fetchFn → 原样用(测试 mock)
+ *   - 仅 hostResolver → createPinnedFetch 一次性实例
+ *   - 都无 → 模块级 pinnedFetch(生产)
+ */
+function resolveFetchImpl(opts: OsvFetchOptions): FetchFn {
+  if (opts.fetchFn) return opts.fetchFn;
+  if (opts.hostResolver) return createPinnedFetch({ resolver: opts.hostResolver });
+  return pinnedFetch;
+}
+
+/**
+ * 读响应体但设字节上限:一律经 body 流累加(超限立刻中止)。
+ * PinnedResponse 无 text()/json(),且无上限整体读取是 DoS 面。
+ */
+async function readBodyCapped(
+  res: ReadableBodyResponse,
+  maxBytes: number,
+): Promise<string> {
+  const declared = Number(res.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(`响应体过大(声明 ${declared} > 上限 ${maxBytes} 字节)`);
+  }
+
+  const body = res.body;
+  if (!body || typeof body.getReader !== 'function') {
+    return '';
+  }
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let out = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        received += value.byteLength;
+        if (received > maxBytes) {
+          await reader.cancel().catch(() => {});
+          throw new Error(`响应体超过上限 ${maxBytes} 字节,已中止`);
+        }
+        out += decoder.decode(value, { stream: true });
+      }
+    }
+    out += decoder.decode();
+    return out;
+  } finally {
+    reader.releaseLock?.();
+  }
+}
 
 /**
  * 向 OSV.dev 发起 querybatch 请求,返回各包的漏洞命中情况。
  *
- * ⚠ 网络出口:仅当调用方显式传入 fetchFn 时才发起请求。
- *   在 drift 命令中仅当 --osv 标志出现时才传入全局 fetch。
- *   不传 fetchFn 时本函数抛出(不隐式联网)。
+ * ⚠ 网络出口:默认经 pinnedFetch 出站(连接时 DNS 钉扎)。
+ *   在 drift 命令中仅当 --osv 标志出现时才调用本函数。
+ *   POST 为非幂等:pinned-http 只试第一个已验证地址(不重放),属有意语义;
+ *   结果聚合按请求顺序一一对应,不依赖地址级重试。
  *
  * @param packages 要查询的包列表
- * @param fetchFn  必须显式传入:全局 fetch 或测试用假 fetch
+ * @param fetchFnOrOpts  注入 fetch,或 {fetchFn, hostResolver};默认 pinnedFetch
  * @param timeoutMs 请求超时毫秒数(默认 10000)
  */
 export async function queryOsvBatch(
   packages: OsvPackageQuery[],
-  fetchFn: FetchFn,
+  fetchFnOrOpts?: FetchFn | OsvFetchOptions,
   timeoutMs = 10_000,
 ): Promise<OsvPackageResult[]> {
   if (packages.length === 0) return [];
+
+  const opts: OsvFetchOptions =
+    typeof fetchFnOrOpts === 'function'
+      ? { fetchFn: fetchFnOrOpts }
+      : (fetchFnOrOpts ?? {});
+  const fetchFn = resolveFetchImpl(opts);
 
   // 构造 querybatch 请求体
   const body: OsvQueryBatchRequest = {
@@ -204,26 +301,44 @@ export async function queryOsvBatch(
 
   let data: OsvQueryBatchResponse;
   try {
-    const response = await fetchFn(OSV_QUERYBATCH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal as RequestInit['signal'],
-    });
+    let response: PinnedResponse | Response;
+    try {
+      response = await fetchFn(OSV_QUERYBATCH_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+        redirect: 'manual',
+        credentials: 'omit',
+      });
+    } catch (error) {
+      if (error instanceof HostResolutionPolicyError) {
+        throw new Error(`OSV querybatch 请求失败: ${error.message}`);
+      }
+      throw error;
+    }
     clearTimeout(timer);
 
     if (!response.ok) {
       throw new Error(`OSV API 返回 HTTP ${response.status}`);
     }
-    data = (await response.json()) as OsvQueryBatchResponse;
+    const text = await readBodyCapped(response, DEFAULT_MAX_BYTES);
+    try {
+      data = JSON.parse(text) as OsvQueryBatchResponse;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`OSV querybatch 响应 JSON 解析失败: ${msg}`);
+    }
   } catch (err) {
     clearTimeout(timer);
     const msg = err instanceof Error ? err.message : String(err);
     // 超时或网络错误:抛出让上层捕获并记录 diagnostics
+    // 若已是我们包装过的消息则不再套一层
+    if (msg.startsWith('OSV ')) throw err instanceof Error ? err : new Error(msg);
     throw new Error(`OSV querybatch 请求失败: ${msg}`);
   }
 
-  // 将 API 结果与输入包列表对应(按顺序一一对应)
+  // 将 API 结果与输入包列表对应(按顺序一一对应;不依赖地址级重试/重放)
   const results: OsvPackageResult[] = [];
   const rawResults = data.results ?? [];
   for (let i = 0; i < packages.length; i++) {
@@ -249,12 +364,12 @@ export async function queryOsvBatch(
  * 网络故障会被捕获并记录到 diagnostics,不抛出,允许调用方降级处理。
  *
  * @param skillDir  skill 安装产物目录路径
- * @param fetchFn   显式传入 fetch(在 --osv 路径中传入全局 fetch)
+ * @param fetchFnOrOpts 注入 fetch 或选项;默认 pinnedFetch
  * @param timeoutMs 网络请求超时(默认 10s)
  */
 export async function scanSkillOsv(
   skillDir: string,
-  fetchFn: FetchFn,
+  fetchFnOrOpts?: FetchFn | OsvFetchOptions,
   timeoutMs = 10_000,
 ): Promise<OsvScanResult> {
   const diagnostics: string[] = [];
@@ -265,10 +380,10 @@ export async function scanSkillOsv(
     return { skillDir, packages: [], diagnostics: ['未找到依赖声明文件(跳过 OSV 扫描)'] };
   }
 
-  // querybatch(网络出口)
+  // querybatch(网络出口,默认 pinned-http)
   let packageResults: OsvPackageResult[] = [];
   try {
-    packageResults = await queryOsvBatch(packages, fetchFn, timeoutMs);
+    packageResults = await queryOsvBatch(packages, fetchFnOrOpts, timeoutMs);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     diagnostics.push(`OSV 扫描失败(已跳过): ${msg}`);

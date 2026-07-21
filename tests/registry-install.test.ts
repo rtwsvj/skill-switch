@@ -193,10 +193,8 @@ describe('registry: ⑥ 零真实网络哨兵 + 源码静态检查', () => {
     const pinnedHttp = join(srcRoot, 'core', 'security', 'pinned-http.ts');
     // 未钉扎的裸 fetch 出站例外清单(known-limitations 同步记载;下批迁移目标)。
     // 新增任何清单外的 fetch 出站文件 = 本哨兵失败。
+    // D4 后第一方出站已全部钉扎;唯一例外是 vendored 且当前无调用方的 isRepoPrivate。
     const BARE_FETCH_ALLOWLIST = new Set([
-      'src/core/osv.ts', // drift --osv:显式 opt-in POST OSV.dev
-      'src/core/add/preview.ts', // add 流程远端预览
-      'src/core/add/resolve-npm.ts', // add 的 npm registry 解析(修好检测后新入册)
       'src/vendor/vercel-skills/source-parser.ts', // vendored;isRepoPrivate 当前无调用方
     ]);
     const stack = [srcRoot];
