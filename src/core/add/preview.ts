@@ -1,17 +1,18 @@
 // add 编排层(预览):粘贴内容 → 解析 →(npm 则只读解析 registry)→ 克隆(只读)→
 // 发现全部 skill → 逐个审计 → 返回候选 + 裁决。**不含任何写动作。**
+// npm 解析出站经 resolve-npm → pinned-http(连接时 DNS 钉扎);本层只透传可注入 fetchImpl。
 import { relative } from 'node:path';
 import { auditSkillDir, shouldBlock } from '../audit/service.ts';
 import { cleanupTempDir, cloneRepo } from '../../vendor/vercel-skills/git.ts';
 import { assertSafeGitSource } from '../git-safe.ts';
 import { discoverSkillDirs } from '../install.ts';
 import { parseSource } from './parse-source.ts';
-import { resolveNpmPackage } from './resolve-npm.ts';
+import { resolveNpmPackage, type NpmFetchImpl } from './resolve-npm.ts';
 import type { AddPreview, ParsedSource, SkillCandidate } from './types.ts';
 
 export interface PreviewAddOptions {
-  /** 注入 fetch(测试用);默认全局 fetch。 */
-  fetchImpl?: typeof fetch;
+  /** 注入 fetch(测试用);默认走 resolve-npm 的 pinnedFetch。 */
+  fetchImpl?: NpmFetchImpl;
 }
 
 /** 给定一个克隆好的根目录 + 可选子目录,发现并审计全部 skill。 */
@@ -57,9 +58,12 @@ export async function previewAdd(
     return { parsed, candidates: [], error: parsed.note };
   }
 
-  // npm 包名 → 只读查 registry 拿仓库地址
+  // npm 包名 → 只读查 registry 拿仓库地址(出站经 pinned-http)
   if (parsed.kind === 'npm' && parsed.npmPackage && !parsed.gitSource) {
-    const res = await resolveNpmPackage(parsed.npmPackage, opts.fetchImpl);
+    const res = await resolveNpmPackage(
+      parsed.npmPackage,
+      opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {},
+    );
     if (!res.gitSource) {
       return { parsed, candidates: [], error: res.error };
     }

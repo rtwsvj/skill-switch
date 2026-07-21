@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { recoverPendingJournal } from './journal.ts';
 import { writeJsonState } from './state-io.ts';
 
 const DEFAULT_WAIT_MS = 10_000;
@@ -188,12 +189,15 @@ export async function acquireOperationLock(
 export async function withOperationLock<T>(
   home: string,
   operation: string,
-  action: () => Promise<T>,
+  action: (lock: OperationLockHandle) => Promise<T>,
   options: OperationLockOptions = {},
 ): Promise<T> {
   const lock = await acquireOperationLock(home, operation, options);
   try {
-    return await action();
+    // WAL:上一次写事务若被 SIGKILL/断电中断,先确定性恢复再进入本次操作。
+    // 恢复失败(日志损坏/路径越界)会抛出并中止本次操作——状态不确定时绝不叠加新写。
+    await recoverPendingJournal(home, { log: (message) => console.error(message) });
+    return await action(lock);
   } finally {
     await lock.release();
   }

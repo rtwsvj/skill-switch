@@ -7,17 +7,31 @@
 // P3-D5:plan artifact 持久化(对标 Terraform plan -out)。
 //   sync plan --out <file>  把 planSync 结果 + 声明 sha256 摘要 + 时间戳序列化写盘。
 //   sync apply --plan <file> 读回后校验声明文件 sha256 未变,变则拒绝提示重 plan。
+//
+// WAL:journal 只接带锁入口 applySync;applySyncUnlocked 被 toggle 等复用,内部不动,
+// 避免嵌套两份 journal。
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { AgentType } from '../vendor/vercel-skills/types.ts';
 import { computeSkillFolderHash } from '../vendor/vercel-skills/local-lock.ts';
+import { snapshotAgents } from './agent-snapshots.ts';
+import type { SnapshotInfo } from './backup.ts';
 import {
   getCodexConfigPath,
   readCodexSkillEnabled,
   setCodexSkillEnabled,
 } from './codex-toggle.ts';
+import {
+  beginJournal,
+  captureFileState,
+  walSnapshotsForAgents,
+  recoverPendingJournal,
+  type JournalManagedTarget,
+  type JournalPreState,
+} from './journal.ts';
+import { getSkillsLockPath } from './lock.ts';
 import { getAgentSkillsLocations, resolveGlobalSkillsDir } from './paths.ts';
 import { withOperationLock } from './operation-lock.ts';
 import { copyDirWithoutSymlinks } from './safe-copy.ts';
@@ -404,16 +418,142 @@ export async function readAndVerifyPlanArtifact(
 
 // ---------- applySync ----------
 
+export interface ApplySyncOptions {
+  /**
+   * WAL 步骤回调,仅供崩溃矩阵测试注入故障(在指定步骤后自杀);生产不传。
+   * 步骤 id:prepare / applying / apply-sync / commit。
+   */
+  onStep?: (stepId: string) => void | Promise<void>;
+  /** CLI --plan:锁内先校验 plan artifact(声明 sha256 变了则拒绝执行)。 */
+  verifyPlanArtifactPath?: string;
+}
+
+function targetsFromPlan(actions: SyncAction[]): JournalManagedTarget[] {
+  const seen = new Set<string>();
+  const targets: JournalManagedTarget[] = [];
+  for (const action of actions) {
+    if (action.kind === 'noop' || action.kind === 'config-disable' || action.kind === 'config-enable') {
+      continue;
+    }
+    const key = `${action.agent}\0${action.name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({
+      agent: action.agent,
+      name: action.name,
+      existedBefore: existsSync(action.target),
+    });
+  }
+  return targets;
+}
+
+/**
+ * 带锁的公开 sync 入口。journal 只在此接入;持锁调用方请用 applySyncUnlocked
+ * (toggle 等外层已有自己的 journal 事务)。
+ */
 export async function applySync(
   home: string,
-  declaration: SkillsDeclarationFile,
-): Promise<{ actions: SyncAction[] }> {
-  return withOperationLock(home, 'sync', () => applySyncUnlocked(home, declaration));
+  declaration?: SkillsDeclarationFile,
+  options: ApplySyncOptions = {},
+): Promise<{ actions: SyncAction[]; snapshots: SnapshotInfo[] }> {
+  return withOperationLock(home, 'sync', (lock) =>
+    applySyncJournaled(home, declaration, lock.owner.nonce, options),
+  );
+}
+
+async function applySyncJournaled(
+  home: string,
+  declarationInput: SkillsDeclarationFile | undefined,
+  lockNonce: string,
+  options: ApplySyncOptions,
+): Promise<{ actions: SyncAction[]; snapshots: SnapshotInfo[] }> {
+  const declarationPath = getSkillsJsonPath(home);
+  const lockPath = getSkillsLockPath(home);
+
+  // CLI --plan:声明 sha256 与 artifact 不符则在任何写动作前拒绝(锁内校验,无 TOCTOU)。
+  if (options.verifyPlanArtifactPath) {
+    await readAndVerifyPlanArtifact(options.verifyPlanArtifactPath, declarationPath);
+  }
+  // 锁内自读声明(CLI 场景),或使用调用方在锁外构造的声明(toggle 等 core 场景不走这里)。
+  const declaration = declarationInput ?? (await readDeclaration(declarationPath));
+
+  // preState 必须在任何权威写之前:先 plan + 拍根快照,再开 journal。
+  const planned = await planSync(home, declaration);
+  // 只对有实际变化(非 noop,含 config-*)的 agent 拍快照——与既有 CLI 语义一致:
+  // 已同步(全 noop)的 sync 不产生额外快照(R26-a 行为承诺)。
+  const agents = new Set(planned.filter((a) => a.kind !== 'noop').map((a) => a.agent));
+  if (agents.size === 0) {
+    // 零写面:无权威写即无崩溃恢复需求,不开 journal、不拍快照,与旧行为逐字节一致。
+    const result = await applySyncUnlocked(home, declaration);
+    return { ...result, snapshots: [] };
+  }
+  const label = 'pre-sync';
+  const processSnapshots = await snapshotAgents(home, agents, label);
+  const walSnapshots = await walSnapshotsForAgents(home, agents, processSnapshots, label);
+  const preState: JournalPreState = {
+    declaration: await captureFileState(declarationPath),
+    lockfile: await captureFileState(lockPath),
+    snapshots: walSnapshots,
+    targets: targetsFromPlan(planned),
+    storeTargets: [],
+    // codex 的启停走 .codex/config.toml(config-* action),不在目录/声明回滚面内;
+    // 涉 codex 即捕获原文,崩溃回滚时一并写回,避免 config 与声明不一致。
+    ...([...agents].includes('codex')
+      ? { extraFiles: [{ id: 'codex-config' as const, content: (await captureFileState(getCodexConfigPath(home))).content }] }
+      : {}),
+  };
+
+  const journal = await beginJournal(home, {
+    operation: 'sync',
+    nonce: lockNonce,
+    preState,
+    steps: ['apply-sync'],
+  });
+  await options.onStep?.('prepare');
+
+  let committed = false;
+  try {
+    await journal.markApplying();
+    await options.onStep?.('applying');
+
+    // 已持锁;unlocked 内部会重新 plan,以当前磁盘状态安全应用。
+    const result = await applySyncUnlocked(home, declaration);
+    await journal.markStep('apply-sync');
+    await options.onStep?.('apply-sync');
+
+    await journal.markCommit();
+    committed = true;
+    await options.onStep?.('commit');
+    await journal.clear();
+    return { ...result, snapshots: processSnapshots };
+  } catch (error) {
+    // markCommit 已落盘 = 事务语义上已提交:绝不再回滚世界,清 journal(失败则
+    // 保留 commit 态,下次前滚)后原样上抛。
+    if (committed) {
+      await journal.clear().catch(() => undefined);
+      throw error;
+    }
+    // 进程内就地恢复:锁仍持有,立刻按 journal 回滚。sync 本身无其它补偿路径。
+    // 恢复失败则保留 journal,下次获锁操作会重试。
+    try {
+      await recoverPendingJournal(home, {
+        log: (message) => console.error(message),
+      });
+    } catch (recoveryError) {
+      throw new AggregateError(
+        [error, recoveryError],
+        'sync 失败且就地恢复未完成;写操作日志已保留,下次任意写操作将自动重试恢复',
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 /**
  * Sync implementation for callers that already hold the home operation lock.
  * @internal Do not call this as a standalone public write operation.
+ * journal 不在此接入——外层(toggle / CLI 自持锁路径)负责事务边界。
  */
 export async function applySyncUnlocked(
   home: string,

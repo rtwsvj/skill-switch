@@ -79,6 +79,9 @@ findings: none"
 exports[`doctor stdout golden snapshot > 干净 home --ci:exit 0,human 输出匹配快照 1`] = `
 "✓ 三方一致(声明 1 项,锁 1 条)
 
+写操作日志:
+  ✓ 无待恢复的写操作日志
+
 配置安全:
   ✓ 无配置安全问题
 "
@@ -105,6 +108,10 @@ exports[`doctor stdout golden snapshot > 干净 home --json:exit 0,JSON 输出�
     },
   ],
   "findings": [],
+  "journal": {
+    "detail": "无待恢复的写操作日志",
+    "status": "ok",
+  },
   "legacyNames": [],
 }
 `;

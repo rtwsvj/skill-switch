@@ -1,6 +1,11 @@
 // add npm 解析层测试:registry 元数据 → 仓库地址;各种 repository 写法规范化;失败优雅。
+// mock 返回标准 Response(带 body 流);生产路径走 pinned-http,PinnedResponse 无 json()。
 import { describe, expect, it } from 'vitest';
-import { normalizeRepoUrl, resolveNpmPackage } from '../src/core/add/resolve-npm.ts';
+import {
+  normalizeRepoUrl,
+  resolveNpmPackage,
+  type NpmFetchImpl,
+} from '../src/core/add/resolve-npm.ts';
 
 describe('normalizeRepoUrl', () => {
   it('git+https → https', () => {
@@ -23,14 +28,13 @@ describe('normalizeRepoUrl', () => {
   });
 });
 
-/** 造一个假 fetch,返回给定 JSON / 状态。 */
-function fakeFetch(payload: unknown, ok = true, status = 200): typeof fetch {
-  return (async () =>
-    ({
-      ok,
+/** 造一个假 fetch,返回带 body 流的 Response(对齐 PinnedResponse 读体面)。 */
+function fakeFetch(payload: unknown, status = 200): NpmFetchImpl {
+  return async () =>
+    new Response(JSON.stringify(payload), {
       status,
-      json: async () => payload,
-    }) as unknown as Response) as unknown as typeof fetch;
+      headers: { 'Content-Type': 'application/json' },
+    });
 }
 
 describe('resolveNpmPackage', () => {
@@ -55,14 +59,14 @@ describe('resolveNpmPackage', () => {
   });
 
   it('registry 404 → 友好错误', async () => {
-    const r = await resolveNpmPackage('missing', fakeFetch({}, false, 404));
+    const r = await resolveNpmPackage('missing', fakeFetch({}, 404));
     expect(r.error).toMatch(/404|找不到/);
   });
 
   it('网络异常 → 不抛,返回错误', async () => {
-    const throwing = (async () => {
+    const throwing: NpmFetchImpl = async () => {
       throw new Error('ENOTFOUND');
-    }) as unknown as typeof fetch;
+    };
     const r = await resolveNpmPackage('p', throwing);
     expect(r.gitSource).toBeUndefined();
     expect(r.error).toMatch(/ENOTFOUND|出错/);

@@ -1,7 +1,8 @@
 // C 线测试:两源归一化 + 聚合搜索。
 // 覆盖:① MCP Registry 响应归一化;② marketplace.json 解析归一化;③ 防御式解析(缺字段不崩);
 //       ④ 聚合两源 + marketplace 未给仓库时跳过;⑤ 单源出错不影响另一源。
-// 全程 mock fetch,零真实网络。
+// 全程 mock fetch,零真实网络。DNS 校验注入假公网 resolver——
+// 本机环境可能把公网域名解析成 0.0.0.0/fake-ip(去广告 DNS/代理),真实 lookup 会误拒。
 import { describe, expect, it, vi } from 'vitest';
 import { searchRegistries } from '../src/core/registry/index.ts';
 import { normalizeServer, searchMcpServers } from '../src/core/registry/mcp-registry.ts';
@@ -13,6 +14,8 @@ import {
 } from '../src/core/registry/marketplace.ts';
 
 // ── 样例:官方 MCP Registry GET /v0/servers 响应(实测形状) ──────────────────
+const publicResolver = async () => [{ address: '140.82.112.3', family: 4 }];
+
 const MCP_RESPONSE = {
   servers: [
     {
@@ -192,6 +195,7 @@ describe('registry: ② marketplace.json 归一化', () => {
     });
     const docMatches = await searchMarketplace('anthropics/skills', 'docx', {
       fetchImpl: fetchImpl as never,
+      hostResolver: publicResolver,
     });
     expect(docMatches.map((e) => e.id)).toContain('document-skills/docx');
     // 不匹配的 skill 被过滤掉
@@ -226,6 +230,7 @@ describe('registry: ④⑤ 聚合搜索', () => {
     });
     const result = await searchRegistries('', {
       fetchImpl: fetchImpl as never,
+      hostResolver: publicResolver,
       marketplaceRepo: 'anthropics/skills',
     });
     const sources = new Set(result.entries.map((e) => e.source));
@@ -240,6 +245,7 @@ describe('registry: ④⑤ 聚合搜索', () => {
     });
     const result = await searchRegistries('docx', {
       fetchImpl: fetchImpl as never,
+      hostResolver: publicResolver,
       marketplaceRepo: 'anthropics/skills',
     });
     const mcp = result.perSource.find((s) => s.source === 'mcp')!;

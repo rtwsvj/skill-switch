@@ -54,10 +54,17 @@ export async function readJsonState<T>(path: string, fallback: T): Promise<T> {
  * 失败时清理临时文件,绝不留下半写的目标文件。尾随换行,权限 best-effort 0o600。
  */
 export async function writeJsonState(path: string, value: unknown): Promise<void> {
+  await writeTextState(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+/**
+ * 原子写任意文本内容(JSON 之外的原文级写回,如 journal 回滚恢复状态文件原文)。
+ * 与 writeJsonState 同一套临时文件 → fsync → rename → 目录 fsync 契约。
+ */
+export async function writeTextState(path: string, body: string): Promise<void> {
   const dir = dirname(path);
   await mkdir(dir, { recursive: true });
   const tmp = join(dir, `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`);
-  const body = `${JSON.stringify(value, null, 2)}\n`;
 
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {

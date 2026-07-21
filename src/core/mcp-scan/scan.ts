@@ -76,8 +76,8 @@ export interface ScanOptions {
   filterServers?: string[];
   /** 每 server 超时(毫秒);默认 10000 */
   timeoutMs?: number;
-  /** fetch 注入(测试);默认全局 fetch */
-  fetchImpl?: typeof fetch;
+  /** fetch 注入(测试);默认钉扎传输 pinned-http */
+  fetchImpl?: import("./client.ts").McpScanFetchImpl;
   /** 同时连接的 server 上限;默认 4,避免串行 timeout 叠加和无界 fan-out。 */
   concurrency?: number;
 }
@@ -171,7 +171,7 @@ async function scanOneServer(
   spec: McpServerSpec,
   baseline: McpScanBaselineMap,
   timeoutMs: number,
-  fetchImpl?: typeof fetch,
+  fetchImpl?: import("./client.ts").McpScanFetchImpl,
 ): Promise<ScanServerResult> {
   let connectResult: ConnectResult;
   try {

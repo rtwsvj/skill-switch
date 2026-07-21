@@ -91,7 +91,7 @@ export async function listSnapshots(store: string): Promise<SnapshotInfo[]> {
  * device nodes have similar surprising semantics. Snapshots are therefore
  * intentionally limited to directories and regular files.
  */
-async function assertSafeArchive(snapshotPath: string): Promise<void> {
+export async function assertSafeArchive(snapshotPath: string): Promise<void> {
   const [{ stdout: names }, { stdout: verbose }] = await Promise.all([
     execFileAsync('tar', ['-tzf', snapshotPath]),
     execFileAsync('tar', ['-tvzf', snapshotPath]),

@@ -4,20 +4,17 @@
 //   sync --plan <file>   读取 plan artifact,校验声明 sha256 未变后执行
 //   两者均与现有 sync / sync --dry-run 行为完全兼容。
 import type { Command } from 'commander';
-import { snapshotAgents } from '../../core/agent-snapshots.ts';
 import { withOperationLock } from '../../core/operation-lock.ts';
 import { resolveHomeRoot } from '../../core/paths.ts';
 import {
-  applySyncUnlocked,
+  applySync,
   getSkillsJsonPath,
   planSync,
-  readAndVerifyPlanArtifact,
   readDeclaration,
   writePlanArtifact,
   type SyncAction,
 } from '../../core/sync.ts';
 import type { SnapshotInfo } from '../../core/backup.ts';
-import type { AgentType } from '../../vendor/vercel-skills/types.ts';
 
 interface SyncCliOptions {
   home?: string;
@@ -36,9 +33,6 @@ interface SyncCliResult {
   actions: SyncAction[];
 }
 
-function changedAgents(actions: SyncAction[]): AgentType[] {
-  return [...new Set(actions.filter((a) => a.kind !== 'noop').map((a) => a.agent))];
-}
 
 function printSyncResult(result: SyncCliResult): void {
   const changed = result.actions.filter((a) => a.kind !== 'noop').length;
@@ -100,15 +94,13 @@ export function registerSyncCommand(program: Command): void {
 
       // P3-D5:--plan 模式:读取 artifact,校验声明 sha256,直接用 artifact 中的 actions 执行
       if (options.plan) {
-        const result = await withOperationLock(home, 'sync', async (): Promise<SyncCliResult> => {
-          const artifact = await readAndVerifyPlanArtifact(options.plan!, declarationPath);
-          const declaration = await readDeclaration(declarationPath);
-          const planned = artifact.actions;
-          const snapshots = await snapshotAgents(home, changedAgents(planned), 'pre-sync');
-          // 已持有 home lock；内部实现会重新 plan，以当前磁盘状态安全应用。
-          const actions = (await applySyncUnlocked(home, declaration)).actions;
+        // 经 core applySync:锁内校验 artifact + WAL journal(崩溃可自动恢复)。
+        const result = await (async (): Promise<SyncCliResult> => {
+          const { actions, snapshots } = await applySync(home, undefined, {
+            verifyPlanArtifactPath: options.plan,
+          });
           return { declarationPath, dryRun: false, snapshots, actions };
-        });
+        })();
 
         if (options.json) console.log(JSON.stringify(result, null, 2));
         else printSyncResult(result);
@@ -122,13 +114,11 @@ export function registerSyncCommand(program: Command): void {
             const actions = await planSync(home, declaration);
             return { declarationPath, dryRun: true, snapshots: [], actions };
           })()
-        : await withOperationLock(home, 'sync', async () => {
-            const declaration = await readDeclaration(declarationPath);
-            const planned = await planSync(home, declaration);
-            const snapshots = await snapshotAgents(home, changedAgents(planned), 'pre-sync');
-            const actions = (await applySyncUnlocked(home, declaration)).actions;
+        : await (async (): Promise<SyncCliResult> => {
+            // 经 core applySync:锁 + WAL journal(崩溃可自动恢复),锁内自读声明。
+            const { actions, snapshots } = await applySync(home);
             return { declarationPath, dryRun: false, snapshots, actions };
-          });
+          })();
 
       if (options.json) console.log(JSON.stringify(result, null, 2));
       else printSyncResult(result);

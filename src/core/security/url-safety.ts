@@ -73,6 +73,11 @@ export function isPrivateNetworkLiteral(hostname: string): boolean {
   if (mapped) return isPrivateIpv4(mapped);
 
   if (host === '::' || host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+  // NAT64 前缀(64:ff9b::/96 与 64:ff9b:1::/48)能把 IPv4 私网映射进 IPv6 形态,
+  // 视为特殊用途一律拒绝(保守:不解出内嵌 v4 再分类)。
+  if (host.startsWith('64:ff9b:') || host === '64:ff9b' || host.startsWith('64:ff9b::')) {
+    return true;
+  }
   const firstWord = Number.parseInt(host.split(':')[0] || '0', 16);
   return (firstWord & 0xfe00) === 0xfc00 || // fc00::/7 unique-local
     (firstWord & 0xffc0) === 0xfe80 || // fe80::/10 link-local
@@ -113,16 +118,16 @@ export class HostResolutionPolicyError extends Error {
 }
 
 /**
- * Resolve a URL hostname immediately before a request and reject non-public answers.
- * `allowLoopback` exists only for the explicitly local HTTP MCP transport.
+ * Resolve a URL hostname and return the vetted address list, rejecting non-public
+ * answers. `allowLoopback` exists only for the explicitly local HTTP MCP transport.
  *
- * This closes ordinary hostname-to-private-IP SSRF. It is not connect-time DNS pinning:
- * a malicious resolver can still rebind between this lookup and the HTTP client's lookup.
+ * pinned-http.ts consumes the returned addresses to pin the actual socket to the
+ * exact answers that passed policy — one lookup, no revalidation window.
  */
-export async function assertResolvedHostPolicy(
+export async function resolveVerifiedAddresses(
   url: URL,
   options: { resolver?: HostResolver; allowLoopback?: boolean } = {},
-): Promise<void> {
+): Promise<readonly ResolvedHostAddress[]> {
   const resolver = options.resolver ?? defaultHostResolver;
   const host = normalizedHostname(url.hostname);
   let addresses: readonly ResolvedHostAddress[];
@@ -137,7 +142,15 @@ export async function assertResolvedHostPolicy(
     throw new HostResolutionPolicyError(`远程主机没有可用地址: ${host}`, 'lookup-failed');
   }
 
-  for (const { address } of addresses) {
+  for (const { address, family } of addresses) {
+    // resolver 答案自检:family 必须与地址字面量一致——防被污染/伪造的解析结果
+    // 以错误 family 绕过按版本分类的策略。
+    if ((family !== 4 && family !== 6) || isIP(address) !== family) {
+      throw new HostResolutionPolicyError(
+        `远程主机解析结果非法(address/family 不一致): ${host}`,
+        'lookup-failed',
+      );
+    }
     if (!isPrivateNetworkLiteral(address)) continue;
     if (options.allowLoopback && isLoopbackHost(address)) continue;
     throw new HostResolutionPolicyError(
@@ -145,6 +158,18 @@ export async function assertResolvedHostPolicy(
       'non-public-address',
     );
   }
+  return addresses;
+}
+
+/**
+ * Policy check without address pinning (legacy call sites). Prefer pinned-http,
+ * which connects to the exact addresses returned by resolveVerifiedAddresses.
+ */
+export async function assertResolvedHostPolicy(
+  url: URL,
+  options: { resolver?: HostResolver; allowLoopback?: boolean } = {},
+): Promise<void> {
+  await resolveVerifiedAddresses(url, options);
 }
 
 /** Resolve a redirect Location header without applying any trust policy. */

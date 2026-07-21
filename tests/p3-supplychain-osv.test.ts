@@ -3,11 +3,12 @@
 // 覆盖范围:
 //   1. parseSkillDependencies — package.json / requirements.txt / Cargo.toml 解析
 //   2. queryOsvBatch — 假 fetch 注入,验证 querybatch 请求格式与结果解析
-//   3. 默认不联网:不传 fetchFn 时 queryOsvBatch 直接抛出(不隐式使用全局 fetch)
+//   3. 默认钉扎传输:不传 fetchFn 时走 pinnedFetch(测试一律注入 mock,零真实网络)
 //   4. 超时兜底:scanSkillOsv 对超时/网络失败的降级处理
 //   5. formatOsvResults — 输出格式
 //
 // 所有测试均在 mkdtempSync 隔离目录下;不发起真实网络请求。
+// mock 返回标准 Response(带 body 流);生产路径走 pinned-http,PinnedResponse 无 json()。
 
 import { mkdtempSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
@@ -21,6 +22,7 @@ import {
   scanSkillOsv,
 } from '../src/core/osv.ts';
 import type { FetchFn, OsvPackageQuery } from '../src/core/osv.ts';
+import type { PinnedFetchInit } from '../src/core/security/pinned-http.ts';
 
 // ─── 辅助 ─────────────────────────────────────────────────────────────────────
 
@@ -32,7 +34,7 @@ beforeEach(() => {
 
 /** 构造一个成功返回指定漏洞列表的假 fetch */
 function makeFakeFetch(vulnsByIndex: Array<Array<{ id: string; summary?: string }>>): FetchFn {
-  return async (_url: string, _init?: RequestInit) => {
+  return async (_url: string, _init?: PinnedFetchInit) => {
     const body = JSON.stringify({
       results: vulnsByIndex.map((vulns) => (vulns.length > 0 ? { vulns } : {})),
     });
@@ -42,7 +44,7 @@ function makeFakeFetch(vulnsByIndex: Array<Array<{ id: string; summary?: string 
 
 /** 构造总是抛出网络错误的假 fetch */
 function makeFailingFetch(message = '网络不可达'): FetchFn {
-  return async (_url: string, _init?: RequestInit) => {
+  return async (_url: string, _init?: PinnedFetchInit) => {
     throw new Error(message);
   };
 }
@@ -192,13 +194,19 @@ describe('queryOsvBatch', () => {
     await expect(queryOsvBatch(packages, makeFailingFetch())).rejects.toThrow(/querybatch 请求失败/);
   });
 
-  it('默认不联网:不传 fetchFn 会导致 TypeScript 类型错误(设计契约验证)', () => {
-    // 运行时验证:queryOsvBatch 要求 fetchFn 必须是函数;
-    // 若传 undefined 则在 JS 中调用时立即报错(设计上不允许隐式联网)。
-    // 这里通过 as unknown as FetchFn 绕过类型检查来验证运行时行为。
-    const undefinedFetch = undefined as unknown as FetchFn;
-    // 调用 queryOsvBatch with packages 会尝试调用 undefinedFetch()
-    return expect(queryOsvBatch(packages, undefinedFetch)).rejects.toThrow();
+  it('注入面:显式 fetchFn 被调用,不依赖全局 fetch', async () => {
+    // D4:默认是 pinnedFetch;测试必须注入 mock 才能零真实网络。
+    // 此处验证显式注入路径仍被使用(请求体/URL 契约由上方用例覆盖)。
+    let capturedUrl = '';
+    let capturedMethod: string | undefined;
+    const spy: FetchFn = async (url, init) => {
+      capturedUrl = url;
+      capturedMethod = init?.method;
+      return new Response(JSON.stringify({ results: [{}, {}] }), { status: 200 });
+    };
+    await queryOsvBatch(packages, spy);
+    expect(capturedUrl).toBe('https://api.osv.dev/v1/querybatch');
+    expect(capturedMethod).toBe('POST');
   });
 });
 

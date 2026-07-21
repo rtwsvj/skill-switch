@@ -210,7 +210,8 @@ export function registerDriftCommand(program: Command): void {
             if (!loc) continue;
             const skillDir = join(resolveGlobalSkillsDir(home, loc), e.name);
             // eslint-disable-next-line no-await-in-loop
-            const result = await scanSkillOsv(skillDir, fetch);
+            // 默认 pinnedFetch(连接时 DNS 钉扎);POST 单地址不重放
+            const result = await scanSkillOsv(skillDir);
             osvResults.push(result);
           }
           const lines = formatOsvResults(osvResults);

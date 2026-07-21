@@ -93,7 +93,8 @@ describe('registry install: dry-run 不写盘', () => {
     const fileUrl = await makeLocalSkillRepo();
     const home = tmpDir('ss-reg-home-');
 
-    // mock 全局 fetch:registry search 阶段返回一条条目(installHint 指向本地 file:// 仓库)。
+    // mock 钉扎出口(生产默认 pinnedFetch,不再走 globalThis.fetch):
+    // registry search 阶段返回一条条目(installHint 指向本地 file:// 仓库)。
     const mcpBody = {
       servers: [
         {
@@ -109,8 +110,8 @@ describe('registry install: dry-run 不写盘', () => {
     const fetchStub = vi.fn(async () =>
       new Response(JSON.stringify(mcpBody), { status: 200, headers: { 'content-type': 'application/json' } }),
     );
-    const origFetch = globalThis.fetch;
-    globalThis.fetch = fetchStub as never;
+    const pinned = await import('../src/core/security/pinned-http.ts');
+    const pinnedSpy = vi.spyOn(pinned, 'pinnedFetch').mockImplementation(fetchStub as never);
     const logs: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((...a) => logs.push(a.join(' ')));
 
@@ -121,7 +122,7 @@ describe('registry install: dry-run 不写盘', () => {
         { from: 'user' },
       );
     } finally {
-      globalThis.fetch = origFetch;
+      pinnedSpy.mockRestore();
     }
 
     // 没写声明 / 没建 .skill-switch
@@ -180,6 +181,62 @@ describe('registry: ⑥ 零真实网络哨兵 + 源码静态检查', () => {
       expect(src, file).not.toMatch(/from ['"]node:(http|https|net|dns|tls|child_process)['"]/);
       expect(src, file).not.toMatch(/require\(['"]node:(http|https|net|dns|tls|child_process)['"]\)/);
     }
+    // 唯一网络出口是 pinned-http(import 钉扎传输,不直接持 socket)
+    const fetchSrc = await readFile(join(root, 'fetch.ts'), 'utf8');
+    expect(fetchSrc).toMatch(/from ['"]\.\.\/security\/pinned-http\.ts['"]/);
+    expect(fetchSrc).toMatch(/\bpinnedFetch\b/);
+  });
+
+  it('src 全域(除 security/pinned-http.ts)不得以任何形态引入 node:http(s);裸 fetch 出站只允许显式例外清单', async () => {
+    const { readdir } = await import('node:fs/promises');
+    const srcRoot = join(import.meta.dirname, '..', 'src');
+    const pinnedHttp = join(srcRoot, 'core', 'security', 'pinned-http.ts');
+    // 未钉扎的裸 fetch 出站例外清单(known-limitations 同步记载;下批迁移目标)。
+    // 新增任何清单外的 fetch 出站文件 = 本哨兵失败。
+    // D4 后第一方出站已全部钉扎;唯一例外是 vendored 且当前无调用方的 isRepoPrivate。
+    const BARE_FETCH_ALLOWLIST = new Set([
+      'src/vendor/vercel-skills/source-parser.ts', // vendored;isRepoPrivate 当前无调用方
+    ]);
+    const stack = [srcRoot];
+    const offenders: string[] = [];
+    const fetchOffenders: string[] = [];
+    while (stack.length > 0) {
+      const dir = stack.pop()!;
+      for (const ent of await readdir(dir, { withFileTypes: true })) {
+        const full = join(dir, ent.name);
+        if (ent.isDirectory()) {
+          stack.push(full);
+          continue;
+        }
+        if (!ent.name.endsWith('.ts')) continue;
+        if (full === pinnedHttp) continue;
+        const src = await readFile(full, 'utf8');
+        const rel = full.replace(`${srcRoot}/`, 'src/');
+        // 静态 from-import / 副作用 import / 动态 import() / require 四种形态全拦。
+        if (
+          /from ['"]node:(http|https)['"]/.test(src) ||
+          /import ['"]node:(http|https)['"]/.test(src) ||
+          /import\(\s*['"]node:(http|https)['"]\s*\)/.test(src) ||
+          /require\(['"]node:(http|https)['"]\)/.test(src)
+        ) {
+          offenders.push(rel);
+        }
+        // 裸 fetch 出站(全局 fetch/globalThis.fetch):清单外新增即失败。
+        // 裸 fetch 出站的两种形态:直接引用 globalThis.fetch,或把全局 fetch 当
+        // 默认实现(`?? fetch` / `= fetch`)。清单外命中即失败。
+        if (
+          !BARE_FETCH_ALLOWLIST.has(rel) &&
+          (/globalThis\.fetch/u.test(src) || /\?\?\s*fetch\b/u.test(src) || /=\s*fetch\b/u.test(src))
+        ) {
+          fetchOffenders.push(rel);
+        }
+      }
+    }
+    expect(offenders, `非 pinned-http 模块不得引入 node:http(s): ${offenders.join(', ')}`).toEqual([]);
+    expect(
+      fetchOffenders,
+      `清单外出现裸 fetch 出站(应迁 pinned-http 或加入例外清单并记录): ${fetchOffenders.join(', ')}`,
+    ).toEqual([]);
   });
 
   it('registry 取数层不带 import.meta.url(SEA 安全)', async () => {

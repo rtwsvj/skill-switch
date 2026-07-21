@@ -2,13 +2,30 @@
 
 ## Operational and Trust Boundaries
 
-- **No cross-file crash transaction.** Per-home locking prevents lost updates between
-  cooperating skill-switch processes, state files use durable atomic replacement, and
-  tested exceptions trigger compensation. A `SIGKILL`, power loss, direct third-party
-  edit, or filesystem failure between multiple authority-bearing writes can still leave
-  `skills.json`, `skills.lock.json`, `store/`, and agent directories inconsistent. Run
-  `doctor` and `lock --verify` after abnormal termination. A write-ahead journal or
-  versioned full-state bundle is still required for automatic crash recovery.
+- **DNS pinning covers all first-party egress.** Registry, mcp-scan, `add` npm
+  resolution/preview, and opt-in `drift --osv` resolve once, validate, and pin the
+  socket to the vetted answers (`src/core/security/pinned-http.ts`). The sole remaining
+  bare-fetch exception is the vendored `isRepoPrivate` in
+  `src/vendor/vercel-skills/source-parser.ts`, which currently has no caller. The egress
+  sentinel test enumerates this exception explicitly and fails on any new bare-fetch
+  call site.
+
+- **Crash recovery is process-level and journal-enabled per operation.** A write-ahead
+  intent journal gives journal-enabled mutations (`install`, `toggle`, `remove`, CLI
+  `sync`) automatic rollback/roll-forward on the next locked write after a `SIGKILL`/OOM
+  kill; `doctor` reports pending/corrupt journals and `doctor --fix` can recover a
+  pending one immediately. Boundaries: power loss is not promised (snapshot tars and
+  directory copies are not fsynced end to end); **write paths not yet journal-enabled**
+  are `import --apply`, `init`, `apm-import --apply`, and `drift` approval writes — they
+  still hold the home lock (and thus benefit from lock-time auto-recovery of *other*
+  interrupted journaled ops) but a crash mid-operation of their own cannot be rolled
+  back from a journal. Direct third-party edits and filesystem failures can still leave
+  `skills.json`, `skills.lock.json`, `store/`, and agent directories inconsistent — run
+  `doctor` and `lock --verify` after abnormal termination. Recovery refuses (and defers
+  to `doctor`) when the journal is corrupted, references missing/unsafe snapshots, or a
+  managed root has been replaced by a symlink; snapshots of roots containing
+  symlink-mode skills cannot be restored by the tar-based safety contract and are
+  likewise refused.
 - **Snapshots are scoped, not full-home checkpoints.** Agent directory snapshots do not
   necessarily contain every file under `.skill-switch`. Restore rejects archive links
   and special members; this intentionally means a legacy snapshot containing symlinks

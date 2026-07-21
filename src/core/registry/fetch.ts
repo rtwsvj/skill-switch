@@ -11,13 +11,18 @@
 //   5. 限时:请求超时即 abort。
 //   6. 校验 content-type:必须含 json,否则拒绝(防把 HTML 错误页当数据解析)。
 //
-// 零新依赖:用 Node 内置 `fetch` + `JSON.parse`。fetchImpl 可注入,测试全程 mock,零真实网络。
+// 传输:默认走 pinned-http(连接时 DNS 钉扎,闭合 rebinding)。fetchImpl 可注入,测试全程 mock,
+// 零真实网络。hostResolver 仅在未注入 fetchImpl 时经 createPinnedFetch 透传(测试路径)。
 // 本文件不引用模块 URL 元数据(那会崩 SEA),也不 import node:http(s)/net(由测试哨兵把关)。
 
 import { redactUrlUserinfo, sanitizeOutputText } from '../security/output-safety.ts';
 import {
-  assertResolvedHostPolicy,
-  defaultHostResolver,
+  createPinnedFetch,
+  pinnedFetch,
+  type PinnedFetchInit,
+  type PinnedResponse,
+} from '../security/pinned-http.ts';
+import {
   hasUrlCredentials,
   HostResolutionPolicyError,
   type HostResolver,
@@ -33,9 +38,24 @@ export const DEFAULT_TIMEOUT_MS = 10_000;
 /** 默认响应体大小上限(字节);超限即中止。 */
 export const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MiB
 
+/**
+ * 可注入的 fetch 形状:PinnedResponse 是 Response 的受控子集(无 text()/json())。
+ * 测试注入的假 fetch 返回标准 Response(超集)必须继续可用。
+ */
+export type RegistryFetchImpl = (
+  url: string,
+  init?: PinnedFetchInit,
+) => Promise<PinnedResponse | Response>;
+
+/** 响应体读取面:只依赖 headers + body 流(PinnedResponse 无 text()/json())。 */
+type ReadableBodyResponse = {
+  headers: { get(name: string): string | null };
+  body: ReadableStream<Uint8Array> | null;
+};
+
 export interface FetchJsonOptions {
-  /** 注入 fetch(测试用);默认全局 fetch。 */
-  fetchImpl?: typeof fetch;
+  /** 注入 fetch(测试用);默认 pinnedFetch(连接时 DNS 钉扎)。 */
+  fetchImpl?: RegistryFetchImpl;
   /** 请求超时(毫秒)。 */
   timeoutMs?: number;
   /** 响应体大小上限(字节)。 */
@@ -46,7 +66,10 @@ export interface FetchJsonOptions {
    * 且只发往本次请求的 HTTPS 目标。缺省(绝大多数源)不带任何 authorization。
    */
   bearerToken?: string;
-  /** DNS resolver injection for tests; production defaults to node:dns lookup(all=true). */
+  /**
+   * DNS resolver 注入(测试)。仅在未注入 fetchImpl 时生效:经 createPinnedFetch
+   * 构造一次性钉扎实例;生产不传,走模块级 pinnedFetch 默认 resolver。
+   */
   hostResolver?: HostResolver;
 }
 
@@ -102,11 +125,24 @@ function isJsonContentType(contentType: string | null): boolean {
 }
 
 /**
+ * 解析出本次使用的 fetch 实现:
+ *   - 显式 fetchImpl → 原样用(测试 mock)
+ *   - 仅 hostResolver → createPinnedFetch 一次性实例(测试 DNS 路径)
+ *   - 都无 → 模块级 pinnedFetch(生产)
+ */
+function resolveFetchImpl(opts: FetchJsonOptions): RegistryFetchImpl {
+  if (opts.fetchImpl) return opts.fetchImpl;
+  if (opts.hostResolver) return createPinnedFetch({ resolver: opts.hostResolver });
+  return pinnedFetch;
+}
+
+/**
  * 只读、HTTPS-only、限时、限大小、零遥测地取一个 JSON 文档。
  *
  * - 拒绝 http://;校验响应 content-type 含 json;
  * - 流式读取响应体并在超过 maxBytes 时立即 abort(不把超大响应读进内存);
  * - 超时 abort;非 2xx / 非 JSON / 解析失败都抛带 code 的 RegistryFetchError。
+ * - 默认经 pinnedFetch 出站:策略校验与连接共用一次 DNS,地址钉扎进 socket。
  *
  * 绝不带凭据、不带自定义 user-agent / 指纹。
  */
@@ -116,10 +152,9 @@ export async function fetchJson<T = unknown>(
 ): Promise<T> {
   const url = assertHttpsUrl(rawUrl);
   const initialUrlForDisplay = sanitizeOutputText(redactUrlUserinfo(rawUrl));
-  const fetchImpl = opts.fetchImpl ?? fetch;
+  const fetchImpl = resolveFetchImpl(opts);
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
-  const hostResolver = opts.hostResolver ?? defaultHostResolver;
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new RegistryFetchError('请求超时', 'timeout')), timeoutMs);
@@ -132,11 +167,18 @@ export async function fetchJson<T = unknown>(
 
     let currentUrl = url;
     let redirectsFollowed = 0;
-    let res: Response;
+    let res: PinnedResponse | Response;
     for (;;) {
       try {
-        await assertResolvedHostPolicy(currentUrl, { resolver: hostResolver });
+        res = await fetchImpl(currentUrl.toString(), {
+          signal: ctrl.signal,
+          headers,
+          redirect: 'manual',
+          // 永不带 cookie 凭据(即便目标同源也不附 cookie);authorization 仅在上面显式附加。
+          credentials: 'omit',
+        });
       } catch (error) {
+        // pinnedFetch 内策略校验失败:映射为取数层稳定 code(不再在循环外单独 resolve)。
         if (error instanceof HostResolutionPolicyError) {
           throw new RegistryFetchError(
             error.message,
@@ -145,13 +187,6 @@ export async function fetchJson<T = unknown>(
         }
         throw error;
       }
-      res = await fetchImpl(currentUrl.toString(), {
-        signal: ctrl.signal,
-        headers,
-        redirect: 'manual',
-        // 永不带 cookie 凭据(即便目标同源也不附 cookie);authorization 仅在上面显式附加。
-        credentials: 'omit',
-      });
 
       if (!isRedirectStatus(res.status)) break;
       const location = res.headers.get('location');
@@ -209,10 +244,10 @@ export async function fetchJson<T = unknown>(
 }
 
 /**
- * 读响应体但设字节上限:能流式读就流式累加(超限立刻中止,绝不把超大响应读进内存);
- * 拿不到 reader 的实现(如简易 mock)退化为先读文本再按字节长度校验。
+ * 读响应体但设字节上限:一律经 body 流累加(超限立刻中止,绝不把超大响应读进内存)。
+ * 不提供 res.text() 退化路径——PinnedResponse 无 text(),且无上限整体读取是 DoS 面。
  */
-async function readBodyCapped(res: Response, maxBytes: number, rawUrl: string): Promise<string> {
+async function readBodyCapped(res: ReadableBodyResponse, maxBytes: number, rawUrl: string): Promise<string> {
   // 优先用 Content-Length 提前拒绝(若服务器诚实地给了长度)。
   const declared = Number(res.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > maxBytes) {
@@ -220,36 +255,31 @@ async function readBodyCapped(res: Response, maxBytes: number, rawUrl: string): 
   }
 
   const body = res.body;
-  if (body && typeof body.getReader === 'function') {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let received = 0;
-    let out = '';
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          received += value.byteLength;
-          if (received > maxBytes) {
-            await reader.cancel().catch(() => {});
-            throw new RegistryFetchError(`响应体超过上限 ${maxBytes} 字节,已中止:${rawUrl}`, 'too-large');
-          }
-          out += decoder.decode(value, { stream: true });
-        }
-      }
-      out += decoder.decode();
-      return out;
-    } finally {
-      reader.releaseLock?.();
-    }
+  if (!body || typeof body.getReader !== 'function') {
+    // 无流:视为空正文(PinnedResponse/标准 Response 正常路径都有 body 流)。
+    return '';
   }
 
-  // 没有可流式读的 body(mock / 旧实现):退化为先读文本再校验字节长度。
-  const text = await res.text();
-  const bytes = new TextEncoder().encode(text).byteLength;
-  if (bytes > maxBytes) {
-    throw new RegistryFetchError(`响应体过大(${bytes} > 上限 ${maxBytes} 字节):${rawUrl}`, 'too-large');
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let out = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        received += value.byteLength;
+        if (received > maxBytes) {
+          await reader.cancel().catch(() => {});
+          throw new RegistryFetchError(`响应体超过上限 ${maxBytes} 字节,已中止:${rawUrl}`, 'too-large');
+        }
+        out += decoder.decode(value, { stream: true });
+      }
+    }
+    out += decoder.decode();
+    return out;
+  } finally {
+    reader.releaseLock?.();
   }
-  return text;
 }
