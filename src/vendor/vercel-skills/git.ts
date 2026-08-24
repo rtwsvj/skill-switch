@@ -100,16 +100,53 @@ function isAuthFailure(message: string): boolean {
   );
 }
 
-function createGitClient(extraEnv?: NodeJS.ProcessEnv) {
+// simple-git 3.3x 的 @simple-git/argv-parser 守卫按「小写名」检查一批环境变量
+// (editor/git_editor/pager/git_pager/git_askpass/ssh_askpass/git_ssh(_command)/
+// git_config*/prefix 等),命中即抛
+//   Use of "X" is not permitted without enabling allowUnsafeXxx
+// 开发者终端、agent 运行时、以及 npm/npx(注入默认 EDITOR=vi)普遍携带这些变量;
+// 克隆是非交互操作全部用不到,统一剥离。守卫表来源:
+// @simple-git/argv-parser@1.1.1 src/env/parse-env.ts(GitEnvKeys)。
+const GUARDED_ENV_KEYS: Record<string, true> = {
+  editor: true,
+  git_editor: true,
+  git_sequence_editor: true,
+  pager: true,
+  git_pager: true,
+  visual: true,
+  git_askpass: true,
+  ssh_askpass: true,
+  git_ssh: true,
+  git_ssh_command: true,
+  git_proxy_command: true,
+  git_exec_path: true,
+  git_external_diff: true,
+  git_template_dir: true,
+  prefix: true,
+  git_config: true,
+  git_config_global: true,
+  git_config_system: true,
+};
+
+/** 剥离会触发 simple-git 守卫的环境变量(大小写不敏感,含 git_config_* 通配)。导出仅供测试。 */
+export function stripGuardedEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  for (const key of Object.keys(env)) {
+    const lower = key.toLowerCase();
+    if (GUARDED_ENV_KEYS[lower] === true || lower.startsWith('git_config_')) {
+      delete env[key];
+    }
+  }
+  return env;
+}
+
+function createGitClient(sshCommand?: string) {
   // [skill-switch 本地改动 ×2] 上游锁 simple-git ^3.27;本仓库用 3.36:
   // 1) `env` 不再是构造选项 → 下移为链式 .env(...)(语义等价);
   // 2) 3.3x 给 filter.* config 加了安全守卫,会在调用 git 前抛
   //    "Configuring filter.smudge is not permitted without enabling allowUnsafeFilter"。
   //    下面的 filter.lfs.* 是上游有意传入的 LFS 规避配置,故显式放行;
   //    typings 未暴露 unsafe 选项,经 Parameters<> 断言传入。见 UPSTREAM.md。
-  const options = {
-    timeout: { block: CLONE_TIMEOUT_MS },
-    unsafe: { allowUnsafeFilter: true },
+  const config = [
     // When git-lfs is NOT installed, GIT_LFS_SKIP_SMUDGE has no effect —
     // git sees `filter=lfs` in .gitattributes, tries to run
     // `git-lfs filter-process`, and aborts the checkout with:
@@ -123,29 +160,28 @@ function createGitClient(extraEnv?: NodeJS.ProcessEnv) {
     // (skills are plain text — HTML/MD/JSON — never LFS-tracked).
     //
     // Reported downstream: heygen-com/hyperframes#407.
-    config: [
-      'filter.lfs.required=false',
-      'filter.lfs.smudge=',
-      'filter.lfs.clean=',
-      'filter.lfs.process=',
-    ],
+    'filter.lfs.required=false',
+    'filter.lfs.smudge=',
+    'filter.lfs.clean=',
+    'filter.lfs.process=',
+  ];
+  if (sshCommand !== undefined) {
+    // SSH 回退经 -c core.sshCommand 注入而非 GIT_SSH_COMMAND 环境变量:
+    // 后者同样在守卫表里会被剥离;-c 的命令行优先级高于环境变量且不受守卫检查。
+    config.push(`core.sshCommand=${sshCommand}`);
+  }
+  const options = {
+    timeout: { block: CLONE_TIMEOUT_MS },
+    unsafe: { allowUnsafeFilter: true },
+    config,
   };
-  const env: NodeJS.ProcessEnv = {
+  const env = stripGuardedEnv({
     ...process.env,
     GIT_TERMINAL_PROMPT: '0',
     // When git-lfs IS installed, tell it not to download LFS content
     // during checkout. See #952 for context and empirical impact.
     GIT_LFS_SKIP_SMUDGE: '1',
-    ...extraEnv,
-  };
-  // [skill-switch 本地改动] simple-git 3.3x 安全守卫不允许向子进程传 GIT_EDITOR
-  // 等编辑器变量或 PAGER/GIT_PAGER 分页器变量(宿主环境如 Claude Code 会注入)。
-  // 克隆是非交互操作用不到这些交互变量,剥离即可。
-  delete env.GIT_EDITOR;
-  delete env.GIT_SEQUENCE_EDITOR;
-  delete env.VISUAL;
-  delete env.PAGER;
-  delete env.GIT_PAGER;
+  });
   return simpleGit(options as Parameters<typeof simpleGit>[0]).env(env);
 }
 
@@ -247,9 +283,9 @@ export async function cloneRepo(url: string, ref?: string): Promise<string> {
 
       try {
         await resetTempDir(tempDir);
-        await createGitClient({
-          GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes',
-        }).clone(repo.sshUrl, tempDir, cloneOptions);
+        await createGitClient(
+          process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes',
+        ).clone(repo.sshUrl, tempDir, cloneOptions);
         return tempDir;
       } catch {
         // Fall through to the targeted auth error below.

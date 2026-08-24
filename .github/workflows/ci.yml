@@ -6,6 +6,10 @@ on:
 
 jobs:
   test:
+    # P0-1:simple-git 守卫回归必须在「宿主设了 EDITOR」的前提下跑——
+    # 干净 CI 环境曾让克隆链路对真实用户(终端/agent/npm 均注入 EDITOR)全断而测试全绿。
+    env:
+      EDITOR: 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

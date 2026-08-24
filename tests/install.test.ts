@@ -21,6 +21,9 @@ let evilRepo: string; // 含 1 个反向 shell skill 的 git 仓
 let localSource: string; // 非 git 的本地目录源
 const originalPager = process.env.PAGER;
 const originalGitPager = process.env.GIT_PAGER;
+// P0-1:除 pager 外,simple-git 守卫表其余常见宿主变量也要在克隆路径下被忽略。
+const hostileKeys = ['EDITOR', 'VISUAL', 'GIT_ASKPASS', 'SSH_ASKPASS', 'GIT_SSH_COMMAND'] as const;
+const originalHostile = Object.fromEntries(hostileKeys.map((k) => [k, process.env[k]]));
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync('git', ['-C', cwd, '-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
@@ -65,6 +68,12 @@ afterEach(() => {
 
   if (originalGitPager === undefined) delete process.env.GIT_PAGER;
   else process.env.GIT_PAGER = originalGitPager;
+
+  for (const key of hostileKeys) {
+    const value = originalHostile[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
 });
 
 function freshHome(): string {
@@ -97,9 +106,15 @@ describe('core/install', () => {
     expect(installed).toContain('tidy-notes');
   });
 
-  it('F4: install ignores host pager env vars when cloning', async () => {
+  it('F4: install ignores host pager/editor env vars when cloning', async () => {
     process.env.PAGER = 'less';
     process.env.GIT_PAGER = 'less';
+    // P0-1:裸 EDITOR 曾因剥离清单不全触发 simple-git 守卫,克隆全断。
+    process.env.EDITOR = 'true';
+    process.env.VISUAL = 'true';
+    process.env.GIT_ASKPASS = '/hostile/askpass';
+    process.env.SSH_ASKPASS = '/hostile/askpass';
+    process.env.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes';
 
     const home = freshHome();
     const result = await installFromSource(`file://${goodRepo}`, {

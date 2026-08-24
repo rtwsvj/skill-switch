@@ -25,7 +25,17 @@ S3.2 采用**方案 A(最小 vendor)**:只取 git/source-parser/local-lock 三�
   1. 默认导入 `import simpleGit from 'simple-git'` → 具名导入(tsc 不认 CJS 默认导出可调用)。
   2. `simpleGit({ …, env })` 的 `env` 选项 → 链式 `.env({…})`(3.36 的 SimpleGitOptions 不含 env)。
   3. 加 `unsafe: { allowUnsafeFilter: true }`:simple-git 3.3x 给 `filter.*` config 加了安全守卫,会拦下上游有意传入的 LFS 规避配置;typings 未暴露该选项,经 `Parameters<typeof simpleGit>[0]` 断言。
-  4. 传给子进程的 env 剥离 `GIT_EDITOR`/`GIT_SEQUENCE_EDITOR`/`VISUAL` 以及 `PAGER`/`GIT_PAGER`:3.3x 守卫不允许编辑器与分页器变量(宿主如 Claude Code/RTK 会注入),克隆非交互用不到。
+  4. 传给子进程的 env 剥离 simple-git 3.3x 守卫表(`@simple-git/argv-parser@1.1.1`
+     `src/env/parse-env.ts` 的 `GitEnvKeys`)命中的全部变量:`EDITOR`/`GIT_EDITOR`/
+     `GIT_SEQUENCE_EDITOR`/`VISUAL`、`PAGER`/`GIT_PAGER`、`GIT_ASKPASS`/`SSH_ASKPASS`、
+     `GIT_SSH`/`GIT_SSH_COMMAND`、`GIT_PROXY_COMMAND`/`GIT_EXEC_PATH`/
+     `GIT_EXTERNAL_DIFF`/`GIT_TEMPLATE_DIR`/`PREFIX`、`GIT_CONFIG*`(大小写不敏感)。
+     守卫命中即抛 "Use of X is not permitted without enabling allowUnsafeXxx";
+     宿主(开发者终端/agent 运行时/npm·npx 注入的默认 EDITOR=vi)普遍携带这些变量,
+     克隆非交互全部用不到。2026-08 前仅剥离其中 5 个,漏掉的裸 `EDITOR` 曾使
+     add/install/registry/drift 的克隆在常见宿主上全数失败(回归:
+     tests/vendor-git-guarded-env.test.ts)。SSH 回退的 ssh command 改经
+     `-c core.sshCommand`(命令行优先级高于环境变量且不受守卫检查)。
 - `source-parser.ts` 一处(A1 对抗性加固,文件内就地注释):`parseSource` 对含 `..` 的不安全 subpath 不再向调用方抛异常,而是安全降级为无 subpath;`sanitizeSubpath` 直接调用仍保留原始 throwing contract。
 - 其余文件:逐字节快照。
 
