@@ -19,7 +19,7 @@ Or drop the [GitHub Action](docs/github-action.md) into CI to audit every PR and
 
 On top of auditing, it's also a **cross-agent skill governance layer**: inventory, toggle, install, sync, and restore. A per-home lock serializes cooperating writers, important agent directories are snapshotted, and known failures are compensated. Snapshots are not cross-filesystem ACID transactions and do not include every `.skill-switch` state file. The CLI is the complete interface; the native macOS GUI exposes a common subset.
 
-> Repository version: **v0.9.0**. The verifiable delivery paths are the Node.js 20+ npm/npx CLI, the source CLI, and a locally built unsigned SwiftUI app on macOS 14+. The tag workflow uploads an unsigned `.app.zip` preview. A signed/notarized DMG exists only when a maintainer actually produces and uploads one. Homebrew, Scoop, MSI, AppImage, and deb channels remain planned.
+> The current version lives in [package.json](package.json) and [Releases](https://github.com/rtwsvj/skill-switch/releases). The verifiable delivery paths are the Node.js 20+ npm/npx CLI, the source CLI, and a locally built unsigned SwiftUI app on macOS 14+. The tag workflow uploads an unsigned `.app.zip` preview. A signed/notarized DMG exists only when a maintainer actually produces and uploads one. Homebrew, Scoop, MSI, AppImage, and deb channels remain planned.
 
 ![demo](assets/demo.svg)
 
@@ -58,6 +58,14 @@ npx @rtwsvj/skill-switch audit --configs
 ```
 
 The npm package supports the `skill-switch` executable, not a package-root Node library import. See [distribution](docs/distribution.md) for source builds and for the difference between unsigned and maintainer-signed artifacts. Do not infer that a signed DMG exists from the version number alone.
+
+## Positioning vs. similar projects
+
+This space has several active security scanners: [snyk/agent-scan](https://github.com/snyk/agent-scan) (formerly Invariant Labs' mcp-scan; relies on the Snyk cloud API), [NVIDIA/SkillSpector](https://github.com/NVIDIA/SkillSpector) (70 patterns + optional LLM analysis), and [cisco-ai-defense/skill-scanner](https://github.com/cisco-ai-defense/skill-scanner) (YARA + AST + LLM-as-judge). They are excellent scanners; skill-switch differentiates not on rule count but on three points:
+
+1. **Fully local, zero egress, never executes what it scans**: auditing runs with zero network and zero subprocess execution of skill content (the only network access is an explicit `install`/`registry` fetch of that one repository, always audited before it lands); no cloud tokens or API keys required.
+2. **Single binary, no Python toolchain**: works via `npx` (Node 20+); the macOS app bundles a self-contained CLI sidecar.
+3. **Governance, not just scanning**: scanning is one part of an install gate — cross-agent inventory/toggle/sync, lockfile content hashes, three-way reconciliation (`doctor`), pre-change snapshots and rollback, and a bypass ledger for forced installs — a complete loop for safely installing skills written by someone else.
 
 ### What the native app does
 

@@ -19,7 +19,7 @@ npx @rtwsvj/skill-switch audit --configs  # 连 ~/.claude、MCP 等 agent 配置
 
 在审计之上,它还是个**跨 agent 的 skill 治理层**:盘点 / 开关 / 安装 / 同步 / 还原。写命令由 home 级互斥锁串行化,重要目录在变更前快照,失败时尽力补偿;但快照不是跨文件系统 ACID 事务,也不覆盖每个 `.skill-switch` 状态文件。GUI 是 CLI 的常用操作子集,完整能力和机器可读输出以 CLI 为准。
 
-> 仓库版本:**v0.9.0**。当前可验证的交付路径是 Node.js 20+ 的 npm/npx CLI、源码 CLI，以及 macOS 14+ 上本机构建的未签名 SwiftUI App。tag workflow 上传未签名 `.app.zip` 预览产物；签名公证 DMG 只有在维护者实际执行并上传后才存在。Homebrew、Scoop、MSI、AppImage 和 deb 仍为 planned。
+> 当前版本以 [package.json](package.json) / [Releases](https://github.com/rtwsvj/skill-switch/releases) 为准。当前可验证的交付路径是 Node.js 20+ 的 npm/npx CLI、源码 CLI，以及 macOS 14+ 上本机构建的未签名 SwiftUI App。tag workflow 上传未签名 `.app.zip` 预览产物；签名公证 DMG 只有在维护者实际执行并上传后才存在。Homebrew、Scoop、MSI、AppImage 和 deb 仍为 planned。
 
 ![demo](assets/demo.svg)
 
@@ -48,6 +48,14 @@ npx @rtwsvj/skill-switch audit --configs
 ```
 
 npm 包只承诺 `skill-switch` 命令入口,不承诺 `import '@rtwsvj/skill-switch'` 的 Node 库 API。macOS App 的源码构建、未签名与签名产物区别见 [分发指南](docs/distribution.md)。不要仅凭版本号假定某个 Release 已附签名 DMG。
+
+## 定位与同类项目
+
+这个赛道已有多个活跃的安全扫描器:[snyk/agent-scan](https://github.com/snyk/agent-scan)(原 Invariant Labs mcp-scan,依赖 Snyk 云 API)、[NVIDIA/SkillSpector](https://github.com/NVIDIA/SkillSpector)(70 模式 + 可选 LLM 分析)、[cisco-ai-defense/skill-scanner](https://github.com/cisco-ai-defense/skill-scanner)(YARA + AST + LLM-as-judge)。它们都是优秀的扫描器;skill-switch 的差异化不在拼规则数量,而在三点:
+
+1. **纯本地、零外联、绝不执行被扫对象**:审计全程零网络、零子进程执行 skill 内容(唯一联网是显式 `install`/`registry` 拉取那一个仓库,且装前必审);不要求任何云 token 或 API key。
+2. **单二进制、免 Python 环境**:`npx` 即用(Node 20+),macOS App 内置自包含 CLI sidecar,不需要装 Python 工具链。
+3. **治理面,不只是扫描**:扫描只是安装门禁的一环——跨工具的盘点/开关/同步、lockfile 内容哈希、三方对账(`doctor`)、装前快照与回滚、绕过留痕(`--force` 进 bypass ledger),构成完整的"放心装别人写的 skill"闭环。
 
 ## GUI 全部能力
 

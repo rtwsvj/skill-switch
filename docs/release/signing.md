@@ -8,7 +8,7 @@
 
 | 要素 | 状态 |
 |---|---|
-| Developer ID 证书 | ✅ `Developer ID Application: Fengyin Zhang (8QQ823QM99)`(Team ID `8QQ823QM99`) |
+| Developer ID 证书 | ✅ `Developer ID Application: <维护者姓名> (8QQ823QM99)`(Team ID `8QQ823QM99`;姓名不写入本公开文档,以 `security find-identity` 实际输出为准) |
 | notarytool keychain profile | ✅ `skill-switch-notary`(已配置) |
 | Xcode 命令行工具 | ✅ `/Library/Developer/CommandLineTools` |
 
@@ -18,7 +18,7 @@
 
 ```bash
 cd macos
-APPLE_SIGNING_IDENTITY="Developer ID Application: Fengyin Zhang (8QQ823QM99)" \
+APPLE_SIGNING_IDENTITY="Developer ID Application: <维护者姓名> (8QQ823QM99)" \
   ./sign-notarize.sh
 ```
 

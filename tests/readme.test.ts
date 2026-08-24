@@ -63,8 +63,10 @@ describe('README', () => {
     ]) {
       expect(readme).toContain(required);
     }
-    // 版本号必须存在，但文档不得把并未由 workflow 生成的渠道写成已发布。
-    expect(readme).toMatch(/仓库版本:\*\*v\d+\.\d+\.\d+\*\*/);
+    // 版本事实源是 package.json/Releases——README 不得硬编码会过期的版本号
+    //(2026-08 前 "仓库版本:**v0.9.0**" 在 v0.10.0 发布后过期一整个版本)。
+    expect(readme).toContain('当前版本以 [package.json](package.json)');
+    expect(readme).not.toMatch(/仓库版本:\*\*v\d+\.\d+\.\d+\*\*/);
     expect(readme).toContain('未签名 `.app.zip` 预览产物');
     expect(readme).toContain('Homebrew / Scoop / MSI / AppImage / deb');
     expect(readme).not.toMatch(/skill-switch_\d+\.\d+\.\d+_aarch64\.dmg/);
