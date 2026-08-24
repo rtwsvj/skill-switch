@@ -10,14 +10,15 @@
 |---|---|---|
 | `src/core/conflict-detector.ts` | `conflict-detector.ts`(456 行) | 矛盾指令 + 主题重叠启发式检测(S5 触发健康度) |
 | `src/core/context-budget.ts` | `context-budget.ts`(394 行) | token 估算 + 预算内组合选择(S5) |
-| `src/core/skill-lock.ts` | `skill-lock.ts`(222 行) | LockEntry 设计参考:git 来源的 version 即 commit SHA(S3 合并入 skills.lock schema) |
 
 上游文件原为零相对导入。本地安全补丁将两个 `gray-matter` 调用改为
 `src/core/frontmatter.ts` 的受限 YAML 1.2 解析器；刷新上游快照时必须保留此补丁。
 
 ## 本地改动
 
-无(逐字节快照)。
+- 2026-08:删除 `skill-lock.ts` 快照。其唯一用途是 S3 lock schema 的"commit 即
+  version"设计参考,该 schema 已落地于 `src/core/lock.ts`;快照零生产消费者,
+  原文件可从本仓库 git 历史(commit `2dbf07b`)或上游找回。
 
 ## 注意
 

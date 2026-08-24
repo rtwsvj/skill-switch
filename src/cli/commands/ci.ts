@@ -23,7 +23,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { Command } from 'commander';
-import { auditSkillDir } from './audit.ts';
+import { auditSkillDir } from '../../core/audit/service.ts';
 import { buildBaselineFile, writeBaselineFile } from '../../core/audit/baseline.ts';
 
 /** 默认 workflow 输出路径(相对 cwd) */

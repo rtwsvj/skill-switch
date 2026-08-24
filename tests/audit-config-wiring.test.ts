@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { auditConfigFiles, flattenConfigFindings } from '../src/core/audit/config-discovery.ts';
-import { auditHome } from '../src/cli/commands/audit.ts';
+import { auditHome } from '../src/core/audit/service.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const CLI = join(ROOT, 'src', 'cli', 'index.ts');

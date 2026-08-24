@@ -25,7 +25,7 @@ import {
   filterBySeverity,
   isInlineSuppressed,
   applyInlineSuppression,
-} from '../src/cli/commands/audit.ts';
+} from '../src/cli/commands/audit-options.ts';
 import type { AuditFinding } from '../src/core/audit/types.ts';
 
 const ROOT = join(import.meta.dirname, '..');

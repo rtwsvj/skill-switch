@@ -19,7 +19,7 @@ import {
   PolicyFileError,
   DEFAULT_POLICY,
 } from '../src/core/audit/policy.ts';
-import { shouldBlockWithPolicy, applyPolicyToFindings } from '../src/cli/commands/audit.ts';
+import { shouldBlockWithPolicy, applyPolicyToFindings } from '../src/core/audit/service.ts';
 import { toSarifDocument } from '../src/core/audit/sarif.ts';
 import type { AuditFinding } from '../src/core/audit/types.ts';
 

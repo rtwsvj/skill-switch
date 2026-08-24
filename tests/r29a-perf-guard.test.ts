@@ -13,7 +13,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { auditHome } from '../src/cli/commands/audit.ts';
+import { auditHome } from '../src/core/audit/service.ts';
 import { runDoctor } from '../src/core/doctor.ts';
 import { scanHome } from '../src/core/scan.ts';
 import { getSkillsLockPath } from '../src/core/lock.ts';

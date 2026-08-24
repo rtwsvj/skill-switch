@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAuditReport } from '../src/cli/commands/audit.ts';
+import { formatAuditReport } from '../src/cli/commands/audit-format.ts';
 import { runRules } from '../src/core/audit/engine.ts';
 import { auditSettingsJson } from '../src/core/audit/settings-audit.ts';
 import type { AuditFinding, AuditRule } from '../src/core/audit/types.ts';

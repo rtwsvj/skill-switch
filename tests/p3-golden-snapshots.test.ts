@@ -14,7 +14,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { auditSkillDir, formatAuditReport } from '../src/cli/commands/audit.ts';
+import { auditSkillDir } from '../src/core/audit/service.ts';
+import { formatAuditReport } from '../src/cli/commands/audit-format.ts';
 
 // 含真实子进程(doctor/add --dry-run)的用例需要较长超时
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });

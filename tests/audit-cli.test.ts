@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { auditSkillDir, shouldBlock } from '../src/cli/commands/audit.ts';
+import { auditSkillDir, shouldBlock } from '../src/core/audit/service.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const FIX = join(import.meta.dirname, 'fixtures');

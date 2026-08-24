@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { auditSkillDir } from '../src/cli/commands/audit.ts';
+import { auditSkillDir } from '../src/core/audit/service.ts';
 
 let dir: string;
 beforeEach(() => {

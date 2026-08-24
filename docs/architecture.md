@@ -144,8 +144,7 @@ Two upstream projects are snapshotted verbatim (or with minimal annotated patche
 **`src/vendor/agent-skills-cli/`** — from `Karanjot786/agent-skills-cli` (commit `956140b`):
 - `conflict-detector.ts` — conflicting-instruction and topic-overlap heuristics, used by `lint` for budget health.
 - `context-budget.ts` — token estimation and budget-constrained skill selection, used by `lint`.
-- `skill-lock.ts` — design reference for the `commit`-as-version lock entry field (merged into `skills.lock.json` schema).
-- No local patches.
+- The `skill-lock.ts` design-reference snapshot was removed in 2026-08 (zero production consumers; schema lives in `src/core/lock.ts`); see the UPSTREAM.md changelog.
 
 ---
 

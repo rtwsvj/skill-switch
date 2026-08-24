@@ -6,12 +6,12 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   auditSkillDir,
-  formatAuditReport,
   MAX_AUDIT_FILES,
   MAX_AUDIT_WALK_DEPTH,
   MAX_FILE_BYTES,
   shouldBlock,
-} from '../src/cli/commands/audit.ts';
+} from '../src/core/audit/service.ts';
+import { formatAuditReport } from '../src/cli/commands/audit-format.ts';
 import { installFromSource } from '../src/core/install.ts';
 import { readBypassLedger } from '../src/core/bypass-ledger.ts';
 

@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { toCodeClimateEntries, severityToCodeClimate, type CodeClimateEntry } from '../src/core/audit/codeclimate.ts';
 import { toRdJsonDocument, severityToRdJson, type RdJsonDocument } from '../src/core/audit/rdjson.ts';
-import { isPathIgnored } from '../src/cli/commands/audit.ts';
+import { isPathIgnored } from '../src/core/audit/service.ts';
 import type { AuditFinding } from '../src/core/audit/types.ts';
 
 const ROOT = join(import.meta.dirname, '..');

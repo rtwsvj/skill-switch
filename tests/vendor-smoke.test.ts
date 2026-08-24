@@ -1,5 +1,5 @@
 // vendor 接线 smoke 测试:验证快照文件可被导入、关键不变量成立。
-// 深度行为测试随各切片落地(conflict/budget 在 S5,lock 在 S3)。
+// 深度行为测试随各切片落地(conflict/budget 在 S5)。
 import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,7 +16,6 @@ import {
   buildContextPlan,
   formatContextJSON,
 } from '../src/vendor/agent-skills-cli/context-budget.ts';
-import { getLockFilePath } from '../src/vendor/agent-skills-cli/skill-lock.ts';
 
 describe('vendor: vercel-skills agents map', () => {
   it('snapshot carries the verified 71-agent registry', () => {
@@ -62,9 +61,5 @@ describe('vendor: agent-skills-cli governance modules', () => {
   it('buildContextPlan produces a JSON-serializable plan', async () => {
     const plan = await buildContextPlan([], { budget: 1000 });
     expect(() => formatContextJSON(plan)).not.toThrow();
-  });
-
-  it('lock path stays inside the sandboxed HOME', () => {
-    expect(getLockFilePath()).toContain('skill-switch-home-');
   });
 });

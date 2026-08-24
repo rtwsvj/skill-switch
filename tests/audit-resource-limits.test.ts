@@ -9,7 +9,7 @@ import {
   MAX_AUDIT_FILES,
   MAX_AUDIT_WALK_DEPTH,
   MAX_FILE_BYTES,
-} from '../src/cli/commands/audit.ts';
+} from '../src/core/audit/service.ts';
 
 let work: string;
 

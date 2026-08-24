@@ -5,7 +5,7 @@ import { lstat, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { auditHome, auditSkillDir, shouldBlock } from '../src/cli/commands/audit.ts';
+import { auditHome, auditSkillDir, shouldBlock } from '../src/core/audit/service.ts';
 import { installFromSource } from '../src/core/install.ts';
 import { scanHome } from '../src/core/scan.ts';
 

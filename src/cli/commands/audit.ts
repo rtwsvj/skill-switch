@@ -84,33 +84,6 @@ import {
   resolvePolicy,
 } from './audit-options.ts';
 
-export {
-  applyBaselineToFindings,
-  applyPolicyAndBaselineToFindings,
-  applyPolicyToFindings,
-  auditHome,
-  auditSkillDir,
-  isPathIgnored,
-  MAX_AUDIT_FILES,
-  MAX_AUDIT_WALK_DEPTH,
-  MAX_FILE_BYTES,
-  shouldBlock,
-  shouldBlockWithAll,
-  shouldBlockWithPolicy,
-} from '../../core/audit/service.ts';
-export type { AuditCoverage, AuditHomeReport, AuditHomeSkillReport, AuditIncompleteReason } from '../../core/audit/service.ts';
-export {
-  formatAuditReport,
-  formatGuidedFixOutput,
-  serializeGuidedFix,
-} from './audit-format.ts';
-export type { GuidedFixEntry, GuidedFixJsonSection } from './audit-format.ts';
-export {
-  filterBySeverity,
-  isInlineSuppressed,
-  applyInlineSuppression,
-} from './audit-options.ts';
-
 export function registerAuditCommand(program: Command): void {
   program
     .command('audit')

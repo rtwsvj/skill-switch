@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildStats } from '../src/core/stats.ts';
-import { MAX_FILE_BYTES } from '../src/cli/commands/audit.ts';
+import { MAX_FILE_BYTES } from '../src/core/audit/service.ts';
 import { getStatsCachePath } from '../src/core/stats-cache.ts';
 import {
   createMcpStdioTransport,
